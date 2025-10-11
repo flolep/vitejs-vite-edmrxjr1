@@ -262,7 +262,7 @@ export default function Master() {
 
   const addPoint = async (team) => {
     // Calculer les points selon la formule dégressive
-    const maxPoints = 250;
+    const maxPoints = 2500;
     let points = maxPoints;
     
     if (songDuration > 0) {

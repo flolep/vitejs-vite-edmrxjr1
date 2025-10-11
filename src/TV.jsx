@@ -122,7 +122,7 @@ export default function TV() {
   };
 
   // Calculer les points dégressifs
-  const maxPoints = 250;
+  const maxPoints = 2500;
   let availablePoints = maxPoints;
   let progressPercent = 0;
   
@@ -135,8 +135,8 @@ export default function TV() {
   
   // Couleur des points selon le nombre restant
   let pointsColor = '#10b981'; // vert
-  if (availablePoints < 100) pointsColor = '#f59e0b'; // orange
-  if (availablePoints < 50) pointsColor = '#ef4444'; // rouge
+  if (availablePoints < 1000) pointsColor = '#f59e0b'; // orange
+  if (availablePoints < 500) pointsColor = '#ef4444'; // rouge
 
   return (
     <div style={{
@@ -148,53 +148,57 @@ export default function TV() {
     }}>
       <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
         
-        {/* Titre */}
-        <h1 style={{
-          fontSize: '4rem',
-          fontWeight: 'bold',
-          textAlign: 'center',
-          marginBottom: '3rem',
-          color: '#fbbf24',
-          textShadow: '0 0 20px rgba(251, 191, 36, 0.5)'
-        }}>
-          🎵 BLIND TEST 🎵
-        </h1>
-
-        {/* Scores */}
+        {/* Header avec titre et scores */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
+          gridTemplateColumns: '1fr auto 1fr',
+          alignItems: 'center',
           gap: '2rem',
           marginBottom: '3rem'
         }}>
+          
+          {/* Score Équipe 1 */}
           <div style={{
             backgroundColor: '#dc2626',
-            borderRadius: '2rem',
-            padding: '3rem',
+            borderRadius: '1.5rem',
+            padding: '2rem',
             textAlign: 'center',
             transform: buzzedTeam === 'team1' ? 'scale(1.05)' : 'scale(1)',
             transition: 'transform 0.3s',
             boxShadow: buzzedTeam === 'team1' ? '0 0 40px rgba(251, 191, 36, 0.8)' : 'none',
             outline: buzzedTeam === 'team1' ? '4px solid #fbbf24' : 'none'
           }}>
-            <h2 style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>🔴 ÉQUIPE 1</h2>
-            <div style={{ fontSize: '8rem', fontWeight: 'bold', lineHeight: 1 }}>
+            <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>🔴 ÉQUIPE 1</h2>
+            <div style={{ fontSize: '4rem', fontWeight: 'bold', lineHeight: 1 }}>
               {scores.team1}
             </div>
           </div>
 
+          {/* Titre */}
+          <h1 style={{
+            fontSize: '4rem',
+            fontWeight: 'bold',
+            textAlign: 'center',
+            color: '#fbbf24',
+            textShadow: '0 0 20px rgba(251, 191, 36, 0.5)',
+            whiteSpace: 'nowrap'
+          }}>
+            🎵 BLIND TEST 🎵
+          </h1>
+
+          {/* Score Équipe 2 */}
           <div style={{
             backgroundColor: '#2563eb',
-            borderRadius: '2rem',
-            padding: '3rem',
+            borderRadius: '1.5rem',
+            padding: '2rem',
             textAlign: 'center',
             transform: buzzedTeam === 'team2' ? 'scale(1.05)' : 'scale(1)',
             transition: 'transform 0.3s',
             boxShadow: buzzedTeam === 'team2' ? '0 0 40px rgba(251, 191, 36, 0.8)' : 'none',
             outline: buzzedTeam === 'team2' ? '4px solid #fbbf24' : 'none'
           }}>
-            <h2 style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>🔵 ÉQUIPE 2</h2>
-            <div style={{ fontSize: '8rem', fontWeight: 'bold', lineHeight: 1 }}>
+            <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>🔵 ÉQUIPE 2</h2>
+            <div style={{ fontSize: '4rem', fontWeight: 'bold', lineHeight: 1 }}>
               {scores.team2}
             </div>
           </div>
@@ -259,7 +263,7 @@ export default function TV() {
                   fontSize: '1.5rem',
                   opacity: 0.7
                 }}>
-                  / 250 pts
+                  / 2500 pts
                 </div>
               </div>
             </div>
@@ -355,7 +359,7 @@ export default function TV() {
           fontSize: '1.5rem',
           opacity: 0.7
         }}>
-          💡 Chaque chanson vaut 250 points • Les points diminuent avec le temps
+          💡 Chaque chanson vaut 2500 points • Les points diminuent rapidement avec le temps !
         </div>
 
       </div>
