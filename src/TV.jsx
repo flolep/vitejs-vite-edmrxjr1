@@ -56,11 +56,17 @@ export default function TV() {
     const unsubscribe = onValue(songRef, (snapshot) => {
       const songData = snapshot.val();
       if (songData) {
+        // Réinitialiser le chrono quand le morceau change
+        if (currentSong && songData.number !== currentSong.number) {
+          setChrono(0);
+          const chronoRef = ref(database, 'chrono');
+          set(chronoRef, 0);
+        }
         setCurrentSong(songData);
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [currentSong]);
 
   // Chronomètre - tourne quand la musique joue
   useEffect(() => {
