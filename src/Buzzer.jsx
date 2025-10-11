@@ -1,12 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Bell } from 'lucide-react';
 import { database } from './firebase';
-import { ref, set } from 'firebase/database';
+import { ref, set, onValue } from 'firebase/database';
 
 export default function BlindTestBuzzer() {
   const [team, setTeam] = useState(null);
   const [buzzed, setBuzzed] = useState(false);
   const [buzzerEnabled, setBuzzerEnabled] = useState(true);
+  const [scores, setScores] = useState({ team1: 0, team2: 0 });
+
+  // Écouter les scores Firebase
+  useEffect(() => {
+    const scoresRef = ref(database, 'scores');
+    
+    const unsubscribe = onValue(scoresRef, (snapshot) => {
+      const scoresData = snapshot.val();
+      if (scoresData) {
+        setScores(scoresData);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const selectTeam = (teamNumber) => {
     setTeam(teamNumber);
@@ -72,6 +87,20 @@ export default function BlindTestBuzzer() {
 
   return (
     <div className={`min-h-screen bg-gradient-to-br ${bgColor} text-white flex flex-col items-center justify-center p-4`}>
+      {/* Affichage des scores en haut */}
+      <div className="w-full max-w-md mb-8">
+        <div className="grid grid-cols-2 gap-4 text-center">
+          <div className={`bg-red-600/50 rounded-lg p-3 ${team === 1 ? 'ring-2 ring-white' : ''}`}>
+            <div className="text-sm opacity-80">ÉQUIPE 1</div>
+            <div className="text-3xl font-bold">{scores.team1}</div>
+          </div>
+          <div className={`bg-blue-600/50 rounded-lg p-3 ${team === 2 ? 'ring-2 ring-white' : ''}`}>
+            <div className="text-sm opacity-80">ÉQUIPE 2</div>
+            <div className="text-3xl font-bold">{scores.team2}</div>
+          </div>
+        </div>
+      </div>
+
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold mb-2">
           {team === 1 ? '🔴 ÉQUIPE 1' : '🔵 ÉQUIPE 2'}
