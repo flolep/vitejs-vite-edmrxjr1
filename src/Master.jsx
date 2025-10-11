@@ -68,6 +68,12 @@ export default function Master() {
     return () => unsubscribe();
   }, []);
 
+  // Reset la position Spotify quand on change de morceau
+  useEffect(() => {
+    setSpotifyPosition(0);
+    console.log('useEffect: Position reset à 0 pour morceau', currentTrack);
+  }, [currentTrack]);
+
   // Écouter les buzz via Firebase
   useEffect(() => {
     const buzzRef = ref(database, 'buzz');
@@ -552,7 +558,7 @@ export default function Master() {
                       )}
                     </div>
                   ) : (
-                    <div className="text-mystery mb-4">🎵 Mystère et boules de gomme...</div>
+                    <div className="text-mystery mb-4">🎵 Mystère...</div>
                   )}
 
                   {currentSong.imageUrl && (
