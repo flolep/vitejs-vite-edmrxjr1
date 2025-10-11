@@ -10,6 +10,7 @@ export default function Master() {
   const [buzzedTeam, setBuzzedTeam] = useState(null);
   const [debugInfo, setDebugInfo] = useState('');
   const [currentChrono, setCurrentChrono] = useState(0);
+  const [songDuration, setSongDuration] = useState(0);
   const audioRef = useRef(null);
   const buzzerSoundRef = useRef(null);
 
@@ -260,7 +261,14 @@ export default function Master() {
   };
 
   const addPoint = async (team) => {
-    const points = currentChrono <= 10 ? 3 : 1;
+    // Calculer les points selon la formule dégressive
+    const maxPoints = 250;
+    let points = maxPoints;
+    
+    if (songDuration > 0) {
+      const progressRatio = currentChrono / songDuration;
+      points = Math.max(0, Math.round(maxPoints * (1 - progressRatio)));
+    }
     
     const newScores = { ...scores, [team]: scores[team] + points };
     setScores(newScores);
@@ -269,7 +277,7 @@ export default function Master() {
     const scoresRef = ref(database, 'scores');
     set(scoresRef, newScores);
     
-    setDebugInfo(`✓ ${points} point${points > 1 ? 's' : ''} pour ${team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2'} (${currentChrono.toFixed(1)}s)`);
+    setDebugInfo(`✓ ${points} points pour ${team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2'} (${currentChrono.toFixed(1)}s / ${songDuration.toFixed(0)}s)`);
   };
 
   const resetScores = () => {
@@ -281,7 +289,14 @@ export default function Master() {
   };
 
   const currentSong = playlist[currentTrack];
-  const pointsToGive = currentChrono <= 10 ? 3 : 1;
+  
+  // Calculer les points disponibles en temps réel
+  const maxPoints = 250;
+  let availablePoints = maxPoints;
+  if (songDuration > 0 && currentChrono > 0) {
+    const progressRatio = currentChrono / songDuration;
+    availablePoints = Math.max(0, Math.round(maxPoints * (1 - progressRatio)));
+  }
 
   return (
     <div className="bg-gradient">
@@ -294,7 +309,7 @@ export default function Master() {
             <div className="score-number">{scores.team1}</div>
             {buzzedTeam === 'team1' && (
               <button onClick={() => addPoint('team1')} className="btn btn-green">
-                + {pointsToGive} Point{pointsToGive > 1 ? 's' : ''}
+                + {availablePoints} Points
               </button>
             )}
           </div>
@@ -304,7 +319,7 @@ export default function Master() {
             <div className="score-number">{scores.team2}</div>
             {buzzedTeam === 'team2' && (
               <button onClick={() => addPoint('team2')} className="btn btn-green">
-                + {pointsToGive} Point{pointsToGive > 1 ? 's' : ''}
+                + {availablePoints} Points
               </button>
             )}
           </div>
@@ -364,6 +379,13 @@ export default function Master() {
                 ref={audioRef}
                 src={currentSong?.audioUrl || ''}
                 onEnded={() => setIsPlaying(false)}
+                onLoadedMetadata={(e) => {
+                  const duration = e.target.duration;
+                  setSongDuration(duration);
+                  // Synchroniser la durée sur Firebase pour la TV
+                  const durationRef = ref(database, 'songDuration');
+                  set(durationRef, duration);
+                }}
               />
 
               {debugInfo && (

@@ -9,6 +9,7 @@ export default function TV() {
   const [chrono, setChrono] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playingTrackNumber, setPlayingTrackNumber] = useState(null);
+  const [songDuration, setSongDuration] = useState(0);
 
   // Écouter le chrono depuis Firebase
   useEffect(() => {
@@ -17,6 +18,18 @@ export default function TV() {
       const chronoValue = snapshot.val();
       if (chronoValue !== null) {
         setChrono(chronoValue);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Écouter la durée de la chanson
+  useEffect(() => {
+    const durationRef = ref(database, 'songDuration');
+    const unsubscribe = onValue(durationRef, (snapshot) => {
+      const duration = snapshot.val();
+      if (duration) {
+        setSongDuration(duration);
       }
     });
     return () => unsubscribe();
@@ -86,14 +99,14 @@ export default function TV() {
     return () => unsubscribe();
   }, []);
 
-  // Chronomètre - tourne quand la musique joue
+  // Chronomètre - tourne quand la musique joue et synchronise sur Firebase
   useEffect(() => {
     let interval;
     if (isPlaying) {
       interval = setInterval(() => {
         setChrono(prev => {
           const newChrono = prev + 0.1;
-          // Synchroniser le chrono sur Firebase pour que Master puisse le lire
+          // Synchroniser sur Firebase
           const chronoRef = ref(database, 'chrono');
           set(chronoRef, newChrono);
           return newChrono;
@@ -108,8 +121,22 @@ export default function TV() {
     return 1;
   };
 
+  // Calculer les points dégressifs
+  const maxPoints = 250;
+  let availablePoints = maxPoints;
+  let progressPercent = 0;
+  
+  if (songDuration > 0 && chrono > 0) {
+    progressPercent = Math.min(100, (chrono / songDuration) * 100);
+    availablePoints = Math.max(0, Math.round(maxPoints * (1 - progressPercent / 100)));
+  }
+
   const chronoColor = chrono <= 10 ? '#10b981' : '#f59e0b';
-  const points = getPointsForTime(chrono);
+  
+  // Couleur des points selon le nombre restant
+  let pointsColor = '#10b981'; // vert
+  if (availablePoints < 100) pointsColor = '#f59e0b'; // orange
+  if (availablePoints < 50) pointsColor = '#ef4444'; // rouge
 
   return (
     <div style={{
@@ -173,38 +200,95 @@ export default function TV() {
           </div>
         </div>
 
-        {/* Chronomètre - affiché quand la musique joue OU en pause après avoir joué */}
+        {/* Chronomètre et Points - affiché quand la musique joue OU en pause après avoir joué */}
         {(isPlaying || chrono > 0) && (
           <div style={{
             backgroundColor: 'rgba(0, 0, 0, 0.3)',
             borderRadius: '2rem',
             padding: '3rem',
-            textAlign: 'center',
             marginBottom: '3rem'
           }}>
-            <h3 style={{
-              fontSize: '2rem',
-              marginBottom: '2rem',
-              color: '#fbbf24'
-            }}>
-              ⏱️ {isPlaying ? 'TEMPS ÉCOULÉ' : 'TEMPS FIGÉ'}
-            </h3>
-            <div style={{
-              fontSize: '8rem',
-              fontWeight: 'bold',
-              color: chronoColor,
-              lineHeight: 1,
-              marginBottom: '1rem',
-              textShadow: `0 0 30px ${chronoColor}`
-            }}>
-              {chrono.toFixed(1)}s
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3rem' }}>
+              
+              {/* Chrono */}
+              <div style={{ textAlign: 'center' }}>
+                <h3 style={{
+                  fontSize: '2rem',
+                  marginBottom: '2rem',
+                  color: '#fbbf24'
+                }}>
+                  ⏱️ {isPlaying ? 'TEMPS ÉCOULÉ' : 'TEMPS FIGÉ'}
+                </h3>
+                <div style={{
+                  fontSize: '6rem',
+                  fontWeight: 'bold',
+                  color: '#60a5fa',
+                  lineHeight: 1,
+                  marginBottom: '1rem'
+                }}>
+                  {chrono.toFixed(1)}s
+                </div>
+                <div style={{
+                  fontSize: '1.5rem',
+                  opacity: 0.7
+                }}>
+                  / {songDuration.toFixed(0)}s
+                </div>
+              </div>
+
+              {/* Points disponibles */}
+              <div style={{ textAlign: 'center' }}>
+                <h3 style={{
+                  fontSize: '2rem',
+                  marginBottom: '2rem',
+                  color: '#fbbf24'
+                }}>
+                  💰 POINTS DISPONIBLES
+                </h3>
+                <div style={{
+                  fontSize: '6rem',
+                  fontWeight: 'bold',
+                  color: pointsColor,
+                  lineHeight: 1,
+                  marginBottom: '1rem',
+                  textShadow: `0 0 30px ${pointsColor}`
+                }}>
+                  {availablePoints}
+                </div>
+                <div style={{
+                  fontSize: '1.5rem',
+                  opacity: 0.7
+                }}>
+                  / 250 pts
+                </div>
+              </div>
             </div>
-            <div style={{
-              fontSize: '3rem',
-              color: chronoColor,
-              fontWeight: 'bold'
-            }}>
-              {chrono <= 10 ? '🔥 3 POINTS SI BUZZ' : '⭐ 1 POINT SI BUZZ'}
+
+            {/* Barre de progression */}
+            <div style={{ marginTop: '3rem' }}>
+              <div style={{
+                width: '100%',
+                height: '40px',
+                backgroundColor: 'rgba(255,255,255,0.1)',
+                borderRadius: '20px',
+                overflow: 'hidden',
+                position: 'relative'
+              }}>
+                <div style={{
+                  width: `${progressPercent}%`,
+                  height: '100%',
+                  background: `linear-gradient(90deg, ${pointsColor} 0%, ${pointsColor}88 100%)`,
+                  transition: 'width 0.1s linear',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'flex-end',
+                  paddingRight: '1rem',
+                  fontSize: '1.2rem',
+                  fontWeight: 'bold'
+                }}>
+                  {progressPercent > 10 && `${progressPercent.toFixed(0)}%`}
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -271,7 +355,7 @@ export default function TV() {
           fontSize: '1.5rem',
           opacity: 0.7
         }}>
-          ⚡ Moins de 10s = 3 points • ⭐ Plus de 10s = 1 point
+          💡 Chaque chanson vaut 250 points • Les points diminuent avec le temps
         </div>
 
       </div>
