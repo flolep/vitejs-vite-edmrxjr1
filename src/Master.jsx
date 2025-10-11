@@ -21,6 +21,7 @@ export default function Master() {
   const [spotifyDeviceId, setSpotifyDeviceId] = useState(null);
   const [isSpotifyMode, setIsSpotifyMode] = useState(false);
   const [spotifyPosition, setSpotifyPosition] = useState(0);
+  const [lastPlayedTrack, setLastPlayedTrack] = useState(null);
   
   const audioRef = useRef(null);
   const buzzerSoundRef = useRef(null);
@@ -265,12 +266,16 @@ export default function Master() {
           const playingRef = ref(database, 'isPlaying');
           set(playingRef, false);
         } else {
-          // Reprendre à la position sauvegardée (en millisecondes)
-          // Si c'est une nouvelle chanson (position = 0), démarrer du début
-          const startPosition = spotifyPosition || 0;
+          // Si on change de morceau, forcer position à 0
+          const isNewTrack = lastPlayedTrack !== currentTrack;
+          const startPosition = isNewTrack ? 0 : (spotifyPosition || 0);
+          
+          console.log('Morceau actuel:', currentTrack, 'Dernier joué:', lastPlayedTrack, 'Nouvelle chanson?', isNewTrack);
           console.log('Reprise lecture à:', startPosition, 'ms');
+          
           await spotifyService.playTrack(spotifyToken, spotifyDeviceId, track.spotifyUri, startPosition);
           setIsPlaying(true);
+          setLastPlayedTrack(currentTrack); // Mémoriser qu'on a joué ce morceau
           setDebugInfo(`✓ Lecture Spotify en cours (${(startPosition/1000).toFixed(1)}s)`);
           
           const playingRef = ref(database, 'isPlaying');
