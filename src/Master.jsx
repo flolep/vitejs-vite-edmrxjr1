@@ -204,13 +204,24 @@ export default function Master() {
     });
   };
 
-  const addPoint = (team) => {
-    const newScores = { ...scores, [team]: scores[team] + 1 };
+  const addPoint = async (team) => {
+    // Récupérer le chrono depuis Firebase pour calculer les points
+    const chronoRef = ref(database, 'chrono');
+    const snapshot = await new Promise((resolve) => {
+      onValue(chronoRef, resolve, { onlyOnce: true });
+    });
+    
+    const chronoValue = snapshot.val() || 0;
+    const points = chronoValue <= 10 ? 3 : 1;
+    
+    const newScores = { ...scores, [team]: scores[team] + points };
     setScores(newScores);
     setBuzzedTeam(null);
     
     const scoresRef = ref(database, 'scores');
     set(scoresRef, newScores);
+    
+    setDebugInfo(`✓ ${points} point${points > 1 ? 's' : ''} pour ${team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2'} (${chronoValue.toFixed(1)}s)`);
   };
 
   const resetScores = () => {
@@ -279,32 +290,6 @@ export default function Master() {
                     </div>
                   ) : (
                     <div className="text-mystery mb-4">🎵 Mystère...</div>
-                  )}
-                  
-                  {!currentSong.audioUrl && (
-                    <div className="mb-4">
-                      <label className="file-label">
-                        📁 Charger le MP3
-                        <input 
-                          type="file" 
-                          accept="audio/*"
-                          onChange={(e) => e.target.files[0] && handleAudioForTrack(currentTrack, e.target.files[0])}
-                        />
-                      </label>
-                    </div>
-                  )}
-
-                  {!currentSong.imageUrl && (
-                    <div className="mb-4">
-                      <label className="file-label" style={{ backgroundColor: '#7c3aed' }}>
-                        🖼️ Charger l'image (album)
-                        <input 
-                          type="file" 
-                          accept="image/*"
-                          onChange={(e) => e.target.files[0] && handleImageForTrack(currentTrack, e.target.files[0])}
-                        />
-                      </label>
-                    </div>
                   )}
 
                   {currentSong.imageUrl && (
@@ -385,18 +370,48 @@ export default function Master() {
                     key={index}
                     className={`playlist-item ${index === currentTrack ? 'current' : ''}`}
                   >
-                    <div style={{ fontWeight: 'bold' }}>
-                      {index + 1}. {track.revealed ? track.title : '???'}
-                    </div>
-                    {track.revealed && track.artist && (
-                      <div style={{ fontSize: '0.875rem', opacity: 0.7, marginTop: '0.25rem' }}>
-                        {track.artist}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 'bold' }}>
+                          {index + 1}. {track.revealed ? track.title : track.title === 'En attente de fichier...' ? track.title : '???'}
+                        </div>
+                        {track.revealed && track.artist && (
+                          <div style={{ fontSize: '0.875rem', opacity: 0.7, marginTop: '0.25rem' }}>
+                            {track.artist}
+                          </div>
+                        )}
+                        <div style={{ fontSize: '0.75rem', marginTop: '0.5rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <span style={{ color: track.audioUrl ? '#10b981' : '#ef4444' }}>
+                            {track.audioUrl ? '✓ Audio' : '⚠️ Pas d\'audio'}
+                          </span>
+                          <span style={{ color: track.imageUrl ? '#10b981' : '#ef4444' }}>
+                            {track.imageUrl ? '✓ Image' : '⚠️ Pas d\'image'}
+                          </span>
+                        </div>
                       </div>
-                    )}
-                    <div style={{ fontSize: '0.75rem', marginTop: '0.25rem', color: track.audioUrl ? '#10b981' : '#ef4444' }}>
-                      {track.audioUrl ? '✓ Audio' : '⚠️ Pas d\'audio'}
-                      {' • '}
-                      {track.imageUrl ? '✓ Image' : '⚠️ Pas d\'image'}
+                      
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {!track.audioUrl && (
+                          <label className="file-label" style={{ fontSize: '0.75rem', padding: '0.5rem 1rem' }}>
+                            📁 MP3
+                            <input 
+                              type="file" 
+                              accept="audio/*"
+                              onChange={(e) => e.target.files[0] && handleAudioForTrack(index, e.target.files[0])}
+                            />
+                          </label>
+                        )}
+                        {!track.imageUrl && (
+                          <label className="file-label" style={{ fontSize: '0.75rem', padding: '0.5rem 1rem', backgroundColor: '#7c3aed' }}>
+                            🖼️ Image
+                            <input 
+                              type="file" 
+                              accept="image/*"
+                              onChange={(e) => e.target.files[0] && handleImageForTrack(index, e.target.files[0])}
+                            />
+                          </label>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
