@@ -552,7 +552,7 @@ export default function Master() {
                       )}
                     </div>
                   ) : (
-                    <div className="text-mystery mb-4">🎵 Mystère...</div>
+                    <div className="text-mystery mb-4">🎵 Mystère et boules de gomme...</div>
                   )}
 
                   {currentSong.imageUrl && (
