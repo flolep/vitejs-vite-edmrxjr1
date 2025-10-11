@@ -1,11 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Master from './Master';
 import Buzzer from './Buzzer';
 import TV from './TV';
+import SpotifyCallback from './SpotifyCallback';
 
 export default function App() {
   const [page, setPage] = useState('home');
 
+  // Détecter si on est sur la page callback
+  useEffect(() => {
+    if (window.location.pathname === '/callback') {
+      setPage('callback');
+    }
+  }, []);
+
+  if (page === 'callback') return <SpotifyCallback />;
   if (page === 'master') return <Master />;
   if (page === 'buzzer') return <Buzzer />;
   if (page === 'tv') return <TV />;

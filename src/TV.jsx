@@ -121,22 +121,37 @@ export default function TV() {
     return 1;
   };
 
-  // Calculer les points dégressifs
+  // Calculer les points dégressifs avec paliers
   const maxPoints = 2500;
   let availablePoints = maxPoints;
   let progressPercent = 0;
   
   if (songDuration > 0 && chrono > 0) {
     progressPercent = Math.min(100, (chrono / songDuration) * 100);
-    availablePoints = Math.max(0, Math.round(maxPoints * (1 - progressPercent / 100)));
+    
+    // Décroissance linéaire de base
+    availablePoints = maxPoints * (1 - progressPercent / 100);
+    
+    // Malus à des paliers spécifiques
+    if (chrono >= 5) {
+      availablePoints -= 500; // Malus à 5s
+    }
+    if (chrono >= 15) {
+      availablePoints -= 500; // Malus à 15s
+    }
+    
+    availablePoints = Math.max(0, Math.round(availablePoints));
   }
 
   const chronoColor = chrono <= 10 ? '#10b981' : '#f59e0b';
   
   // Couleur des points selon le nombre restant
   let pointsColor = '#10b981'; // vert
-  if (availablePoints < 1000) pointsColor = '#f59e0b'; // orange
-  if (availablePoints < 500) pointsColor = '#ef4444'; // rouge
+  if (availablePoints < 1500) pointsColor = '#f59e0b'; // orange
+  if (availablePoints < 750) pointsColor = '#ef4444'; // rouge
+  
+  // Détection des zones de malus pour affichage visuel
+  const isNearPenalty = (chrono >= 4.5 && chrono < 5.5) || (chrono >= 14.5 && chrono < 15.5);
 
   return (
     <div style={{
@@ -255,7 +270,8 @@ export default function TV() {
                   color: pointsColor,
                   lineHeight: 1,
                   marginBottom: '1rem',
-                  textShadow: `0 0 30px ${pointsColor}`
+                  textShadow: `0 0 30px ${pointsColor}`,
+                  animation: isNearPenalty ? 'pulse 0.5s infinite' : 'none'
                 }}>
                   {availablePoints}
                 </div>
@@ -265,6 +281,17 @@ export default function TV() {
                 }}>
                   / 2500 pts
                 </div>
+                {isNearPenalty && (
+                  <div style={{
+                    marginTop: '1rem',
+                    fontSize: '1.5rem',
+                    color: '#ef4444',
+                    fontWeight: 'bold',
+                    animation: 'pulse 0.5s infinite'
+                  }}>
+                    ⚠️ MALUS -500 PTS !
+                  </div>
+                )}
               </div>
             </div>
 
@@ -359,7 +386,7 @@ export default function TV() {
           fontSize: '1.5rem',
           opacity: 0.7
         }}>
-          💡 Chaque chanson vaut 2500 points • Les points diminuent rapidement avec le temps !
+          💡 2500 points • Décroissance continue + Malus de 500 pts à 5s et 15s ! ⚠️
         </div>
 
       </div>
