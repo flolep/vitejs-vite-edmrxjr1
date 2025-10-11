@@ -10,6 +10,32 @@ export default function Master() {
   const [buzzedTeam, setBuzzedTeam] = useState(null);
   const [debugInfo, setDebugInfo] = useState('');
   const audioRef = useRef(null);
+  const buzzerSoundRef = useRef(null);
+
+  // Créer le son de buzzer au chargement
+  useEffect(() => {
+    // Créer un son de buzzer avec Web Audio API
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    
+    const playBuzzerSound = () => {
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.value = 800; // Fréquence du buzzer
+      oscillator.type = 'square';
+      
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.5);
+    };
+    
+    buzzerSoundRef.current = playBuzzerSound;
+  }, []);
 
   // Écouter les buzz via Firebase
   useEffect(() => {
@@ -23,6 +49,12 @@ export default function Master() {
           audioRef.current.pause();
           setIsPlaying(false);
         }
+        
+        // Jouer le son de buzzer
+        if (buzzerSoundRef.current) {
+          buzzerSoundRef.current();
+        }
+        
         setDebugInfo(`🔔 ${buzzData.team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2'} a buzzé !`);
         remove(buzzRef);
       }
@@ -36,6 +68,7 @@ export default function Master() {
       title: 'En attente de fichier...',
       artist: '',
       audioUrl: null,
+      imageUrl: null,
       revealed: false
     };
     setPlaylist([...playlist, newTrack]);
