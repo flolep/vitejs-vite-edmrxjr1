@@ -8,6 +8,19 @@ export default function TV() {
   const [currentSong, setCurrentSong] = useState(null);
   const [chrono, setChrono] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [playingTrackNumber, setPlayingTrackNumber] = useState(null);
+
+  // Écouter le chrono depuis Firebase
+  useEffect(() => {
+    const chronoRef = ref(database, 'chrono');
+    const unsubscribe = onValue(chronoRef, (snapshot) => {
+      const chronoValue = snapshot.val();
+      if (chronoValue !== null) {
+        setChrono(chronoValue);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Écouter les scores
   useEffect(() => {
@@ -27,11 +40,25 @@ export default function TV() {
     const unsubscribe = onValue(playingRef, (snapshot) => {
       const playing = snapshot.val();
       setIsPlaying(playing || false);
-      
-      // Ne PAS reset le chrono ici, il reprend juste où il s'est arrêté
     });
     return () => unsubscribe();
   }, []);
+
+  // Écouter le numéro de morceau actuel (pour détecter les changements)
+  useEffect(() => {
+    const trackNumberRef = ref(database, 'currentTrackNumber');
+    const unsubscribe = onValue(trackNumberRef, (snapshot) => {
+      const trackNumber = snapshot.val();
+      
+      // Reset le chrono quand le morceau change
+      if (trackNumber !== null && trackNumber !== playingTrackNumber) {
+        setChrono(0);
+      }
+      
+      setPlayingTrackNumber(trackNumber);
+    });
+    return () => unsubscribe();
+  }, [playingTrackNumber]);
 
   // Écouter les buzz
   useEffect(() => {
@@ -47,24 +74,17 @@ export default function TV() {
     return () => unsubscribe();
   }, []);
 
-  // Écouter le morceau actuel
+  // Écouter le morceau actuel (pour affichage info)
   useEffect(() => {
     const songRef = ref(database, 'currentSong');
     const unsubscribe = onValue(songRef, (snapshot) => {
       const songData = snapshot.val();
       if (songData) {
-        // Réinitialiser le chrono seulement si on démarre une NOUVELLE chanson
-        // (pas juste un changement de morceau sans avoir joué)
-        if (currentSong && songData.number !== currentSong.number && isPlaying) {
-          setChrono(0);
-          const chronoRef = ref(database, 'chrono');
-          set(chronoRef, 0);
-        }
         setCurrentSong(songData);
       }
     });
     return () => unsubscribe();
-  }, [currentSong, isPlaying]);
+  }, []);
 
   // Chronomètre - tourne quand la musique joue
   useEffect(() => {
