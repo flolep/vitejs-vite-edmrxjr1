@@ -9,6 +9,7 @@ export default function Master() {
   const [scores, setScores] = useState({ team1: 0, team2: 0 });
   const [buzzedTeam, setBuzzedTeam] = useState(null);
   const [debugInfo, setDebugInfo] = useState('');
+  const [currentChrono, setCurrentChrono] = useState(0);
   const audioRef = useRef(null);
   const buzzerSoundRef = useRef(null);
 

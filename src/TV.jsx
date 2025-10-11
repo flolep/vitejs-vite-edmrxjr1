@@ -28,10 +28,7 @@ export default function TV() {
       const playing = snapshot.val();
       setIsPlaying(playing || false);
       
-      // Reset le chrono quand on lance la musique
-      if (playing) {
-        setChrono(0);
-      }
+      // Ne PAS reset le chrono ici, il reprend juste où il s'est arrêté
     });
     return () => unsubscribe();
   }, []);
