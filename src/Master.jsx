@@ -194,7 +194,8 @@ export default function Master() {
   const nextTrack = () => {
     if (currentTrack < playlist.length - 1) {
       if (audioRef.current) audioRef.current.pause();
-      setCurrentTrack(currentTrack + 1);
+      const newTrackIndex = currentTrack + 1;
+      setCurrentTrack(newTrackIndex);
       setIsPlaying(false);
       setBuzzedTeam(null);
       
@@ -204,6 +205,10 @@ export default function Master() {
       
       const playingRef = ref(database, 'isPlaying');
       set(playingRef, false);
+      
+      // Indiquer qu'on a changé de morceau (force le reset sur TV)
+      const trackNumberRef = ref(database, 'currentTrackNumber');
+      set(trackNumberRef, newTrackIndex);
       
       // Mettre à jour la TV avec le nouveau morceau (non révélé)
       const songRef = ref(database, 'currentSong');
@@ -212,7 +217,7 @@ export default function Master() {
         artist: '',
         imageUrl: null,
         revealed: false,
-        number: currentTrack + 2
+        number: newTrackIndex + 1
       });
     }
   };
@@ -220,7 +225,8 @@ export default function Master() {
   const prevTrack = () => {
     if (currentTrack > 0) {
       if (audioRef.current) audioRef.current.pause();
-      setCurrentTrack(currentTrack - 1);
+      const newTrackIndex = currentTrack - 1;
+      setCurrentTrack(newTrackIndex);
       setIsPlaying(false);
       setBuzzedTeam(null);
       
@@ -230,6 +236,10 @@ export default function Master() {
       
       const playingRef = ref(database, 'isPlaying');
       set(playingRef, false);
+      
+      // Indiquer qu'on a changé de morceau (force le reset sur TV)
+      const trackNumberRef = ref(database, 'currentTrackNumber');
+      set(trackNumberRef, newTrackIndex);
     }
   };
 
