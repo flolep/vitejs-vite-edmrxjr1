@@ -50,6 +50,10 @@ export default function Master() {
           setIsPlaying(false);
         }
         
+        // Arrêter le chrono sur la TV
+        const playingRef = ref(database, 'isPlaying');
+        set(playingRef, false);
+        
         // Jouer le son de buzzer
         if (buzzerSoundRef.current) {
           buzzerSoundRef.current();
@@ -72,6 +76,20 @@ export default function Master() {
       revealed: false
     };
     setPlaylist([...playlist, newTrack]);
+  };
+
+  const handleImageForTrack = (index, file) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const updatedPlaylist = [...playlist];
+      updatedPlaylist[index].imageUrl = e.target.result;
+      setPlaylist(updatedPlaylist);
+      setDebugInfo(`✓ Image chargée`);
+    };
+    reader.onerror = () => {
+      setDebugInfo(`❌ Erreur lecture image`);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleAudioForTrack = (index, file) => {
@@ -119,12 +137,20 @@ export default function Master() {
       audioRef.current.pause();
       setIsPlaying(false);
       setDebugInfo('⏸️ Pause');
+      
+      // Arrêter le chrono sur la TV
+      const playingRef = ref(database, 'isPlaying');
+      set(playingRef, false);
     } else {
       setDebugInfo('▶️ Tentative de lecture...');
       audioRef.current.play()
         .then(() => {
           setIsPlaying(true);
           setDebugInfo('✓ Lecture en cours');
+          
+          // Démarrer le chrono sur la TV
+          const playingRef = ref(database, 'isPlaying');
+          set(playingRef, true);
         })
         .catch(error => {
           setDebugInfo('❌ Erreur: ' + error.message);
@@ -140,6 +166,16 @@ export default function Master() {
       setCurrentTrack(currentTrack + 1);
       setIsPlaying(false);
       setBuzzedTeam(null);
+      
+      // Mettre à jour la TV avec le nouveau morceau (non révélé)
+      const songRef = ref(database, 'currentSong');
+      set(songRef, {
+        title: '',
+        artist: '',
+        imageUrl: null,
+        revealed: false,
+        number: currentTrack + 2
+      });
     }
   };
 
@@ -156,6 +192,16 @@ export default function Master() {
     const updatedPlaylist = [...playlist];
     updatedPlaylist[currentTrack].revealed = true;
     setPlaylist(updatedPlaylist);
+    
+    // Synchroniser sur Firebase pour la TV
+    const songRef = ref(database, 'currentSong');
+    set(songRef, {
+      title: updatedPlaylist[currentTrack].title,
+      artist: updatedPlaylist[currentTrack].artist,
+      imageUrl: updatedPlaylist[currentTrack].imageUrl,
+      revealed: true,
+      number: currentTrack + 1
+    });
   };
 
   const addPoint = (team) => {
@@ -247,6 +293,36 @@ export default function Master() {
                       </label>
                     </div>
                   )}
+
+                  {!currentSong.imageUrl && (
+                    <div className="mb-4">
+                      <label className="file-label" style={{ backgroundColor: '#7c3aed' }}>
+                        🖼️ Charger l'image (album)
+                        <input 
+                          type="file" 
+                          accept="image/*"
+                          onChange={(e) => e.target.files[0] && handleImageForTrack(currentTrack, e.target.files[0])}
+                        />
+                      </label>
+                    </div>
+                  )}
+
+                  {currentSong.imageUrl && (
+                    <div className="mb-4">
+                      <img 
+                        src={currentSong.imageUrl} 
+                        alt="Album cover" 
+                        style={{ 
+                          width: '150px', 
+                          height: '150px', 
+                          objectFit: 'cover', 
+                          borderRadius: '0.5rem',
+                          margin: '0 auto',
+                          display: 'block'
+                        }} 
+                      />
+                    </div>
+                  )}
                 </>
               )}
 
@@ -318,7 +394,9 @@ export default function Master() {
                       </div>
                     )}
                     <div style={{ fontSize: '0.75rem', marginTop: '0.25rem', color: track.audioUrl ? '#10b981' : '#ef4444' }}>
-                      {track.audioUrl ? '✓ Audio chargé' : '⚠️ Pas d\'audio'}
+                      {track.audioUrl ? '✓ Audio' : '⚠️ Pas d\'audio'}
+                      {' • '}
+                      {track.imageUrl ? '✓ Image' : '⚠️ Pas d\'image'}
                     </div>
                   </div>
                 ))}

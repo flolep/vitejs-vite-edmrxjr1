@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { database } from './firebase';
-import { ref, onValue } from 'firebase/database';
+import { ref, onValue, set } from 'firebase/database';
 
 export default function TV() {
   const [scores, setScores] = useState({ team1: 0, team2: 0 });
   const [buzzedTeam, setBuzzedTeam] = useState(null);
   const [currentSong, setCurrentSong] = useState(null);
   const [chrono, setChrono] = useState(0);
-  const [isRunning, setIsRunning] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   // Écouter les scores
   useEffect(() => {
@@ -21,6 +21,21 @@ export default function TV() {
     return () => unsubscribe();
   }, []);
 
+  // Écouter l'état de lecture (Play/Pause)
+  useEffect(() => {
+    const playingRef = ref(database, 'isPlaying');
+    const unsubscribe = onValue(playingRef, (snapshot) => {
+      const playing = snapshot.val();
+      setIsPlaying(playing || false);
+      
+      // Reset le chrono quand on lance la musique
+      if (playing) {
+        setChrono(0);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
   // Écouter les buzz
   useEffect(() => {
     const buzzRef = ref(database, 'buzz');
@@ -28,12 +43,8 @@ export default function TV() {
       const buzzData = snapshot.val();
       if (buzzData) {
         setBuzzedTeam(buzzData.team);
-        // Démarrer le chrono
-        setIsRunning(true);
-        setChrono(0);
       } else {
         setBuzzedTeam(null);
-        setIsRunning(false);
       }
     });
     return () => unsubscribe();
@@ -51,16 +62,22 @@ export default function TV() {
     return () => unsubscribe();
   }, []);
 
-  // Chronomètre
+  // Chronomètre - tourne quand la musique joue
   useEffect(() => {
     let interval;
-    if (isRunning) {
+    if (isPlaying) {
       interval = setInterval(() => {
-        setChrono(prev => prev + 0.1);
+        setChrono(prev => {
+          const newChrono = prev + 0.1;
+          // Synchroniser le chrono sur Firebase pour que Master puisse le lire
+          const chronoRef = ref(database, 'chrono');
+          set(chronoRef, newChrono);
+          return newChrono;
+        });
       }, 100);
     }
     return () => clearInterval(interval);
-  }, [isRunning]);
+  }, [isPlaying]);
 
   const getPointsForTime = (time) => {
     if (time <= 10) return 3;
@@ -132,8 +149,8 @@ export default function TV() {
           </div>
         </div>
 
-        {/* Chronomètre */}
-        {buzzedTeam && (
+        {/* Chronomètre - affiché quand la musique joue */}
+        {isPlaying && (
           <div style={{
             backgroundColor: 'rgba(0, 0, 0, 0.3)',
             borderRadius: '2rem',
@@ -146,7 +163,7 @@ export default function TV() {
               marginBottom: '2rem',
               color: '#fbbf24'
             }}>
-              ⏱️ CHRONOMÈTRE
+              ⏱️ TEMPS ÉCOULÉ
             </h3>
             <div style={{
               fontSize: '8rem',
@@ -163,7 +180,7 @@ export default function TV() {
               color: chronoColor,
               fontWeight: 'bold'
             }}>
-              {chrono <= 10 ? '🔥 3 POINTS' : '⭐ 1 POINT'}
+              {chrono <= 10 ? '🔥 3 POINTS SI BUZZ' : '⭐ 1 POINT SI BUZZ'}
             </div>
           </div>
         )}
