@@ -260,10 +260,12 @@ export default function Master() {
           set(playingRef, false);
         } else {
           // Reprendre à la position sauvegardée (en millisecondes)
-          console.log('Reprise lecture à:', spotifyPosition, 'ms');
-          await spotifyService.playTrack(spotifyToken, spotifyDeviceId, track.spotifyUri, spotifyPosition);
+          // Si c'est une nouvelle chanson (position = 0), démarrer du début
+          const startPosition = spotifyPosition || 0;
+          console.log('Reprise lecture à:', startPosition, 'ms');
+          await spotifyService.playTrack(spotifyToken, spotifyDeviceId, track.spotifyUri, startPosition);
           setIsPlaying(true);
-          setDebugInfo(`✓ Lecture Spotify en cours (${(spotifyPosition/1000).toFixed(1)}s)`);
+          setDebugInfo(`✓ Lecture Spotify en cours (${(startPosition/1000).toFixed(1)}s)`);
           
           const playingRef = ref(database, 'isPlaying');
           set(playingRef, true);
@@ -332,7 +334,10 @@ export default function Master() {
       setCurrentTrack(newTrackIndex);
       setIsPlaying(false);
       setBuzzedTeam(null);
-      setSpotifyPosition(0); // Reset position pour la nouvelle chanson
+      
+      // IMPORTANT: Reset position pour la nouvelle chanson
+      setSpotifyPosition(0);
+      console.log('Position reset à 0 pour nouvelle chanson');
       
       const chronoRef = ref(database, 'chrono');
       set(chronoRef, 0);
@@ -366,7 +371,10 @@ export default function Master() {
       setCurrentTrack(newTrackIndex);
       setIsPlaying(false);
       setBuzzedTeam(null);
-      setSpotifyPosition(0); // Reset position pour la nouvelle chanson
+      
+      // IMPORTANT: Reset position pour la nouvelle chanson
+      setSpotifyPosition(0);
+      console.log('Position reset à 0 pour nouvelle chanson');
       
       const chronoRef = ref(database, 'chrono');
       set(chronoRef, 0);
