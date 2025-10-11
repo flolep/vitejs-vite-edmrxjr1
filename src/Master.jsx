@@ -13,6 +13,16 @@ export default function Master() {
   const audioRef = useRef(null);
   const buzzerSoundRef = useRef(null);
 
+  // Écouter le chrono depuis Firebase
+  useEffect(() => {
+    const chronoRef = ref(database, 'chrono');
+    const unsubscribe = onValue(chronoRef, (snapshot) => {
+      const chronoValue = snapshot.val() || 0;
+      setCurrentChrono(chronoValue);
+    });
+    return () => unsubscribe();
+  }, []);
+
   // Créer le son de buzzer au chargement
   useEffect(() => {
     // Créer un son de buzzer avec Web Audio API
@@ -76,6 +86,22 @@ export default function Master() {
       imageUrl: null,
       revealed: false
     };
+    
+    // Si c'est le premier morceau, réinitialiser tout
+    if (playlist.length === 0) {
+      const scoresRef = ref(database, 'scores');
+      set(scoresRef, { team1: 0, team2: 0 });
+      
+      const chronoRef = ref(database, 'chrono');
+      set(chronoRef, 0);
+      
+      const playingRef = ref(database, 'isPlaying');
+      set(playingRef, false);
+      
+      setScores({ team1: 0, team2: 0 });
+      setCurrentChrono(0);
+    }
+    
     setPlaylist([...playlist, newTrack]);
   };
 
@@ -152,6 +178,10 @@ export default function Master() {
           // Démarrer le chrono sur la TV
           const playingRef = ref(database, 'isPlaying');
           set(playingRef, true);
+          
+          // Indiquer le numéro de morceau en cours de lecture
+          const trackNumberRef = ref(database, 'playingTrackNumber');
+          set(trackNumberRef, currentTrack);
         })
         .catch(error => {
           setDebugInfo('❌ Erreur: ' + error.message);
@@ -167,6 +197,13 @@ export default function Master() {
       setCurrentTrack(currentTrack + 1);
       setIsPlaying(false);
       setBuzzedTeam(null);
+      
+      // Reset le chrono pour la nouvelle chanson
+      const chronoRef = ref(database, 'chrono');
+      set(chronoRef, 0);
+      
+      const playingRef = ref(database, 'isPlaying');
+      set(playingRef, false);
       
       // Mettre à jour la TV avec le nouveau morceau (non révélé)
       const songRef = ref(database, 'currentSong');
@@ -186,6 +223,13 @@ export default function Master() {
       setCurrentTrack(currentTrack - 1);
       setIsPlaying(false);
       setBuzzedTeam(null);
+      
+      // Reset le chrono pour la nouvelle chanson
+      const chronoRef = ref(database, 'chrono');
+      set(chronoRef, 0);
+      
+      const playingRef = ref(database, 'isPlaying');
+      set(playingRef, false);
     }
   };
 
@@ -206,14 +250,7 @@ export default function Master() {
   };
 
   const addPoint = async (team) => {
-    // Récupérer le chrono depuis Firebase pour calculer les points
-    const chronoRef = ref(database, 'chrono');
-    const snapshot = await new Promise((resolve) => {
-      onValue(chronoRef, resolve, { onlyOnce: true });
-    });
-    
-    const chronoValue = snapshot.val() || 0;
-    const points = chronoValue <= 10 ? 3 : 1;
+    const points = currentChrono <= 10 ? 3 : 1;
     
     const newScores = { ...scores, [team]: scores[team] + points };
     setScores(newScores);
@@ -222,7 +259,7 @@ export default function Master() {
     const scoresRef = ref(database, 'scores');
     set(scoresRef, newScores);
     
-    setDebugInfo(`✓ ${points} point${points > 1 ? 's' : ''} pour ${team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2'} (${chronoValue.toFixed(1)}s)`);
+    setDebugInfo(`✓ ${points} point${points > 1 ? 's' : ''} pour ${team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2'} (${currentChrono.toFixed(1)}s)`);
   };
 
   const resetScores = () => {
@@ -234,6 +271,7 @@ export default function Master() {
   };
 
   const currentSong = playlist[currentTrack];
+  const pointsToGive = currentChrono <= 10 ? 3 : 1;
 
   return (
     <div className="bg-gradient">
@@ -246,7 +284,7 @@ export default function Master() {
             <div className="score-number">{scores.team1}</div>
             {buzzedTeam === 'team1' && (
               <button onClick={() => addPoint('team1')} className="btn btn-green">
-                + 1 Point
+                + {pointsToGive} Point{pointsToGive > 1 ? 's' : ''}
               </button>
             )}
           </div>
@@ -256,7 +294,7 @@ export default function Master() {
             <div className="score-number">{scores.team2}</div>
             {buzzedTeam === 'team2' && (
               <button onClick={() => addPoint('team2')} className="btn btn-green">
-                + 1 Point
+                + {pointsToGive} Point{pointsToGive > 1 ? 's' : ''}
               </button>
             )}
           </div>

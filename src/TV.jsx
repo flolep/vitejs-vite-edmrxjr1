@@ -53,8 +53,9 @@ export default function TV() {
     const unsubscribe = onValue(songRef, (snapshot) => {
       const songData = snapshot.val();
       if (songData) {
-        // Réinitialiser le chrono quand le morceau change
-        if (currentSong && songData.number !== currentSong.number) {
+        // Réinitialiser le chrono seulement si on démarre une NOUVELLE chanson
+        // (pas juste un changement de morceau sans avoir joué)
+        if (currentSong && songData.number !== currentSong.number && isPlaying) {
           setChrono(0);
           const chronoRef = ref(database, 'chrono');
           set(chronoRef, 0);
@@ -63,7 +64,7 @@ export default function TV() {
       }
     });
     return () => unsubscribe();
-  }, [currentSong]);
+  }, [currentSong, isPlaying]);
 
   // Chronomètre - tourne quand la musique joue
   useEffect(() => {
@@ -152,8 +153,8 @@ export default function TV() {
           </div>
         </div>
 
-        {/* Chronomètre - affiché quand la musique joue */}
-        {isPlaying && (
+        {/* Chronomètre - affiché quand la musique joue OU en pause après avoir joué */}
+        {(isPlaying || chrono > 0) && (
           <div style={{
             backgroundColor: 'rgba(0, 0, 0, 0.3)',
             borderRadius: '2rem',
@@ -166,7 +167,7 @@ export default function TV() {
               marginBottom: '2rem',
               color: '#fbbf24'
             }}>
-              ⏱️ TEMPS ÉCOULÉ
+              ⏱️ {isPlaying ? 'TEMPS ÉCOULÉ' : 'TEMPS FIGÉ'}
             </h3>
             <div style={{
               fontSize: '8rem',
