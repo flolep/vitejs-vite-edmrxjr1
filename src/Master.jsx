@@ -20,6 +20,7 @@ export default function Master() {
   const [spotifyPlayer, setSpotifyPlayer] = useState(null);
   const [spotifyDeviceId, setSpotifyDeviceId] = useState(null);
   const [isSpotifyMode, setIsSpotifyMode] = useState(false);
+  const [spotifyPosition, setSpotifyPosition] = useState(0);
   
   const audioRef = useRef(null);
   const buzzerSoundRef = useRef(null);
@@ -135,6 +136,10 @@ export default function Master() {
           (state) => {
             if (state) {
               setSongDuration(state.duration / 1000);
+              // Sauvegarder la position actuelle en millisecondes
+              const positionMs = state.position;
+              setSpotifyPosition(positionMs);
+              console.log('Position Spotify:', positionMs, 'ms');
             }
           }
         );
@@ -235,6 +240,18 @@ export default function Master() {
 
       try {
         if (isPlaying) {
+          // Récupérer la position actuelle AVANT de pauser
+          const stateResponse = await fetch('https://api.spotify.com/v1/me/player', {
+            headers: { 'Authorization': `Bearer ${spotifyToken}` }
+          });
+          
+          if (stateResponse.ok) {
+            const playerState = await stateResponse.json();
+            const currentPosition = playerState.progress_ms;
+            setSpotifyPosition(currentPosition);
+            console.log('Position sauvegardée:', currentPosition, 'ms');
+          }
+          
           await spotifyService.pausePlayback(spotifyToken);
           setIsPlaying(false);
           setDebugInfo('⏸️ Pause');
@@ -242,9 +259,11 @@ export default function Master() {
           const playingRef = ref(database, 'isPlaying');
           set(playingRef, false);
         } else {
-          await spotifyService.playTrack(spotifyToken, spotifyDeviceId, track.spotifyUri);
+          // Reprendre à la position sauvegardée (en millisecondes)
+          console.log('Reprise lecture à:', spotifyPosition, 'ms');
+          await spotifyService.playTrack(spotifyToken, spotifyDeviceId, track.spotifyUri, spotifyPosition);
           setIsPlaying(true);
-          setDebugInfo('✓ Lecture Spotify en cours');
+          setDebugInfo(`✓ Lecture Spotify en cours (${(spotifyPosition/1000).toFixed(1)}s)`);
           
           const playingRef = ref(database, 'isPlaying');
           set(playingRef, true);
@@ -313,6 +332,7 @@ export default function Master() {
       setCurrentTrack(newTrackIndex);
       setIsPlaying(false);
       setBuzzedTeam(null);
+      setSpotifyPosition(0); // Reset position pour la nouvelle chanson
       
       const chronoRef = ref(database, 'chrono');
       set(chronoRef, 0);
@@ -346,6 +366,7 @@ export default function Master() {
       setCurrentTrack(newTrackIndex);
       setIsPlaying(false);
       setBuzzedTeam(null);
+      setSpotifyPosition(0); // Reset position pour la nouvelle chanson
       
       const chronoRef = ref(database, 'chrono');
       set(chronoRef, 0);
