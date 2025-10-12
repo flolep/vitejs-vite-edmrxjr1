@@ -154,7 +154,9 @@ export default function Master() {
         }
         
         setDebugInfo(`🔔 ${buzzData.team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2'} a buzzé à ${buzzTime.toFixed(1)}s !`);
-        remove(buzzRef);
+        
+        // NE PAS SUPPRIMER LE BUZZ ICI - Il sera supprimé quand on donne des points, révèle, ou relance
+        // remove(buzzRef); ← ENLEVÉ
       }
     });
 
