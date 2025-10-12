@@ -2,6 +2,29 @@ import React, { useState, useEffect } from 'react';
 import { database } from './firebase';
 import { ref, onValue, set } from 'firebase/database';
 
+/**
+ * Calcule les points disponibles selon le nouveau système
+ */
+function calculatePoints(chrono, songDuration) {
+  const maxPoints = 2500;
+  let availablePoints = maxPoints;
+  
+  if (chrono <= 5) {
+    availablePoints = 2500;
+  } else if (chrono < 15) {
+    const timeInPhase = chrono - 5;
+    const phaseDuration = 10;
+    availablePoints = 2000 - (timeInPhase / phaseDuration) * 1000;
+  } else {
+    const timeAfter15 = chrono - 15;
+    const remainingDuration = Math.max(1, songDuration - 15);
+    const decayRatio = Math.min(1, timeAfter15 / remainingDuration);
+    availablePoints = 500 * (1 - decayRatio);
+  }
+  
+  return Math.max(0, Math.round(availablePoints));
+}
+
 export default function TV() {
   const [scores, setScores] = useState({ team1: 0, team2: 0 });
   const [buzzedTeam, setBuzzedTeam] = useState(null);
@@ -116,42 +139,24 @@ export default function TV() {
     return () => clearInterval(interval);
   }, [isPlaying]);
 
-  const getPointsForTime = (time) => {
-    if (time <= 10) return 3;
-    return 1;
-  };
-
-  // Calculer les points dégressifs avec paliers
-  const maxPoints = 2500;
-  let availablePoints = maxPoints;
-  let progressPercent = 0;
+  // Calculer les points disponibles avec le nouveau système
+  const availablePoints = calculatePoints(chrono, songDuration);
   
+  // Calculer le pourcentage de progression
+  let progressPercent = 0;
   if (songDuration > 0 && chrono > 0) {
     progressPercent = Math.min(100, (chrono / songDuration) * 100);
-    
-    // Décroissance linéaire de base
-    availablePoints = maxPoints * (1 - progressPercent / 100);
-    
-    // Malus à des paliers spécifiques
-    if (chrono >= 5) {
-      availablePoints -= 500; // Malus à 5s
-    }
-    if (chrono >= 15) {
-      availablePoints -= 500; // Malus à 15s
-    }
-    
-    availablePoints = Math.max(0, Math.round(availablePoints));
   }
-
-  const chronoColor = chrono <= 10 ? '#10b981' : '#f59e0b';
   
-  // Couleur des points selon le nombre restant
+  // Couleur des points selon le montant
   let pointsColor = '#10b981'; // vert
   if (availablePoints < 1500) pointsColor = '#f59e0b'; // orange
   if (availablePoints < 750) pointsColor = '#ef4444'; // rouge
   
-  // Détection des zones de malus pour affichage visuel
-  const isNearPenalty = (chrono >= 4.5 && chrono < 5.5) || (chrono >= 14.5 && chrono < 15.5);
+  // Détection des zones critiques (paliers)
+  const isAt5s = chrono >= 4.5 && chrono < 5.5;
+  const isAt15s = chrono >= 14.5 && chrono < 15.5;
+  const isNearCritical = isAt5s || isAt15s;
 
   return (
     <div style={{
@@ -271,7 +276,7 @@ export default function TV() {
                   lineHeight: 1,
                   marginBottom: '1rem',
                   textShadow: `0 0 30px ${pointsColor}`,
-                  animation: isNearPenalty ? 'pulse 0.5s infinite' : 'none'
+                  animation: isNearCritical ? 'pulse 0.5s infinite' : 'none'
                 }}>
                   {availablePoints}
                 </div>
@@ -281,7 +286,21 @@ export default function TV() {
                 }}>
                   / 2500 pts
                 </div>
-                {isNearPenalty && (
+                
+                {/* Alertes aux paliers critiques */}
+                {isAt5s && (
+                  <div style={{
+                    marginTop: '1rem',
+                    fontSize: '1.5rem',
+                    color: '#fbbf24',
+                    fontWeight: 'bold',
+                    animation: 'pulse 0.5s infinite'
+                  }}>
+                    ⚠️ Palier à 5s !
+                  </div>
+                )}
+                
+                {isAt15s && (
                   <div style={{
                     marginTop: '1rem',
                     fontSize: '1.5rem',
@@ -289,7 +308,7 @@ export default function TV() {
                     fontWeight: 'bold',
                     animation: 'pulse 0.5s infinite'
                   }}>
-                    ⚠️ MALUS -500 PTS !
+                    ⚠️ Palier à 15s !
                   </div>
                 )}
               </div>
@@ -386,7 +405,7 @@ export default function TV() {
           fontSize: '1.5rem',
           opacity: 0.7
         }}>
-          💡 2500 points • Décroissance continue + Malus de 500 pts à 5s et 15s ! ⚠️
+          💡 0-5s : 2500 pts • 5-15s : décroissance • 15s+ : décroissance rapide
         </div>
 
       </div>

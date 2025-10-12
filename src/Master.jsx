@@ -3,6 +3,29 @@ import { database } from './firebase';
 import { ref, onValue, remove, set } from 'firebase/database';
 import { spotifyService } from './spotifyService';
 
+/**
+ * Calcule les points disponibles selon le nouveau système
+ */
+function calculatePoints(chrono, songDuration) {
+  const maxPoints = 2500;
+  let availablePoints = maxPoints;
+  
+  if (chrono <= 5) {
+    availablePoints = 2500;
+  } else if (chrono < 15) {
+    const timeInPhase = chrono - 5;
+    const phaseDuration = 10;
+    availablePoints = 2000 - (timeInPhase / phaseDuration) * 1000;
+  } else {
+    const timeAfter15 = chrono - 15;
+    const remainingDuration = Math.max(1, songDuration - 15);
+    const decayRatio = Math.min(1, timeAfter15 / remainingDuration);
+    availablePoints = 500 * (1 - decayRatio);
+  }
+  
+  return Math.max(0, Math.round(availablePoints));
+}
+
 export default function Master() {
   const [playlist, setPlaylist] = useState([]);
   const [currentTrack, setCurrentTrack] = useState(0);
@@ -84,7 +107,6 @@ export default function Master() {
       if (buzzData && isPlaying) {
         setBuzzedTeam(buzzData.team);
         
-        // Pause selon le mode
         if (isSpotifyMode && spotifyToken) {
           spotifyService.pausePlayback(spotifyToken);
         } else if (audioRef.current) {
@@ -133,9 +155,8 @@ export default function Master() {
       setPlaylist(tracks);
       setIsSpotifyMode(true);
       setShowPlaylistSelector(false);
-      setDebugInfo(`✓ ${tracks.length} morceaux importés de Spotify`);
+      setDebugInfo(`✅ ${tracks.length} morceaux importés de Spotify`);
       
-      // Initialiser le player Spotify
       if (!spotifyPlayer) {
         const player = await spotifyService.initPlayer(
           spotifyToken,
@@ -143,7 +164,6 @@ export default function Master() {
           (state) => {
             if (state) {
               setSongDuration(state.duration / 1000);
-              // Sauvegarder la position actuelle en millisecondes
               const positionMs = state.position;
               setSpotifyPosition(positionMs);
               console.log('Position Spotify:', positionMs, 'ms');
@@ -153,7 +173,6 @@ export default function Master() {
         setSpotifyPlayer(player);
       }
       
-      // Reset scores et chrono
       const scoresRef = ref(database, 'scores');
       set(scoresRef, { team1: 0, team2: 0 });
       const chronoRef = ref(database, 'chrono');
@@ -198,7 +217,7 @@ export default function Master() {
       const updatedPlaylist = [...playlist];
       updatedPlaylist[index].imageUrl = e.target.result;
       setPlaylist(updatedPlaylist);
-      setDebugInfo(`✓ Image chargée`);
+      setDebugInfo(`✅ Image chargée`);
     };
     reader.onerror = () => {
       setDebugInfo(`❌ Erreur lecture image`);
@@ -227,7 +246,7 @@ export default function Master() {
       updatedPlaylist[index].title = title;
       updatedPlaylist[index].artist = artist;
       setPlaylist(updatedPlaylist);
-      setDebugInfo(`✓ ${file.name} chargé (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+      setDebugInfo(`✅ ${file.name} chargé (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     };
     reader.onerror = () => {
       setDebugInfo(`❌ Erreur lecture fichier ${file.name}`);
@@ -239,7 +258,6 @@ export default function Master() {
     const track = playlist[currentTrack];
     
     if (isSpotifyMode) {
-      // Mode Spotify
       if (!spotifyToken || !spotifyDeviceId) {
         setDebugInfo('❌ Player Spotify non initialisé');
         return;
@@ -247,7 +265,6 @@ export default function Master() {
 
       try {
         if (isPlaying) {
-          // Récupérer la position actuelle AVANT de pauser
           const stateResponse = await fetch('https://api.spotify.com/v1/me/player', {
             headers: { 'Authorization': `Bearer ${spotifyToken}` }
           });
@@ -266,17 +283,16 @@ export default function Master() {
           const playingRef = ref(database, 'isPlaying');
           set(playingRef, false);
         } else {
-          // Si on change de morceau, forcer position à 0
           const isNewTrack = lastPlayedTrack !== currentTrack;
           const startPosition = isNewTrack ? 0 : (spotifyPosition || 0);
           
           console.log('Morceau actuel:', currentTrack, 'Dernier joué:', lastPlayedTrack, 'Nouvelle chanson?', isNewTrack);
-          console.log('Reprise lecture à:', startPosition, 'ms');
+          console.log('Reprise lecture à :', startPosition, 'ms');
           
           await spotifyService.playTrack(spotifyToken, spotifyDeviceId, track.spotifyUri, startPosition);
           setIsPlaying(true);
-          setLastPlayedTrack(currentTrack); // Mémoriser qu'on a joué ce morceau
-          setDebugInfo(`✓ Lecture Spotify en cours (${(startPosition/1000).toFixed(1)}s)`);
+          setLastPlayedTrack(currentTrack);
+          setDebugInfo(`✅ Lecture Spotify en cours (${(startPosition/1000).toFixed(1)}s)`);
           
           const playingRef = ref(database, 'isPlaying');
           set(playingRef, true);
@@ -293,7 +309,6 @@ export default function Master() {
         console.error(error);
       }
     } else {
-      // Mode MP3
       if (!track?.audioUrl) {
         setDebugInfo('❌ Pas d\'URL audio');
         return;
@@ -316,7 +331,7 @@ export default function Master() {
         audioRef.current.play()
           .then(() => {
             setIsPlaying(true);
-            setDebugInfo('✓ Lecture en cours');
+            setDebugInfo('✅ Lecture en cours');
             
             const playingRef = ref(database, 'isPlaying');
             set(playingRef, true);
@@ -346,7 +361,6 @@ export default function Master() {
       setIsPlaying(false);
       setBuzzedTeam(null);
       
-      // IMPORTANT: Reset position pour la nouvelle chanson
       setSpotifyPosition(0);
       console.log('Position reset à 0 pour nouvelle chanson');
       
@@ -383,7 +397,6 @@ export default function Master() {
       setIsPlaying(false);
       setBuzzedTeam(null);
       
-      // IMPORTANT: Reset position pour la nouvelle chanson
       setSpotifyPosition(0);
       console.log('Position reset à 0 pour nouvelle chanson');
       
@@ -414,18 +427,8 @@ export default function Master() {
   };
 
   const addPoint = async (team) => {
-    const maxPoints = 2500;
-    let points = maxPoints;
-    
-    if (songDuration > 0) {
-      const progressRatio = currentChrono / songDuration;
-      points = maxPoints * (1 - progressRatio);
-      
-      if (currentChrono >= 5) points -= 500;
-      if (currentChrono >= 15) points -= 500;
-      
-      points = Math.max(0, Math.round(points));
-    }
+    // Utiliser le nouveau système de calcul
+    const points = calculatePoints(currentChrono, songDuration);
     
     const newScores = { ...scores, [team]: scores[team] + points };
     setScores(newScores);
@@ -434,7 +437,7 @@ export default function Master() {
     const scoresRef = ref(database, 'scores');
     set(scoresRef, newScores);
     
-    setDebugInfo(`✓ ${points} points pour ${team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2'} (${currentChrono.toFixed(1)}s / ${songDuration.toFixed(0)}s)`);
+    setDebugInfo(`✅ ${points} points pour ${team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2'} (${currentChrono.toFixed(1)}s / ${songDuration.toFixed(0)}s)`);
   };
 
   const resetScores = () => {
@@ -447,17 +450,8 @@ export default function Master() {
 
   const currentSong = playlist[currentTrack];
   
-  const maxPoints = 2500;
-  let availablePoints = maxPoints;
-  if (songDuration > 0 && currentChrono > 0) {
-    const progressRatio = currentChrono / songDuration;
-    availablePoints = maxPoints * (1 - progressRatio);
-    
-    if (currentChrono >= 5) availablePoints -= 500;
-    if (currentChrono >= 15) availablePoints -= 500;
-    
-    availablePoints = Math.max(0, Math.round(availablePoints));
-  }
+  // Calculer les points disponibles pour l'affichage
+  const availablePoints = calculatePoints(currentChrono, songDuration);
 
   return (
     <div className="bg-gradient">
@@ -479,7 +473,7 @@ export default function Master() {
         ) : (
           <div className="player-box mb-4">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>✓ Connecté à Spotify</span>
+              <span>✅ Connecté à Spotify</span>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <button onClick={() => setShowPlaylistSelector(true)} className="btn btn-green">
                   🎵 Importer playlist Spotify
