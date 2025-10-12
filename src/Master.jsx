@@ -502,11 +502,42 @@ export default function Master() {
   };
 
   const resetScores = () => {
+    if (!confirm('⚠️ Cela va réinitialiser TOUTE la partie (scores, playlist, statistiques). Confirmer ?')) {
+      return;
+    }
+    
+    // Reset scores
     const newScores = { team1: 0, team2: 0 };
     setScores(newScores);
-    
     const scoresRef = ref(database, 'scores');
     set(scoresRef, newScores);
+    
+    // Vider la playlist
+    setPlaylist([]);
+    setCurrentTrack(0);
+    setIsPlaying(false);
+    
+    // Reset chrono
+    const chronoRef = ref(database, 'chrono');
+    set(chronoRef, 0);
+    setCurrentChrono(0);
+    
+    // Reset état de jeu
+    const playingRef = ref(database, 'isPlaying');
+    set(playingRef, false);
+    
+    const songRef = ref(database, 'currentSong');
+    set(songRef, null);
+    
+    // Reset état de fin de partie
+    const gameStatusRef = ref(database, 'game_status');
+    set(gameStatusRef, { ended: false });
+    
+    // Reset statistiques de buzz
+    const buzzTimesRef = ref(database, 'buzz_times');
+    set(buzzTimesRef, null);
+    
+    setDebugInfo('🔄 Partie réinitialisée ! Rechargez une playlist pour recommencer.');
   };
   
   // NOUVEAU : Charger les statistiques des buzz
@@ -635,7 +666,7 @@ export default function Master() {
         </div>
 
         <button onClick={resetScores} className="btn btn-gray mb-4">
-          Reset Scores
+          🔄 Nouvelle Partie (Reset complet)
         </button>
         
         {/* NOUVEAU : Bouton Statistiques */}
@@ -900,14 +931,32 @@ export default function Master() {
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 'bold' }}>
-                          {index + 1}. {track.revealed ? track.title : track.title === 'En attente de fichier...' ? track.title : '???'}
+                        {/* Numéro et statut */}
+                        <div style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                          {index + 1}. {track.revealed ? '✅' : '❓'}
                         </div>
-                        {track.revealed && track.artist && (
-                          <div style={{ fontSize: '0.875rem', opacity: 0.7, marginTop: '0.25rem' }}>
-                            {track.artist}
+                        
+                        {/* TOUJOURS VISIBLE pour l'animateur */}
+                        <div style={{ 
+                          fontSize: '1.125rem', 
+                          fontWeight: 'bold',
+                          color: '#fbbf24',
+                          marginBottom: '0.25rem'
+                        }}>
+                          🎵 {track.title}
+                        </div>
+                        
+                        {track.artist && (
+                          <div style={{ 
+                            fontSize: '0.875rem', 
+                            opacity: 0.8,
+                            marginBottom: '0.5rem'
+                          }}>
+                            👤 {track.artist}
                           </div>
                         )}
+                        
+                        {/* Infos technique (mode MP3) */}
                         {!isSpotifyMode && (
                           <div style={{ fontSize: '0.75rem', marginTop: '0.5rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                             <span style={{ color: track.audioUrl ? '#10b981' : '#ef4444' }}>

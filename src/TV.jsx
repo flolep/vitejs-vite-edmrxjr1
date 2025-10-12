@@ -132,6 +132,8 @@ export default function TV() {
     const gameStatusRef = ref(database, 'game_status');
     const unsubscribe = onValue(gameStatusRef, (snapshot) => {
       const status = snapshot.val();
+      
+      // Si la partie est terminée
       if (status && status.ended) {
         setGameEnded(true);
         setWinner(status.winner);
@@ -156,9 +158,14 @@ export default function TV() {
           }
         }, { onlyOnce: true });
       }
+      // Si reset complet (ended = false)
+      else if (status && !status.ended && gameEnded) {
+        // Recharger la page pour revenir à l'état initial
+        window.location.reload();
+      }
     });
     return () => unsubscribe();
-  }, []);
+  }, [gameEnded]);
 
   // Chronomètre - tourne quand la musique joue et synchronise sur Firebase
   useEffect(() => {
