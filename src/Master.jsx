@@ -36,6 +36,11 @@ export default function Master() {
   const [currentChrono, setCurrentChrono] = useState(0);
   const [songDuration, setSongDuration] = useState(0);
   
+  // NOUVEAU : Stats des buzz
+  const [showStats, setShowStats] = useState(false);
+  const [buzzStats, setBuzzStats] = useState([]);
+  const [showEndGameConfirm, setShowEndGameConfirm] = useState(false);
+  
   // Spotify
   const [spotifyToken, setSpotifyToken] = useState(null);
   const [spotifyPlaylists, setSpotifyPlaylists] = useState([]);
@@ -107,6 +112,32 @@ export default function Master() {
       if (buzzData && isPlaying) {
         setBuzzedTeam(buzzData.team);
         
+        // NOUVEAU : Enregistrer le temps de buzz
+        const buzzTime = currentChrono;
+        const buzzTimesRef = ref(database, `buzz_times/${currentTrack}`);
+        
+        // Récupérer les buzz existants pour ce morceau
+        onValue(buzzTimesRef, (timesSnapshot) => {
+          const existingBuzzes = timesSnapshot.val() || [];
+          
+          // Ajouter le nouveau buzz
+          const newBuzz = {
+            team: buzzData.team,
+            teamName: buzzData.teamName || (buzzData.team === 'team1' ? 'Équipe 1' : 'Équipe 2'),
+            time: buzzTime,
+            timestamp: Date.now(),
+            trackNumber: currentTrack + 1
+          };
+          
+          existingBuzzes.push(newBuzz);
+          
+          // Sauvegarder
+          set(buzzTimesRef, existingBuzzes);
+          
+          console.log('Buzz enregistré:', newBuzz);
+        }, { onlyOnce: true });
+        
+        // Pause selon le mode
         if (isSpotifyMode && spotifyToken) {
           spotifyService.pausePlayback(spotifyToken);
         } else if (audioRef.current) {
@@ -122,13 +153,13 @@ export default function Master() {
           buzzerSoundRef.current();
         }
         
-        setDebugInfo(`🔔 ${buzzData.team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2'} a buzzé !`);
+        setDebugInfo(`🔔 ${buzzData.team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2'} a buzzé à ${buzzTime.toFixed(1)}s !`);
         remove(buzzRef);
       }
     });
 
     return () => unsubscribe();
-  }, [isPlaying, isSpotifyMode, spotifyToken]);
+  }, [isPlaying, isSpotifyMode, spotifyToken, currentChrono, currentTrack]);
 
   // Connexion Spotify
   const handleSpotifyLogin = () => {
@@ -416,6 +447,19 @@ export default function Master() {
     updatedPlaylist[currentTrack].revealed = true;
     setPlaylist(updatedPlaylist);
     
+    // Arrêter la musique
+    if (isSpotifyMode && spotifyToken) {
+      spotifyService.pausePlayback(spotifyToken);
+    } else if (audioRef.current) {
+      audioRef.current.pause();
+    }
+    
+    setIsPlaying(false);
+    
+    // Mettre à jour Firebase
+    const playingRef = ref(database, 'isPlaying');
+    set(playingRef, false);
+    
     const songRef = ref(database, 'currentSong');
     set(songRef, {
       title: updatedPlaylist[currentTrack].title,
@@ -424,6 +468,8 @@ export default function Master() {
       revealed: true,
       number: currentTrack + 1
     });
+    
+    setDebugInfo(`✅ Réponse révélée - Chrono figé à ${currentChrono.toFixed(1)}s`);
   };
 
   const addPoint = async (team) => {
@@ -437,7 +483,22 @@ export default function Master() {
     const scoresRef = ref(database, 'scores');
     set(scoresRef, newScores);
     
-    setDebugInfo(`✅ ${points} points pour ${team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2'} (${currentChrono.toFixed(1)}s / ${songDuration.toFixed(0)}s)`);
+    // Révéler automatiquement la réponse
+    const updatedPlaylist = [...playlist];
+    updatedPlaylist[currentTrack].revealed = true;
+    setPlaylist(updatedPlaylist);
+    
+    // Mettre à jour Firebase pour afficher la réponse sur TV
+    const songRef = ref(database, 'currentSong');
+    set(songRef, {
+      title: updatedPlaylist[currentTrack].title,
+      artist: updatedPlaylist[currentTrack].artist,
+      imageUrl: updatedPlaylist[currentTrack].imageUrl,
+      revealed: true,
+      number: currentTrack + 1
+    });
+    
+    setDebugInfo(`✅ ${points} points pour ${team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2'} • Réponse révélée`);
   };
 
   const resetScores = () => {
@@ -446,6 +507,48 @@ export default function Master() {
     
     const scoresRef = ref(database, 'scores');
     set(scoresRef, newScores);
+  };
+  
+  // NOUVEAU : Charger les statistiques des buzz
+  const loadBuzzStats = () => {
+    const buzzTimesRef = ref(database, 'buzz_times');
+    onValue(buzzTimesRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        // Aplatir toutes les données
+        const allBuzzes = [];
+        Object.keys(data).forEach(trackIndex => {
+          data[trackIndex].forEach(buzz => {
+            allBuzzes.push(buzz);
+          });
+        });
+        
+        // Trier par temps (plus rapide en premier)
+        allBuzzes.sort((a, b) => a.time - b.time);
+        
+        setBuzzStats(allBuzzes);
+        setShowStats(true);
+      }
+    }, { onlyOnce: true });
+  };
+  
+  // NOUVEAU : Terminer la partie
+  const handleEndGame = () => {
+    setShowEndGameConfirm(true);
+  };
+  
+  const confirmEndGame = () => {
+    // Déclencher l'animation de victoire sur TV
+    const gameStatusRef = ref(database, 'game_status');
+    set(gameStatusRef, {
+      ended: true,
+      winner: scores.team1 > scores.team2 ? 'team1' : scores.team2 > scores.team1 ? 'team2' : 'draw',
+      final_scores: scores,
+      timestamp: Date.now()
+    });
+    
+    setShowEndGameConfirm(false);
+    setDebugInfo('🎉 Partie terminée ! Animation de victoire lancée sur TV');
   };
 
   const currentSong = playlist[currentTrack];
@@ -534,6 +637,148 @@ export default function Master() {
         <button onClick={resetScores} className="btn btn-gray mb-4">
           Reset Scores
         </button>
+        
+        {/* NOUVEAU : Bouton Statistiques */}
+        <button onClick={loadBuzzStats} className="btn btn-purple mb-4" style={{ marginLeft: '1rem' }}>
+          📊 Voir les Statistiques
+        </button>
+        
+        {/* NOUVEAU : Bouton Terminer la partie */}
+        <button onClick={handleEndGame} className="btn btn-yellow mb-4" style={{ marginLeft: '1rem' }}>
+          🏁 Terminer la Partie
+        </button>
+
+        {/* NOUVEAU : Confirmation fin de partie */}
+        {showEndGameConfirm && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000
+          }}>
+            <div className="player-box" style={{ maxWidth: '500px', textAlign: 'center' }}>
+              <h2 style={{ fontSize: '2rem', marginBottom: '2rem' }}>
+                🏁 Terminer la partie ?
+              </h2>
+              <p style={{ fontSize: '1.25rem', marginBottom: '2rem', opacity: 0.8 }}>
+                Cela affichera l'animation de victoire sur l'écran TV.
+              </p>
+              <div style={{ fontSize: '3rem', marginBottom: '2rem' }}>
+                <div>ÉQUIPE 1: {scores.team1} pts</div>
+                <div>ÉQUIPE 2: {scores.team2} pts</div>
+              </div>
+              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+                <button onClick={() => setShowEndGameConfirm(false)} className="btn btn-gray">
+                  Annuler
+                </button>
+                <button onClick={confirmEndGame} className="btn btn-green">
+                  ✅ Confirmer
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* NOUVEAU : Modal Statistiques */}
+        {showStats && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000
+          }}>
+            <div className="player-box" style={{ 
+              maxWidth: '600px', 
+              maxHeight: '80vh', 
+              overflowY: 'auto',
+              position: 'relative'
+            }}>
+              <button 
+                onClick={() => setShowStats(false)} 
+                style={{
+                  position: 'absolute',
+                  top: '1rem',
+                  right: '1rem',
+                  background: '#ef4444',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '40px',
+                  height: '40px',
+                  color: 'white',
+                  fontSize: '1.5rem',
+                  cursor: 'pointer'
+                }}
+              >
+                ×
+              </button>
+              
+              <h2 style={{ fontSize: '2rem', marginBottom: '2rem' }}>
+                📊 Statistiques des Buzz
+              </h2>
+              
+              {buzzStats.length === 0 ? (
+                <p style={{ textAlign: 'center', opacity: 0.7 }}>
+                  Aucun buzz enregistré
+                </p>
+              ) : (
+                <>
+                  <h3 style={{ fontSize: '1.5rem', marginBottom: '1rem', color: '#fbbf24' }}>
+                    🏆 Classement par rapidité
+                  </h3>
+                  <div className="space-y">
+                    {buzzStats.map((buzz, index) => (
+                      <div 
+                        key={index}
+                        style={{
+                          backgroundColor: index === 0 ? 'rgba(251, 191, 36, 0.2)' : 'rgba(255,255,255,0.05)',
+                          padding: '1rem',
+                          borderRadius: '0.5rem',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          border: index === 0 ? '2px solid #fbbf24' : 'none'
+                        }}
+                      >
+                        <div>
+                          <span style={{ 
+                            fontSize: '1.5rem', 
+                            marginRight: '1rem',
+                            opacity: index === 0 ? 1 : 0.6
+                          }}>
+                            {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`}
+                          </span>
+                          <strong>{buzz.teamName}</strong>
+                          <span style={{ marginLeft: '0.5rem', opacity: 0.7 }}>
+                            (Morceau #{buzz.trackNumber})
+                          </span>
+                        </div>
+                        <div style={{ 
+                          fontSize: '1.5rem', 
+                          fontWeight: 'bold',
+                          color: buzz.time <= 5 ? '#10b981' : buzz.time <= 15 ? '#f59e0b' : '#ef4444'
+                        }}>
+                          {buzz.time.toFixed(1)}s
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {playlist.length === 0 ? (
           <div className="player-box text-center">
