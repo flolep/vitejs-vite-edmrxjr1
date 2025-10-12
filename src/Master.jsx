@@ -288,6 +288,13 @@ export default function Master() {
   const togglePlay = async () => {
     const track = playlist[currentTrack];
     
+    // Si on relance la lecture, effacer le buzz visuel
+    if (!isPlaying) {
+      setBuzzedTeam(null);
+      const buzzRef = ref(database, 'buzz');
+      remove(buzzRef);
+    }
+    
     if (isSpotifyMode) {
       if (!spotifyToken || !spotifyDeviceId) {
         setDebugInfo('❌ Player Spotify non initialisé');
@@ -376,7 +383,6 @@ export default function Master() {
           });
       }
     }
-    setBuzzedTeam(null);
   };
 
   const nextTrack = () => {
@@ -390,7 +396,11 @@ export default function Master() {
       const newTrackIndex = currentTrack + 1;
       setCurrentTrack(newTrackIndex);
       setIsPlaying(false);
+      
+      // Effacer le buzz visuel
       setBuzzedTeam(null);
+      const buzzRef = ref(database, 'buzz');
+      remove(buzzRef);
       
       setSpotifyPosition(0);
       console.log('Position reset à 0 pour nouvelle chanson');
@@ -426,7 +436,11 @@ export default function Master() {
       const newTrackIndex = currentTrack - 1;
       setCurrentTrack(newTrackIndex);
       setIsPlaying(false);
+      
+      // Effacer le buzz visuel
       setBuzzedTeam(null);
+      const buzzRef = ref(database, 'buzz');
+      remove(buzzRef);
       
       setSpotifyPosition(0);
       console.log('Position reset à 0 pour nouvelle chanson');
@@ -446,6 +460,11 @@ export default function Master() {
     const updatedPlaylist = [...playlist];
     updatedPlaylist[currentTrack].revealed = true;
     setPlaylist(updatedPlaylist);
+    
+    // Effacer le buzz visuel
+    setBuzzedTeam(null);
+    const buzzRef = ref(database, 'buzz');
+    remove(buzzRef);
     
     // Arrêter la musique
     if (isSpotifyMode && spotifyToken) {
@@ -478,7 +497,11 @@ export default function Master() {
     
     const newScores = { ...scores, [team]: scores[team] + points };
     setScores(newScores);
+    
+    // Effacer le buzz visuel
     setBuzzedTeam(null);
+    const buzzRef = ref(database, 'buzz');
+    remove(buzzRef);
     
     const scoresRef = ref(database, 'scores');
     set(scoresRef, newScores);
