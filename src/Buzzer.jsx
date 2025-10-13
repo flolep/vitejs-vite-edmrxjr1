@@ -8,6 +8,7 @@ export default function Buzzer() {
   const [buzzerEnabled, setBuzzerEnabled] = useState(true);
   const [scores, setScores] = useState({ team1: 0, team2: 0 });
   const [someoneBuzzed, setSomeoneBuzzed] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false); // NOUVEAU
 
   // Écouter les scores Firebase
   useEffect(() => {
@@ -18,6 +19,18 @@ export default function Buzzer() {
       if (scoresData) {
         setScores(scoresData);
       }
+    });
+
+    return () => unsubscribe();
+  }, []);
+  
+  // NOUVEAU : Écouter si une chanson est en cours de lecture
+  useEffect(() => {
+    const playingRef = ref(database, 'isPlaying');
+    
+    const unsubscribe = onValue(playingRef, (snapshot) => {
+      const playingData = snapshot.val();
+      setIsPlaying(playingData === true);
     });
 
     return () => unsubscribe();
@@ -49,7 +62,8 @@ export default function Buzzer() {
   };
 
   const handleBuzz = async () => {
-    if (!buzzerEnabled || someoneBuzzed) return;
+    // MODIFIÉ : Vérifier aussi que la musique est en cours
+    if (!buzzerEnabled || someoneBuzzed || !isPlaying) return;
     
     setBuzzed(true);
     setBuzzerEnabled(false);
@@ -107,6 +121,9 @@ export default function Buzzer() {
   // Écran de buzzer
   const bgClass = team === 1 ? 'bg-gradient-red' : 'bg-gradient-blue';
   const buttonColor = team === 1 ? '#ef4444' : '#3b82f6';
+  
+  // MODIFIÉ : Déterminer si le buzzer est actif
+  const canBuzz = buzzerEnabled && !someoneBuzzed && isPlaying;
 
   return (
     <div className={`${bgClass} flex-center`}>
@@ -126,22 +143,29 @@ export default function Buzzer() {
           {team === 1 ? '🔴 ÉQUIPE 1' : '🔵 ÉQUIPE 2'}
         </h1>
         <p style={{ fontSize: '1.125rem', opacity: 0.8 }}>
-          {buzzed ? 'Buzzé !' : someoneBuzzed ? 'Une autre équipe a buzzé...' : 'Appuyez pour buzzer'}
+          {buzzed ? 'Buzzé !' : 
+           someoneBuzzed ? 'Une autre équipe a buzzé...' : 
+           !isPlaying ? 'En attente de la musique...' : 
+           'Appuyez pour buzzer'}
         </p>
       </div>
 
       <button
         onClick={handleBuzz}
-        disabled={!buzzerEnabled || someoneBuzzed}
+        disabled={!canBuzz}
         className={`buzzer ${buzzed ? 'buzzed' : ''}`}
         style={{
-          backgroundColor: buzzed ? '#fbbf24' : (buzzerEnabled && !someoneBuzzed) ? buttonColor : '#6b7280',
-          cursor: (!buzzerEnabled || someoneBuzzed) ? 'not-allowed' : 'pointer'
+          backgroundColor: buzzed ? '#fbbf24' : canBuzz ? buttonColor : '#6b7280',
+          cursor: !canBuzz ? 'not-allowed' : 'pointer',
+          opacity: !canBuzz ? 0.5 : 1
         }}
       >
         <span style={{ fontSize: '5rem' }}>🔔</span>
         <span style={{ marginTop: '1rem' }}>
-          {buzzed ? 'BUZZÉ !' : someoneBuzzed ? 'BLOQUÉ' : 'BUZZ'}
+          {buzzed ? 'BUZZÉ !' : 
+           someoneBuzzed ? 'BLOQUÉ' : 
+           !isPlaying ? 'EN ATTENTE' : 
+           'BUZZ'}
         </span>
       </button>
 
@@ -152,6 +176,13 @@ export default function Buzzer() {
       {someoneBuzzed && !buzzed && (
         <div className="mt-8" style={{ fontSize: '0.875rem', opacity: 0.7 }}>
           En attente de la décision de l'animateur...
+        </div>
+      )}
+      
+      {/* NOUVEAU : Message si pas de musique */}
+      {!isPlaying && !someoneBuzzed && (
+        <div className="mt-8" style={{ fontSize: '0.875rem', opacity: 0.7 }}>
+          ⏸️ Attendez que l'animateur lance la musique...
         </div>
       )}
     </div>
