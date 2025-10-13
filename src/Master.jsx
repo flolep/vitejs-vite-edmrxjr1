@@ -63,29 +63,54 @@ export default function Master() {
     }
   }, []);
 
-  // Créer le son de buzzer au chargement
-  useEffect(() => {
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+ // Créer le son de buzzer au chargement (SON AMÉLIORÉ)
+ useEffect(() => {
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  
+  const playBuzzerSound = () => {
+    const now = audioContext.currentTime;
     
-    const playBuzzerSound = () => {
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      oscillator.frequency.value = 800;
-      oscillator.type = 'square';
-      
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-      
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.5);
-    };
+    // Oscillateur principal (son du buzzer)
+    const osc1 = audioContext.createOscillator();
+    const gain1 = audioContext.createGain();
     
-    buzzerSoundRef.current = playBuzzerSound;
-  }, []);
+    osc1.connect(gain1);
+    gain1.connect(audioContext.destination);
+    
+    // Son de buzzer de jeu TV : fréquence descendante rapide
+    osc1.frequency.setValueAtTime(800, now);
+    osc1.frequency.exponentialRampToValueAtTime(400, now + 0.1);
+    osc1.type = 'sawtooth'; // Son plus agressif
+    
+    // Envelope : attaque rapide, decay court
+    gain1.gain.setValueAtTime(0, now);
+    gain1.gain.linearRampToValueAtTime(0.5, now + 0.01); // Attaque rapide
+    gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.3); // Decay
+    
+    osc1.start(now);
+    osc1.stop(now + 0.3);
+    
+    // Ajouter un second oscillateur pour plus de richesse
+    const osc2 = audioContext.createOscillator();
+    const gain2 = audioContext.createGain();
+    
+    osc2.connect(gain2);
+    gain2.connect(audioContext.destination);
+    
+    osc2.frequency.setValueAtTime(600, now);
+    osc2.frequency.exponentialRampToValueAtTime(300, now + 0.1);
+    osc2.type = 'square';
+    
+    gain2.gain.setValueAtTime(0, now);
+    gain2.gain.linearRampToValueAtTime(0.3, now + 0.01);
+    gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+    
+    osc2.start(now);
+    osc2.stop(now + 0.3);
+  };
+  
+  buzzerSoundRef.current = playBuzzerSound;
+}, []);
 
   // Écouter le chrono depuis Firebase
   useEffect(() => {
