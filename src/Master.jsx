@@ -168,17 +168,29 @@ export default function Master() {
     window.location.href = spotifyService.getAuthUrl();
   };
 
-  // Charger les playlists Spotify
-  const loadSpotifyPlaylists = async (token) => {
-    try {
-      const playlists = await spotifyService.getUserPlaylists(token);
-      setSpotifyPlaylists(playlists);
-    } catch (error) {
-      console.error('Error loading playlists:', error);
-      setDebugInfo('❌ Erreur chargement playlists');
+// Charger les playlists Spotify (MODIFIÉ pour filtrer tag #BT)
+const loadSpotifyPlaylists = async (token) => {
+  try {
+    const allPlaylists = await spotifyService.getUserPlaylists(token);
+    
+    // FILTRER uniquement les playlists avec #BT dans la description
+    const filteredPlaylists = allPlaylists.filter(playlist => 
+      playlist.description && playlist.description.includes('#BT')
+    );
+    
+    setSpotifyPlaylists(filteredPlaylists);
+    
+    // Message de debug pour informer l'utilisateur
+    if (filteredPlaylists.length === 0) {
+      setDebugInfo('⚠️ Aucune playlist avec le tag #BT trouvée dans la description');
+    } else {
+      setDebugInfo(`✅ ${filteredPlaylists.length} playlist(s) avec tag #BT trouvée(s)`);
     }
-  };
-
+  } catch (error) {
+    console.error('Error loading playlists:', error);
+    setDebugInfo('❌ Erreur chargement playlists');
+  }
+};
   // Importer une playlist Spotify
   const importSpotifyPlaylist = async (playlistId) => {
     try {
