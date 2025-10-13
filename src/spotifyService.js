@@ -40,7 +40,7 @@ export const spotifyService = {
     }
   },
 
-  // Récupérer les playlists de l'utilisateur
+  // Récupérer les playlists de l'utilisateur (MODIFIÉ)
   async getUserPlaylists(accessToken) {
     const response = await fetch('https://api.spotify.com/v1/me/playlists?limit=50', {
       headers: { 'Authorization': `Bearer ${accessToken}` }
@@ -48,6 +48,15 @@ export const spotifyService = {
     
     if (!response.ok) throw new Error('Failed to get playlists');
     const data = await response.json();
+    
+    // DEBUG: Afficher les playlists récupérées
+    console.log('Playlists récupérées:', data.items.map(p => ({
+      name: p.name,
+      description: p.description,
+      hasDescription: !!p.description,
+      hasBT: p.description?.includes('#BT')
+    })));
+    
     return data.items;
   },
 
