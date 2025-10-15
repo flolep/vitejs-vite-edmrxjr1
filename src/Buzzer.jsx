@@ -186,40 +186,25 @@ export default function Buzzer() {
     
     // NOUVEAU : Enregistrer le joueur dans la session Firebase
     const teamKey = `team${teamNumber}`;
-    const sessionRef = ref(database, `players_session/${teamKey}`);
+    const newPlayerKey = `player_${Date.now()}`;
+    const playerRef = ref(database, `players_session/${teamKey}/${newPlayerKey}`);
     
     try {
-      // Lire les joueurs actuels
-      const snapshot = await onValue(sessionRef, () => {}, { onlyOnce: true });
+      const playerData = {
+        id: selectedPlayer?.id || `temp_${Date.now()}`,
+        name: selectedPlayer?.name || playerName,
+        photo: selectedPlayer?.photo || photoData || null,
+        status: 'idle',
+        cooldownEnd: null,
+        buzzCount: 0,
+        correctCount: 0,
+        joinedAt: Date.now()
+      };
       
-      // Obtenir les données
-      const currentPlayersObj = snapshot.val() || {};
-      const currentPlayers = Object.values(currentPlayersObj);
-      
-      // Vérifier si le joueur existe déjà
-      const playerExists = currentPlayers.some(p => 
-        p.name === (selectedPlayer?.name || playerName)
-      );
-      
-      if (!playerExists) {
-        // Ajouter le nouveau joueur
-        const newPlayerKey = `player_${Date.now()}`;
-        const playerData = {
-          id: selectedPlayer?.id || `temp_${Date.now()}`,
-          name: selectedPlayer?.name || playerName,
-          photo: selectedPlayer?.photo || photoData || null,
-          status: 'idle',
-          cooldownEnd: null,
-          buzzCount: 0,
-          correctCount: 0,
-          joinedAt: Date.now()
-        };
-        
-        await set(ref(database, `players_session/${teamKey}/${newPlayerKey}`), playerData);
-        console.log('✅ Joueur enregistré:', playerData.name);
-      }
+      await set(playerRef, playerData);
+      console.log('✅ Joueur enregistré:', playerData.name, 'dans', teamKey);
     } catch (error) {
-      console.error('Erreur enregistrement joueur:', error);
+      console.error('❌ Erreur enregistrement joueur:', error);
     }
   };
 
