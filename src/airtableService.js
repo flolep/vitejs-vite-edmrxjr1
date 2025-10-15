@@ -1,54 +1,51 @@
-// Service pour communiquer avec n8n qui interroge Airtable
-const N8N_BASE_URL = 'https://votre-n8n-instance.com/webhook';
+const USE_LOCAL_STORAGE = true;
+const LOCAL_STORAGE_KEY = 'blindtest_players';
+
+const localDB = {
+  getPlayers() {
+    const data = localStorage.getItem(LOCAL_STORAGE_KEY);
+    return data ? JSON.parse(data) : [];
+  },
+  
+  savePlayer(player) {
+    const players = this.getPlayers();
+    players.push({
+      id: `local_${Date.now()}`,
+      ...player,
+      createdAt: new Date().toISOString()
+    });
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(players));
+    return players[players.length - 1];
+  },
+  
+  searchPlayers(searchTerm) {
+    const players = this.getPlayers();
+    const term = searchTerm.toLowerCase();
+    return players.filter(p => p.name.toLowerCase().includes(term));
+  }
+};
 
 export const airtableService = {
-  /**
-   * Rechercher un joueur par prénom/nom/alias
-   */
   async findPlayer(searchTerm) {
-    try {
-      const response = await fetch(`${N8N_BASE_URL}/find-player`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ search: searchTerm })
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Error finding player:', error);
-      return { found: false, count: 0, players: [] };
-    }
+    console.log('🔍 Recherche locale:', searchTerm);
+    const results = localDB.searchPlayers(searchTerm);
+    
+    return {
+      found: results.length > 0,
+      count: results.length,
+      players: results
+    };
   },
 
-  /**
-   * Créer un nouveau joueur avec selfie
-   */
   async createPlayer(playerData) {
-    try {
-      const response = await fetch(`${N8N_BASE_URL}/create-player`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(playerData)
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Error creating player:', error);
-      throw error;
-    }
+    console.log('💾 Création locale:', playerData.name);
+    const newPlayer = localDB.savePlayer(playerData);
+    
+    return {
+      success: true,
+      id: newPlayer.id,
+      name: newPlayer.name,
+      photo: newPlayer.photo
+    };
   }
 };

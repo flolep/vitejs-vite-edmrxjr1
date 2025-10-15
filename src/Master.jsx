@@ -32,6 +32,9 @@ export default function Master() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [scores, setScores] = useState({ team1: 0, team2: 0 });
   const [buzzedTeam, setBuzzedTeam] = useState(null);
+  const [buzzedPlayerName, setBuzzedPlayerName] = useState(null);
+  const [buzzedPlayerPhoto, setBuzzedPlayerPhoto] = useState(null);
+  const [buzzedPlayerId, setBuzzedPlayerId] = useState(null);
   const [debugInfo, setDebugInfo] = useState('');
   const [currentChrono, setCurrentChrono] = useState(0);
   const [songDuration, setSongDuration] = useState(0);
@@ -136,6 +139,9 @@ export default function Master() {
       const buzzData = snapshot.val();
       if (buzzData && isPlaying) {
         setBuzzedTeam(buzzData.team);
+        setBuzzedPlayerName(buzzData.playerName || null);
+        setBuzzedPlayerPhoto(buzzData.playerPhoto || null);
+        setBuzzedPlayerId(buzzData.playerId || null);
         
         // NOUVEAU : Enregistrer le temps de buzz
         const buzzTime = currentChrono;
@@ -330,6 +336,9 @@ const loadSpotifyPlaylists = async (token) => {
     // Si on relance la lecture, effacer le buzz visuel
     if (!isPlaying) {
       setBuzzedTeam(null);
+      setBuzzedPlayerName(null);
+      setBuzzedPlayerPhoto(null);
+      setBuzzedPlayerId(null);
       const buzzRef = ref(database, 'buzz');
       remove(buzzRef);
     }
@@ -438,6 +447,9 @@ const loadSpotifyPlaylists = async (token) => {
       
       // Effacer le buzz visuel
       setBuzzedTeam(null);
+      setBuzzedPlayerName(null);
+      setBuzzedPlayerPhoto(null);
+      setBuzzedPlayerId(null);
       const buzzRef = ref(database, 'buzz');
       remove(buzzRef);
       
@@ -478,6 +490,9 @@ const loadSpotifyPlaylists = async (token) => {
       
       // Effacer le buzz visuel
       setBuzzedTeam(null);
+      setBuzzedPlayerName(null);
+      setBuzzedPlayerPhoto(null);
+      setBuzzedPlayerId(null);
       const buzzRef = ref(database, 'buzz');
       remove(buzzRef);
       
@@ -502,6 +517,9 @@ const loadSpotifyPlaylists = async (token) => {
     
     // Effacer le buzz visuel
     setBuzzedTeam(null);
+    setBuzzedPlayerName(null);
+    setBuzzedPlayerPhoto(null);
+    setBuzzedPlayerId(null);
     const buzzRef = ref(database, 'buzz');
     remove(buzzRef);
     
@@ -539,6 +557,9 @@ const loadSpotifyPlaylists = async (token) => {
     
     // Effacer le buzz visuel
     setBuzzedTeam(null);
+    setBuzzedPlayerName(null);
+    setBuzzedPlayerPhoto(null);
+    setBuzzedPlayerId(null);
     const buzzRef = ref(database, 'buzz');
     remove(buzzRef);
     
