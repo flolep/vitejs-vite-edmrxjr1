@@ -180,9 +180,47 @@ export default function Buzzer() {
     startCamera();
   };
 
-  const selectTeam = (teamNumber) => {
+  const selectTeam = async (teamNumber) => {
     setTeam(teamNumber);
     setStep('game');
+    
+    // NOUVEAU : Enregistrer le joueur dans la session Firebase
+    const teamKey = `team${teamNumber}`;
+    const sessionRef = ref(database, `players_session/${teamKey}`);
+    
+    try {
+      // Lire les joueurs actuels
+      const snapshot = await onValue(sessionRef, () => {}, { onlyOnce: true });
+      
+      // Obtenir les données
+      const currentPlayersObj = snapshot.val() || {};
+      const currentPlayers = Object.values(currentPlayersObj);
+      
+      // Vérifier si le joueur existe déjà
+      const playerExists = currentPlayers.some(p => 
+        p.name === (selectedPlayer?.name || playerName)
+      );
+      
+      if (!playerExists) {
+        // Ajouter le nouveau joueur
+        const newPlayerKey = `player_${Date.now()}`;
+        const playerData = {
+          id: selectedPlayer?.id || `temp_${Date.now()}`,
+          name: selectedPlayer?.name || playerName,
+          photo: selectedPlayer?.photo || photoData || null,
+          status: 'idle',
+          cooldownEnd: null,
+          buzzCount: 0,
+          correctCount: 0,
+          joinedAt: Date.now()
+        };
+        
+        await set(ref(database, `players_session/${teamKey}/${newPlayerKey}`), playerData);
+        console.log('✅ Joueur enregistré:', playerData.name);
+      }
+    } catch (error) {
+      console.error('Erreur enregistrement joueur:', error);
+    }
   };
 
   const handleBuzz = async () => {

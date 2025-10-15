@@ -25,8 +25,78 @@ function calculatePoints(chrono, songDuration) {
   return Math.max(0, Math.round(availablePoints));
 }
 
+// Composant pour afficher un joueur
+const PlayerAvatar = ({ player, buzzedPlayerName }) => {
+  const isBuzzed = player.name === buzzedPlayerName;
+  
+  const getBorderStyle = () => {
+    if (isBuzzed) {
+      return {
+        border: '6px solid #fbbf24',
+        boxShadow: '0 0 30px rgba(251, 191, 36, 0.8)'
+      };
+    }
+    return {
+      border: '2px solid rgba(255, 255, 255, 0.3)',
+      boxShadow: 'none'
+    };
+  };
+
+  return (
+    <div style={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      alignItems: 'center',
+      margin: '0 0.5rem',
+      position: 'relative'
+    }}>
+      <img 
+        src={player.photo || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="80" height="80"%3E%3Ccircle cx="40" cy="40" r="40" fill="%23666"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="white" font-size="30"%3E' + (player.name?.[0] || '?') + '%3C/text%3E%3C/svg%3E'}
+        alt={player.name}
+        style={{
+          width: '80px',
+          height: '80px',
+          borderRadius: '50%',
+          objectFit: 'cover',
+          ...getBorderStyle(),
+          transition: 'all 0.3s ease'
+        }}
+      />
+      
+      {isBuzzed && (
+        <div style={{
+          position: 'absolute',
+          top: '-10px',
+          right: '-10px',
+          fontSize: '2rem'
+        }}>
+          ⚡
+        </div>
+      )}
+      
+      <div style={{
+        marginTop: '0.5rem',
+        fontSize: '0.9rem',
+        fontWeight: isBuzzed ? 'bold' : 'normal',
+        color: isBuzzed ? '#fbbf24' : 'white',
+        textAlign: 'center',
+        maxWidth: '90px',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap'
+      }}>
+        {player.name}
+      </div>
+    </div>
+  );
+};
+
 export default function TV() {
   const [scores, setScores] = useState({ team1: 0, team2: 0 });
+  const [playersTeam1, setPlayersTeam1] = useState([]);
+  const [playersTeam2, setPlayersTeam2] = useState([]);
+  const [buzzedPlayerName, setBuzzedPlayerName] = useState(null);
+  const [buzzedPlayerPhoto, setBuzzedPlayerPhoto] = useState(null);
   const [buzzedTeam, setBuzzedTeam] = useState(null);
   const [currentSong, setCurrentSong] = useState(null);
   const [chrono, setChrono] = useState(0);
@@ -108,8 +178,12 @@ export default function TV() {
       const buzzData = snapshot.val();
       if (buzzData) {
         setBuzzedTeam(buzzData.team);
+        setBuzzedPlayerName(buzzData.playerName || null);
+        setBuzzedPlayerPhoto(buzzData.playerPhoto || null);
       } else {
         setBuzzedTeam(null);
+        setBuzzedPlayerName(null);
+        setBuzzedPlayerPhoto(null);
       }
     });
     return () => unsubscribe();
@@ -183,6 +257,36 @@ export default function TV() {
     }
     return () => clearInterval(interval);
   }, [isPlaying]);
+
+    // Écouter les joueurs de l'équipe 1
+  useEffect(() => {
+    const team1Ref = ref(database, 'players_session/team1');
+    const unsubscribe = onValue(team1Ref, (snapshot) => {
+      const playersObj = snapshot.val();
+      if (playersObj) {
+        const playersArray = Object.values(playersObj);
+        setPlayersTeam1(playersArray);
+      } else {
+        setPlayersTeam1([]);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Écouter les joueurs de l'équipe 2
+  useEffect(() => {
+    const team2Ref = ref(database, 'players_session/team2');
+    const unsubscribe = onValue(team2Ref, (snapshot) => {
+      const playersObj = snapshot.val();
+      if (playersObj) {
+        const playersArray = Object.values(playersObj);
+        setPlayersTeam2(playersArray);
+      } else {
+        setPlayersTeam2([]);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Calculer les points disponibles avec le nouveau système
   const availablePoints = calculatePoints(chrono, songDuration);
@@ -380,6 +484,33 @@ export default function TV() {
             </div>
           </div>
 
+          {/* Avatars Équipe 1 */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            flexWrap: 'wrap',
+            gap: '1rem',
+            marginTop: '1rem'
+          }}>
+            {playersTeam1.map((player, idx) => (
+              <PlayerAvatar 
+                key={idx} 
+                player={player} 
+                buzzedPlayerName={buzzedPlayerName}
+              />
+            ))}
+            
+            {playersTeam1.length === 0 && (
+              <div style={{ 
+                opacity: 0.5, 
+                fontSize: '1rem',
+                padding: '1rem'
+              }}>
+                En attente de joueurs...
+              </div>
+            )}
+          </div>
+
           {/* Titre */}
           <h1 style={{
             fontSize: '4rem',
@@ -408,6 +539,33 @@ export default function TV() {
               {scores.team2}
             </div>
           </div>
+        </div>
+
+        {/* Avatars Équipe 2 */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          flexWrap: 'wrap',
+          gap: '1rem',
+          marginTop: '1rem'
+        }}>
+          {playersTeam2.map((player, idx) => (
+            <PlayerAvatar 
+              key={idx} 
+              player={player} 
+              buzzedPlayerName={buzzedPlayerName}
+            />
+          ))}
+          
+          {playersTeam2.length === 0 && (
+            <div style={{ 
+              opacity: 0.5, 
+              fontSize: '1rem',
+              padding: '1rem'
+            }}>
+              En attente de joueurs...
+            </div>
+          )}
         </div>
 
         {/* Chronomètre et Points - affiché quand la musique joue OU en pause après avoir joué */}
