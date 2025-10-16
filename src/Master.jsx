@@ -559,6 +559,17 @@ const loadSpotifyPlaylists = async (token) => {
     const newScores = { ...scores, [team]: scores[team] + points };
     setScores(newScores);
     
+    // NOUVEAU : Activer cooldown si activé
+    if (cooldownEnabled && buzzedPlayerId) {
+      const cooldownRef = ref(database, `cooldowns/${buzzedPlayerId}`);
+      await set(cooldownRef, {
+        endTime: Date.now() + (cooldownDuration * 1000),
+        duration: cooldownDuration * 1000,
+        playerName: buzzedPlayerName
+      });
+      console.log(`🔒 Cooldown activé pour ${buzzedPlayerName} pendant ${cooldownDuration}s`);
+    }
+
     // Effacer le buzz visuel
     setBuzzedTeam(null);
     setBuzzedPlayerName(null);
