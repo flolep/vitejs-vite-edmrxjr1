@@ -53,6 +53,10 @@ export default function Master() {
   const [isSpotifyMode, setIsSpotifyMode] = useState(false);
   const [spotifyPosition, setSpotifyPosition] = useState(0);
   const [lastPlayedTrack, setLastPlayedTrack] = useState(null);
+
+  // Paramètres de cooldown
+  const [cooldownEnabled, setCooldownEnabled] = useState(false);
+  const [cooldownDuration, setCooldownDuration] = useState(5); // en secondes
   
   const audioRef = useRef(null);
   const buzzerSoundRef = useRef(null);
@@ -619,6 +623,12 @@ const loadSpotifyPlaylists = async (token) => {
     // Reset statistiques de buzz
     const buzzTimesRef = ref(database, 'buzz_times');
     set(buzzTimesRef, null);
+
+    // NOUVEAU : Effacer les joueurs
+    const team1Ref = ref(database, 'players_session/team1');
+    const team2Ref = ref(database, 'players_session/team2');
+    set(team1Ref, null);
+    set(team2Ref, null);
     
     setDebugInfo('🔄 Partie réinitialisée ! Rechargez une playlist pour recommencer.');
   };
@@ -761,6 +771,43 @@ const loadSpotifyPlaylists = async (token) => {
         <button onClick={handleEndGame} className="btn btn-yellow mb-4" style={{ marginLeft: '1rem' }}>
           🏁 Terminer la Partie
         </button>
+
+        {/* Paramètres de Cooldown */}
+        <div className="player-box mb-4">
+          <h3 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>
+            ⚙️ Cooldown (Handicap)
+          </h3>
+          
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+            <input 
+              type="checkbox" 
+              checked={cooldownEnabled}
+              onChange={(e) => setCooldownEnabled(e.target.checked)}
+              style={{ width: '20px', height: '20px' }}
+            />
+            <span>Activer le cooldown après bonne réponse</span>
+          </label>
+          
+          {cooldownEnabled && (
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem' }}>
+                Durée : <strong>{cooldownDuration}s</strong>
+              </label>
+              <input 
+                type="range" 
+                min="3" 
+                max="15" 
+                value={cooldownDuration}
+                onChange={(e) => setCooldownDuration(Number(e.target.value))}
+                style={{ width: '100%' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', opacity: 0.6 }}>
+                <span>3s</span>
+                <span>15s</span>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* NOUVEAU : Confirmation fin de partie */}
         {showEndGameConfirm && (
