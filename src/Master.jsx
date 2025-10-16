@@ -3,6 +3,14 @@ import { database } from './firebase';
 import { ref, onValue, remove, set } from 'firebase/database';
 import { spotifyService } from './spotifyService';
 
+// Import des composants
+import SpotifyConnection from './components/master/SpotifyConnection';
+import PlaylistSelector from './components/master/PlaylistSelector';
+import PlayerControls from './components/master/PlayerControls';
+import ScoreDisplay from './components/master/ScoreDisplay';
+import BuzzModal from './components/master/BuzzModal';
+import GameSettings from './components/master/GameSettings';
+
 /**
  * Calcule les points disponibles selon le nouveau système
  */
@@ -27,24 +35,22 @@ function calculatePoints(chrono, songDuration) {
 }
 
 export default function Master() {
+  // États principaux
   const [playlist, setPlaylist] = useState([]);
   const [currentTrack, setCurrentTrack] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [scores, setScores] = useState({ team1: 0, team2: 0 });
   const [buzzedTeam, setBuzzedTeam] = useState(null);
-  const [buzzedPlayerName, setBuzzedPlayerName] = useState(null);
-  const [buzzedPlayerPhoto, setBuzzedPlayerPhoto] = useState(null);
-  const [buzzedPlayerId, setBuzzedPlayerId] = useState(null);
   const [debugInfo, setDebugInfo] = useState('');
   const [currentChrono, setCurrentChrono] = useState(0);
   const [songDuration, setSongDuration] = useState(0);
   
-  // NOUVEAU : Stats des buzz
+  // États statistiques
   const [showStats, setShowStats] = useState(false);
   const [buzzStats, setBuzzStats] = useState([]);
   const [showEndGameConfirm, setShowEndGameConfirm] = useState(false);
   
-  // Spotify
+  // États Spotify
   const [spotifyToken, setSpotifyToken] = useState(null);
   const [spotifyPlaylists, setSpotifyPlaylists] = useState([]);
   const [showPlaylistSelector, setShowPlaylistSelector] = useState(false);
@@ -53,15 +59,11 @@ export default function Master() {
   const [isSpotifyMode, setIsSpotifyMode] = useState(false);
   const [spotifyPosition, setSpotifyPosition] = useState(0);
   const [lastPlayedTrack, setLastPlayedTrack] = useState(null);
-
-  // Paramètres de cooldown
-  const [cooldownEnabled, setCooldownEnabled] = useState(false);
-  const [cooldownDuration, setCooldownDuration] = useState(5); // en secondes
   
   const audioRef = useRef(null);
   const buzzerSoundRef = useRef(null);
 
-  // Vérifier si connecté à Spotify au chargement
+  // Vérifier connexion Spotify au chargement
   useEffect(() => {
     const token = sessionStorage.getItem('spotify_access_token');
     if (token) {
@@ -70,109 +72,59 @@ export default function Master() {
     }
   }, []);
 
- // Créer le son de buzzer au chargement (SON AMÉLIORÉ)
- useEffect(() => {
-  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-  
-  const playBuzzerSound = () => {
-    const now = audioContext.currentTime;
+  // Créer le son de buzzer
+  useEffect(() => {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
     
-    // Oscillateur principal (son du buzzer)
-    const osc1 = audioContext.createOscillator();
-    const gain1 = audioContext.createGain();
+    const playBuzzerSound = () => {
+      const now = audioContext.currentTime;
+      const osc1 = audioContext.createOscillator();
+      const gain1 = audioContext.createGain();
+      
+      osc1.connect(gain1);
+      gain1.connect(audioContext.destination);
+      
+      osc1.frequency.setValueAtTime(800, now);
+      osc1.frequency.exponentialRampToValueAtTime(400, now + 0.1);
+      osc1.type = 'sawtooth';
+      
+      gain1.gain.setValueAtTime(0, now);
+      gain1.gain.linearRampToValueAtTime(0.5, now + 0.01);
+      gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+      
+      osc1.start(now);
+      osc1.stop(now + 0.3);
+    };
     
-    osc1.connect(gain1);
-    gain1.connect(audioContext.destination);
-    
-    // Son de buzzer de jeu TV : fréquence descendante rapide
-    osc1.frequency.setValueAtTime(800, now);
-    osc1.frequency.exponentialRampToValueAtTime(400, now + 0.1);
-    osc1.type = 'sawtooth'; // Son plus agressif
-    
-    // Envelope : attaque rapide, decay court
-    gain1.gain.setValueAtTime(0, now);
-    gain1.gain.linearRampToValueAtTime(0.5, now + 0.01); // Attaque rapide
-    gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.3); // Decay
-    
-    osc1.start(now);
-    osc1.stop(now + 0.3);
-    
-    // Ajouter un second oscillateur pour plus de richesse
-    const osc2 = audioContext.createOscillator();
-    const gain2 = audioContext.createGain();
-    
-    osc2.connect(gain2);
-    gain2.connect(audioContext.destination);
-    
-    osc2.frequency.setValueAtTime(600, now);
-    osc2.frequency.exponentialRampToValueAtTime(300, now + 0.1);
-    osc2.type = 'square';
-    
-    gain2.gain.setValueAtTime(0, now);
-    gain2.gain.linearRampToValueAtTime(0.3, now + 0.01);
-    gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
-    
-    osc2.start(now);
-    osc2.stop(now + 0.3);
-  };
-  
-  buzzerSoundRef.current = playBuzzerSound;
-}, []);
+    buzzerSoundRef.current = { play: playBuzzerSound };
+  }, []);
 
-  // Écouter le chrono depuis Firebase
+  // Synchroniser chrono avec Firebase
   useEffect(() => {
     const chronoRef = ref(database, 'chrono');
     const unsubscribe = onValue(chronoRef, (snapshot) => {
-      const chronoValue = snapshot.val() || 0;
-      setCurrentChrono(chronoValue);
+      const value = snapshot.val();
+      if (value !== null) {
+        setCurrentChrono(value);
+      }
     });
     return () => unsubscribe();
   }, []);
 
-  // Reset la position Spotify quand on change de morceau
-  useEffect(() => {
-    setSpotifyPosition(0);
-    console.log('useEffect: Position reset à 0 pour morceau', currentTrack);
-  }, [currentTrack]);
-
-  // Écouter les buzz via Firebase
+  // Écouter les buzz
   useEffect(() => {
     const buzzRef = ref(database, 'buzz');
-    
     const unsubscribe = onValue(buzzRef, (snapshot) => {
       const buzzData = snapshot.val();
+      
       if (buzzData && isPlaying) {
-        setBuzzedTeam(buzzData.team);
-        setBuzzedPlayerName(buzzData.playerName || null);
-        setBuzzedPlayerPhoto(buzzData.playerPhoto || null);
-        setBuzzedPlayerId(buzzData.playerId || null);
+        const { team, time: buzzTime } = buzzData;
+        setBuzzedTeam(team);
         
-        // NOUVEAU : Enregistrer le temps de buzz
-        const buzzTime = currentChrono;
-        const buzzTimesRef = ref(database, `buzz_times/${currentTrack}`);
+        if (buzzerSoundRef.current) {
+          buzzerSoundRef.current.play();
+        }
         
-        // Récupérer les buzz existants pour ce morceau
-        onValue(buzzTimesRef, (timesSnapshot) => {
-          const existingBuzzes = timesSnapshot.val() || [];
-          
-          // Ajouter le nouveau buzz
-          const newBuzz = {
-            team: buzzData.team,
-            teamName: buzzData.teamName || (buzzData.team === 'team1' ? 'Équipe 1' : 'Équipe 2'),
-            time: buzzTime,
-            timestamp: Date.now(),
-            trackNumber: currentTrack + 1
-          };
-          
-          existingBuzzes.push(newBuzz);
-          
-          // Sauvegarder
-          set(buzzTimesRef, existingBuzzes);
-          
-          console.log('Buzz enregistré:', newBuzz);
-        }, { onlyOnce: true });
-        
-        // Pause selon le mode
         if (isSpotifyMode && spotifyToken) {
           spotifyService.pausePlayback(spotifyToken);
         } else if (audioRef.current) {
@@ -180,53 +132,54 @@ export default function Master() {
         }
         
         setIsPlaying(false);
-        
         const playingRef = ref(database, 'isPlaying');
         set(playingRef, false);
         
-        if (buzzerSoundRef.current) {
-          buzzerSoundRef.current();
-        }
+        const buzzTimesRef = ref(database, `buzz_times/${currentTrack}`);
+        const newBuzz = {
+          team,
+          time: buzzTime,
+          trackNumber: currentTrack + 1,
+          timestamp: Date.now()
+        };
         
-        setDebugInfo(`🔔 ${buzzData.team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2'} a buzzé à ${buzzTime.toFixed(1)}s !`);
+        onValue(buzzTimesRef, (snapshot) => {
+          const existingBuzzes = snapshot.val() || [];
+          set(buzzTimesRef, [...existingBuzzes, newBuzz]);
+        }, { onlyOnce: true });
         
-        // NE PAS SUPPRIMER LE BUZZ ICI - Il sera supprimé quand on donne des points, révèle, ou relance
-        // remove(buzzRef); ← ENLEVÉ
+        setDebugInfo(`🔔 ${team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2'} a buzzé à ${buzzTime.toFixed(1)}s !`);
       }
     });
 
     return () => unsubscribe();
   }, [isPlaying, isSpotifyMode, spotifyToken, currentChrono, currentTrack]);
 
-  // Connexion Spotify
+  // === SPOTIFY ===
   const handleSpotifyLogin = () => {
     window.location.href = spotifyService.getAuthUrl();
   };
 
-// Charger les playlists Spotify (MODIFIÉ pour filtrer tag #BT)
-const loadSpotifyPlaylists = async (token) => {
-  try {
-    const allPlaylists = await spotifyService.getUserPlaylists(token);
-    
-    // FILTRER uniquement les playlists avec #BT dans la description
-    const filteredPlaylists = allPlaylists.filter(playlist => 
-      playlist.description && playlist.description.includes('#BT')
-    );
-    
-    setSpotifyPlaylists(filteredPlaylists);
-    
-    // Message de debug pour informer l'utilisateur
-    if (filteredPlaylists.length === 0) {
-      setDebugInfo('⚠️ Aucune playlist avec le tag #BT trouvée dans la description');
-    } else {
-      setDebugInfo(`✅ ${filteredPlaylists.length} playlist(s) avec tag #BT trouvée(s)`);
+  const loadSpotifyPlaylists = async (token) => {
+    try {
+      const allPlaylists = await spotifyService.getUserPlaylists(token);
+      const filteredPlaylists = allPlaylists.filter(playlist => 
+        playlist.description && playlist.description.includes('#BT')
+      );
+      
+      setSpotifyPlaylists(filteredPlaylists);
+      
+      if (filteredPlaylists.length === 0) {
+        setDebugInfo('⚠️ Aucune playlist avec le tag #BT trouvée');
+      } else {
+        setDebugInfo(`✅ ${filteredPlaylists.length} playlist(s) avec tag #BT`);
+      }
+    } catch (error) {
+      console.error('Error loading playlists:', error);
+      setDebugInfo('❌ Erreur chargement playlists');
     }
-  } catch (error) {
-    console.error('Error loading playlists:', error);
-    setDebugInfo('❌ Erreur chargement playlists');
-  }
-};
-  // Importer une playlist Spotify
+  };
+
   const importSpotifyPlaylist = async (playlistId) => {
     try {
       setDebugInfo('⏳ Import en cours...');
@@ -235,7 +188,7 @@ const loadSpotifyPlaylists = async (token) => {
       setPlaylist(tracks);
       setIsSpotifyMode(true);
       setShowPlaylistSelector(false);
-      setDebugInfo(`✅ ${tracks.length} morceaux importés de Spotify`);
+      setDebugInfo(`✅ ${tracks.length} morceaux importés`);
       
       if (!spotifyPlayer) {
         const player = await spotifyService.initPlayer(
@@ -244,9 +197,7 @@ const loadSpotifyPlaylists = async (token) => {
           (state) => {
             if (state) {
               setSongDuration(state.duration / 1000);
-              const positionMs = state.position;
-              setSpotifyPosition(positionMs);
-              console.log('Position Spotify:', positionMs, 'ms');
+              setSpotifyPosition(state.position);
             }
           }
         );
@@ -266,7 +217,7 @@ const loadSpotifyPlaylists = async (token) => {
     }
   };
 
-  // Ajouter morceau manuel (mode MP3)
+  // === MODE MP3 ===
   const handleManualAdd = () => {
     const newTrack = {
       title: 'En attente de fichier...',
@@ -299,9 +250,7 @@ const loadSpotifyPlaylists = async (token) => {
       setPlaylist(updatedPlaylist);
       setDebugInfo(`✅ Image chargée`);
     };
-    reader.onerror = () => {
-      setDebugInfo(`❌ Erreur lecture image`);
-    };
+    reader.onerror = () => setDebugInfo(`❌ Erreur lecture image`);
     reader.readAsDataURL(file);
   };
 
@@ -326,23 +275,16 @@ const loadSpotifyPlaylists = async (token) => {
       updatedPlaylist[index].title = title;
       updatedPlaylist[index].artist = artist;
       setPlaylist(updatedPlaylist);
-      setDebugInfo(`✅ ${file.name} chargé (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+      setDebugInfo(`✅ ${file.name} chargé`);
     };
-    reader.onerror = () => {
-      setDebugInfo(`❌ Erreur lecture fichier ${file.name}`);
-    };
+    reader.onerror = () => setDebugInfo(`❌ Erreur lecture fichier`);
     reader.readAsDataURL(file);
   };
 
+  // === CONTRÔLES DE LECTURE ===
   const togglePlay = async () => {
-    const track = playlist[currentTrack];
-    
-    // Si on relance la lecture, effacer le buzz visuel
     if (!isPlaying) {
       setBuzzedTeam(null);
-      setBuzzedPlayerName(null);
-      setBuzzedPlayerPhoto(null);
-      setBuzzedPlayerId(null);
       const buzzRef = ref(database, 'buzz');
       remove(buzzRef);
     }
@@ -361,9 +303,7 @@ const loadSpotifyPlaylists = async (token) => {
           
           if (stateResponse.ok) {
             const playerState = await stateResponse.json();
-            const currentPosition = playerState.progress_ms;
-            setSpotifyPosition(currentPosition);
-            console.log('Position sauvegardée:', currentPosition, 'ms');
+            setSpotifyPosition(playerState.progress_ms);
           }
           
           await spotifyService.pausePlayback(spotifyToken);
@@ -376,63 +316,55 @@ const loadSpotifyPlaylists = async (token) => {
           const isNewTrack = lastPlayedTrack !== currentTrack;
           const startPosition = isNewTrack ? 0 : (spotifyPosition || 0);
           
-          console.log('Morceau actuel:', currentTrack, 'Dernier joué:', lastPlayedTrack, 'Nouvelle chanson?', isNewTrack);
-          console.log('Reprise lecture à :', startPosition, 'ms');
+          await spotifyService.startPlayback(
+            spotifyToken,
+            spotifyDeviceId,
+            playlist[currentTrack].uri,
+            startPosition
+          );
           
-          await spotifyService.playTrack(spotifyToken, spotifyDeviceId, track.spotifyUri, startPosition);
           setIsPlaying(true);
           setLastPlayedTrack(currentTrack);
-          setDebugInfo(`✅ Lecture Spotify en cours (${(startPosition/1000).toFixed(1)}s)`);
+          setDebugInfo('▶️ Lecture');
           
           const playingRef = ref(database, 'isPlaying');
           set(playingRef, true);
           
-          const trackNumberRef = ref(database, 'playingTrackNumber');
-          set(trackNumberRef, currentTrack);
-          
-          setSongDuration(track.duration);
-          const durationRef = ref(database, 'songDuration');
-          set(durationRef, track.duration);
+          const songRef = ref(database, 'currentSong');
+          set(songRef, {
+            title: '',
+            artist: '',
+            imageUrl: playlist[currentTrack].imageUrl,
+            revealed: false,
+            number: currentTrack + 1
+          });
         }
       } catch (error) {
-        setDebugInfo('❌ Erreur Spotify: ' + error.message);
-        console.error(error);
+        console.error('Spotify error:', error);
+        setDebugInfo('❌ Erreur Spotify');
       }
     } else {
-      if (!track?.audioUrl) {
-        setDebugInfo('❌ Pas d\'URL audio');
-        return;
-      }
-
-      if (!audioRef.current) {
-        setDebugInfo('❌ Référence audio manquante');
-        return;
-      }
-
+      if (!audioRef.current) return;
+      
       if (isPlaying) {
         audioRef.current.pause();
         setIsPlaying(false);
-        setDebugInfo('⏸️ Pause');
-        
         const playingRef = ref(database, 'isPlaying');
         set(playingRef, false);
       } else {
-        setDebugInfo('▶️ Tentative de lecture...');
-        audioRef.current.play()
-          .then(() => {
-            setIsPlaying(true);
-            setDebugInfo('✅ Lecture en cours');
-            
-            const playingRef = ref(database, 'isPlaying');
-            set(playingRef, true);
-            
-            const trackNumberRef = ref(database, 'playingTrackNumber');
-            set(trackNumberRef, currentTrack);
-          })
-          .catch(error => {
-            setDebugInfo('❌ Erreur: ' + error.message);
-            console.error('Erreur play:', error);
-          });
+        audioRef.current.play();
+        setIsPlaying(true);
+        const playingRef = ref(database, 'isPlaying');
+        set(playingRef, true);
+        
+        const songRef = ref(database, 'currentSong');
+        set(songRef, {
+          title: '',
+          artist: '',
+          imageUrl: playlist[currentTrack].imageUrl,
+          revealed: false,
+          number: currentTrack + 1
+        });
       }
     }
   };
@@ -448,17 +380,12 @@ const loadSpotifyPlaylists = async (token) => {
       const newTrackIndex = currentTrack + 1;
       setCurrentTrack(newTrackIndex);
       setIsPlaying(false);
-      
-      // Effacer le buzz visuel
       setBuzzedTeam(null);
-      setBuzzedPlayerName(null);
-      setBuzzedPlayerPhoto(null);
-      setBuzzedPlayerId(null);
+      
       const buzzRef = ref(database, 'buzz');
       remove(buzzRef);
       
       setSpotifyPosition(0);
-      console.log('Position reset à 0 pour nouvelle chanson');
       
       const chronoRef = ref(database, 'chrono');
       set(chronoRef, 0);
@@ -491,17 +418,12 @@ const loadSpotifyPlaylists = async (token) => {
       const newTrackIndex = currentTrack - 1;
       setCurrentTrack(newTrackIndex);
       setIsPlaying(false);
-      
-      // Effacer le buzz visuel
       setBuzzedTeam(null);
-      setBuzzedPlayerName(null);
-      setBuzzedPlayerPhoto(null);
-      setBuzzedPlayerId(null);
+      
       const buzzRef = ref(database, 'buzz');
       remove(buzzRef);
       
       setSpotifyPosition(0);
-      console.log('Position reset à 0 pour nouvelle chanson');
       
       const chronoRef = ref(database, 'chrono');
       set(chronoRef, 0);
@@ -519,15 +441,10 @@ const loadSpotifyPlaylists = async (token) => {
     updatedPlaylist[currentTrack].revealed = true;
     setPlaylist(updatedPlaylist);
     
-    // Effacer le buzz visuel
     setBuzzedTeam(null);
-    setBuzzedPlayerName(null);
-    setBuzzedPlayerPhoto(null);
-    setBuzzedPlayerId(null);
     const buzzRef = ref(database, 'buzz');
     remove(buzzRef);
     
-    // Arrêter la musique
     if (isSpotifyMode && spotifyToken) {
       spotifyService.pausePlayback(spotifyToken);
     } else if (audioRef.current) {
@@ -536,7 +453,6 @@ const loadSpotifyPlaylists = async (token) => {
     
     setIsPlaying(false);
     
-    // Mettre à jour Firebase
     const playingRef = ref(database, 'isPlaying');
     set(playingRef, false);
     
@@ -549,48 +465,26 @@ const loadSpotifyPlaylists = async (token) => {
       number: currentTrack + 1
     });
     
-    setDebugInfo(`✅ Réponse révélée - Chrono figé à ${currentChrono.toFixed(1)}s`);
+    setDebugInfo(`✅ Réponse révélée`);
   };
 
   const addPoint = async (team) => {
-    // Utiliser le nouveau système de calcul
     const points = calculatePoints(currentChrono, songDuration);
     
     const newScores = { ...scores, [team]: scores[team] + points };
     setScores(newScores);
-
-    // NOUVEAU : Cooldown après bonne réponse
-    if (cooldownEnabled && buzzedPlayerId) {
-      try {
-        const cooldownRef = ref(database, `cooldowns/${buzzedPlayerId}`);
-        await set(cooldownRef, {
-          endTime: Date.now() + (cooldownDuration * 1000),
-          duration: cooldownDuration * 1000,
-          playerName: buzzedPlayerName || 'Inconnu'
-        });
-        console.log(`🔒 Cooldown ${cooldownDuration}s pour ${buzzedPlayerName}`);
-      } catch (error) {
-        console.error('❌ Erreur cooldown:', error);
-      }
-    }
     
-    // Effacer le buzz visuel
     setBuzzedTeam(null);
-    setBuzzedPlayerName(null);
-    setBuzzedPlayerPhoto(null);
-    setBuzzedPlayerId(null);
     const buzzRef = ref(database, 'buzz');
     remove(buzzRef);
     
     const scoresRef = ref(database, 'scores');
     set(scoresRef, newScores);
     
-    // Révéler automatiquement la réponse
     const updatedPlaylist = [...playlist];
     updatedPlaylist[currentTrack].revealed = true;
     setPlaylist(updatedPlaylist);
     
-    // Mettre à jour Firebase pour afficher la réponse sur TV
     const songRef = ref(database, 'currentSong');
     set(songRef, {
       title: updatedPlaylist[currentTrack].title,
@@ -600,61 +494,46 @@ const loadSpotifyPlaylists = async (token) => {
       number: currentTrack + 1
     });
     
-    setDebugInfo(`✅ ${points} points pour ${team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2'} • Réponse révélée`);
+    setDebugInfo(`✅ ${points} points pour ${team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2'}`);
   };
 
+  // === GESTION DE PARTIE ===
   const resetScores = () => {
-    if (!confirm('⚠️ Cela va réinitialiser TOUTE la partie (scores, playlist, statistiques). Confirmer ?')) {
-      return;
-    }
+    if (!confirm('⚠️ Réinitialiser toute la partie ?')) return;
     
-    // Reset scores
     const newScores = { team1: 0, team2: 0 };
     setScores(newScores);
     const scoresRef = ref(database, 'scores');
     set(scoresRef, newScores);
     
-    // Vider la playlist
     setPlaylist([]);
     setCurrentTrack(0);
     setIsPlaying(false);
     
-    // Reset chrono
     const chronoRef = ref(database, 'chrono');
     set(chronoRef, 0);
     setCurrentChrono(0);
     
-    // Reset état de jeu
     const playingRef = ref(database, 'isPlaying');
     set(playingRef, false);
     
     const songRef = ref(database, 'currentSong');
     set(songRef, null);
     
-    // Reset état de fin de partie
     const gameStatusRef = ref(database, 'game_status');
     set(gameStatusRef, { ended: false });
     
-    // Reset statistiques de buzz
     const buzzTimesRef = ref(database, 'buzz_times');
     set(buzzTimesRef, null);
-
-    // NOUVEAU : Effacer les joueurs
-    const team1Ref = ref(database, 'players_session/team1');
-    const team2Ref = ref(database, 'players_session/team2');
-    set(team1Ref, null);
-    set(team2Ref, null);
     
-    setDebugInfo('🔄 Partie réinitialisée ! Rechargez une playlist pour recommencer.');
+    setDebugInfo('🔄 Partie réinitialisée !');
   };
-  
-  // NOUVEAU : Charger les statistiques des buzz
+
   const loadBuzzStats = () => {
     const buzzTimesRef = ref(database, 'buzz_times');
     onValue(buzzTimesRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        // Aplatir toutes les données
         const allBuzzes = [];
         Object.keys(data).forEach(trackIndex => {
           data[trackIndex].forEach(buzz => {
@@ -662,22 +541,18 @@ const loadSpotifyPlaylists = async (token) => {
           });
         });
         
-        // Trier par temps (plus rapide en premier)
         allBuzzes.sort((a, b) => a.time - b.time);
-        
         setBuzzStats(allBuzzes);
         setShowStats(true);
       }
     }, { onlyOnce: true });
   };
-  
-  // NOUVEAU : Terminer la partie
+
   const handleEndGame = () => {
     setShowEndGameConfirm(true);
   };
-  
+
   const confirmEndGame = () => {
-    // Déclencher l'animation de victoire sur TV
     const gameStatusRef = ref(database, 'game_status');
     set(gameStatusRef, {
       ended: true,
@@ -687,12 +562,10 @@ const loadSpotifyPlaylists = async (token) => {
     });
     
     setShowEndGameConfirm(false);
-    setDebugInfo('🎉 Partie terminée ! Animation de victoire lancée sur TV');
+    setDebugInfo('🎉 Partie terminée !');
   };
 
   const currentSong = playlist[currentTrack];
-  
-  // Calculer les points disponibles pour l'affichage
   const availablePoints = calculatePoints(currentChrono, songDuration);
 
   return (
@@ -701,265 +574,56 @@ const loadSpotifyPlaylists = async (token) => {
         <h1 className="title">🎵 BLIND TEST 🎵</h1>
 
         {/* Connexion Spotify */}
-        {!spotifyToken ? (
-          <div className="player-box text-center mb-4">
-            <h3 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>Connectez-vous à Spotify</h3>
-            <button onClick={handleSpotifyLogin} className="btn btn-green">
-              🎵 Se connecter avec Spotify
-            </button>
-            <p style={{ marginTop: '1rem', opacity: 0.7 }}>ou</p>
-            <button onClick={handleManualAdd} className="btn btn-purple" style={{ marginTop: '0.5rem' }}>
-              📁 Mode MP3 manuel
-            </button>
-          </div>
-        ) : (
-          <div className="player-box mb-4">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>✅ Connecté à Spotify</span>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button onClick={() => setShowPlaylistSelector(true)} className="btn btn-green">
-                  🎵 Importer playlist Spotify
-                </button>
-                <button onClick={handleManualAdd} className="btn btn-purple">
-                  📁 Ajouter morceau MP3
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <SpotifyConnection
+          spotifyToken={spotifyToken}
+          onConnect={handleSpotifyLogin}
+          onShowPlaylists={() => setShowPlaylistSelector(true)}
+          onAddManual={handleManualAdd}
+        />
 
-        {/* Sélecteur de playlist Spotify */}
-        {showPlaylistSelector && (
-          <div className="player-box mb-4">
-            <h3 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>Choisissez une playlist</h3>
-            <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-              {spotifyPlaylists.map(pl => (
-                <div 
-                  key={pl.id}
-                  onClick={() => importSpotifyPlaylist(pl.id)}
-                  className="playlist-item"
-                  style={{ cursor: 'pointer', marginBottom: '0.5rem' }}
-                >
-                  <strong>{pl.name}</strong> - {pl.tracks.total} morceaux
-                </div>
-              ))}
-            </div>
-            <button onClick={() => setShowPlaylistSelector(false)} className="btn btn-gray" style={{ marginTop: '1rem' }}>
-              Annuler
-            </button>
-          </div>
-        )}
+        {/* Sélecteur de playlist */}
+        <PlaylistSelector
+          show={showPlaylistSelector}
+          playlists={spotifyPlaylists}
+          onSelect={importSpotifyPlaylist}
+          onClose={() => setShowPlaylistSelector(false)}
+        />
 
         {/* Scores */}
-        <div className="scores-grid">
-          <div className={`score-card red ${buzzedTeam === 'team1' ? 'buzzed' : ''}`}>
-            <h2>ÉQUIPE 1</h2>
-            <div className="score-number">{scores.team1}</div>
-            {buzzedTeam === 'team1' && (
-              <button onClick={() => addPoint('team1')} className="btn btn-green">
-                + {availablePoints} Points
-              </button>
-            )}
-          </div>
-          
-          <div className={`score-card blue ${buzzedTeam === 'team2' ? 'buzzed' : ''}`}>
-            <h2>ÉQUIPE 2</h2>
-            <div className="score-number">{scores.team2}</div>
-            {buzzedTeam === 'team2' && (
-              <button onClick={() => addPoint('team2')} className="btn btn-green">
-                + {availablePoints} Points
-              </button>
-            )}
-          </div>
-        </div>
+        <ScoreDisplay scores={scores} buzzedTeam={buzzedTeam} />
 
-        <button onClick={resetScores} className="btn btn-gray mb-4">
-          🔄 Nouvelle Partie (Reset complet)
-        </button>
-        
-        {/* NOUVEAU : Bouton Statistiques */}
-        <button onClick={loadBuzzStats} className="btn btn-purple mb-4" style={{ marginLeft: '1rem' }}>
-          📊 Voir les Statistiques
-        </button>
-        
-        {/* NOUVEAU : Bouton Terminer la partie */}
-        <button onClick={handleEndGame} className="btn btn-yellow mb-4" style={{ marginLeft: '1rem' }}>
-          🏁 Terminer la Partie
-        </button>
-
-        {/* Paramètres de Cooldown */}
-        <div className="player-box mb-4">
-          <h3 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>
-            ⚙️ Cooldown (Handicap)
-          </h3>
-          
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-            <input 
-              type="checkbox" 
-              checked={cooldownEnabled}
-              onChange={(e) => setCooldownEnabled(e.target.checked)}
-              style={{ width: '20px', height: '20px' }}
-            />
-            <span>Activer le cooldown après bonne réponse</span>
-          </label>
-          
-          {cooldownEnabled && (
-            <div>
-              <label style={{ display: 'block', marginBottom: '0.5rem' }}>
-                Durée : <strong>{cooldownDuration}s</strong>
-              </label>
-              <input 
-                type="range" 
-                min="3" 
-                max="15" 
-                value={cooldownDuration}
-                onChange={(e) => setCooldownDuration(Number(e.target.value))}
-                style={{ width: '100%' }}
-              />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', opacity: 0.6 }}>
-                <span>3s</span>
-                <span>15s</span>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* NOUVEAU : Confirmation fin de partie */}
-        {showEndGameConfirm && (
-          <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.8)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000
-          }}>
-            <div className="player-box" style={{ maxWidth: '500px', textAlign: 'center' }}>
-              <h2 style={{ fontSize: '2rem', marginBottom: '2rem' }}>
-                🏁 Terminer la partie ?
-              </h2>
-              <p style={{ fontSize: '1.25rem', marginBottom: '2rem', opacity: 0.8 }}>
-                Cela affichera l'animation de victoire sur l'écran TV.
-              </p>
-              <div style={{ fontSize: '3rem', marginBottom: '2rem' }}>
-                <div>ÉQUIPE 1: {scores.team1} pts</div>
-                <div>ÉQUIPE 2: {scores.team2} pts</div>
-              </div>
-              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-                <button onClick={() => setShowEndGameConfirm(false)} className="btn btn-gray">
-                  Annuler
-                </button>
-                <button onClick={confirmEndGame} className="btn btn-green">
-                  ✅ Confirmer
-                </button>
-              </div>
-            </div>
-          </div>
+        {/* Modal de buzz */}
+        {buzzedTeam && (
+          <BuzzModal
+            buzzedTeam={buzzedTeam}
+            currentChrono={currentChrono}
+            availablePoints={availablePoints}
+            onCorrect={() => addPoint(buzzedTeam)}
+            onWrong={revealAnswer}
+          />
         )}
 
-        {/* NOUVEAU : Modal Statistiques */}
-        {showStats && (
-          <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.8)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000
-          }}>
-            <div className="player-box" style={{ 
-              maxWidth: '600px', 
-              maxHeight: '80vh', 
-              overflowY: 'auto',
-              position: 'relative'
-            }}>
-              <button 
-                onClick={() => setShowStats(false)} 
-                style={{
-                  position: 'absolute',
-                  top: '1rem',
-                  right: '1rem',
-                  background: '#ef4444',
-                  border: 'none',
-                  borderRadius: '50%',
-                  width: '40px',
-                  height: '40px',
-                  color: 'white',
-                  fontSize: '1.5rem',
-                  cursor: 'pointer'
-                }}
-              >
-                ×
-              </button>
-              
-              <h2 style={{ fontSize: '2rem', marginBottom: '2rem' }}>
-                📊 Statistiques des Buzz
-              </h2>
-              
-              {buzzStats.length === 0 ? (
-                <p style={{ textAlign: 'center', opacity: 0.7 }}>
-                  Aucun buzz enregistré
-                </p>
-              ) : (
-                <>
-                  <h3 style={{ fontSize: '1.5rem', marginBottom: '1rem', color: '#fbbf24' }}>
-                    🏆 Classement par rapidité
-                  </h3>
-                  <div className="space-y">
-                    {buzzStats.map((buzz, index) => (
-                      <div 
-                        key={index}
-                        style={{
-                          backgroundColor: index === 0 ? 'rgba(251, 191, 36, 0.2)' : 'rgba(255,255,255,0.05)',
-                          padding: '1rem',
-                          borderRadius: '0.5rem',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          border: index === 0 ? '2px solid #fbbf24' : 'none'
-                        }}
-                      >
-                        <div>
-                          <span style={{ 
-                            fontSize: '1.5rem', 
-                            marginRight: '1rem',
-                            opacity: index === 0 ? 1 : 0.6
-                          }}>
-                            {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`}
-                          </span>
-                          <strong>{buzz.teamName}</strong>
-                          <span style={{ marginLeft: '0.5rem', opacity: 0.7 }}>
-                            (Morceau #{buzz.trackNumber})
-                          </span>
-                        </div>
-                        <div style={{ 
-                          fontSize: '1.5rem', 
-                          fontWeight: 'bold',
-                          color: buzz.time <= 5 ? '#10b981' : buzz.time <= 15 ? '#f59e0b' : '#ef4444'
-                        }}>
-                          {buzz.time.toFixed(1)}s
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        )}
+        {/* Paramètres */}
+        <GameSettings
+          playlist={playlist}
+          scores={scores}
+          showStats={showStats}
+          buzzStats={buzzStats}
+          showEndGameConfirm={showEndGameConfirm}
+          onResetGame={resetScores}
+          onShowStats={loadBuzzStats}
+          onEndGame={handleEndGame}
+          onConfirmEndGame={confirmEndGame}
+          onCancelEndGame={() => setShowEndGameConfirm(false)}
+        />
 
+        {/* Lecteur */}
         {playlist.length === 0 ? (
           <div className="player-box text-center">
-            <h3 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>Aucune playlist chargée</h3>
-            <p>Connectez-vous à Spotify ou ajoutez des morceaux manuellement</p>
+            <h3 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>
+              Aucune playlist chargée
+            </h3>
+            <p>Connectez-vous à Spotify ou ajoutez des morceaux</p>
           </div>
         ) : (
           <>
@@ -972,9 +636,13 @@ const loadSpotifyPlaylists = async (token) => {
                 <>
                   {currentSong.revealed ? (
                     <div className="revealed mb-4">
-                      <div style={{ fontWeight: 'bold', fontSize: '1.5rem' }}>{currentSong.title}</div>
+                      <div style={{ fontWeight: 'bold', fontSize: '1.5rem' }}>
+                        {currentSong.title}
+                      </div>
                       {currentSong.artist && (
-                        <div style={{ opacity: 0.8, marginTop: '0.5rem' }}>{currentSong.artist}</div>
+                        <div style={{ opacity: 0.8, marginTop: '0.5rem' }}>
+                          {currentSong.artist}
+                        </div>
                       )}
                     </div>
                   ) : (
@@ -1018,49 +686,30 @@ const loadSpotifyPlaylists = async (token) => {
                 <div className="debug-info mb-4">{debugInfo}</div>
               )}
 
-              <div className="controls mb-4">
-                <button
-                  onClick={prevTrack}
-                  disabled={currentTrack === 0}
-                  className="btn btn-gray btn-round"
-                >
-                  ⏮️
-                </button>
-
-                <button
-                  onClick={togglePlay}
-                  disabled={!isSpotifyMode && !currentSong?.audioUrl}
-                  className="btn btn-green btn-round btn-play"
-                >
-                  {isPlaying ? '⏸️' : '▶️'}
-                </button>
-                
-                <button
-                  onClick={nextTrack}
-                  disabled={currentTrack >= playlist.length - 1}
-                  className="btn btn-gray btn-round"
-                >
-                  ⏭️
-                </button>
-
-                <button
-                  onClick={revealAnswer}
-                  disabled={!currentSong || currentSong.revealed}
-                  className="btn btn-yellow"
-                >
-                  Révéler
-                </button>
-              </div>
-              
-              <div style={{ fontSize: '0.875rem', opacity: 0.7, textAlign: 'center' }}>
-                {isSpotifyMode ? '🎵 Mode Spotify' : '📁 Mode MP3'}
-              </div>
+              <PlayerControls
+                isPlaying={isPlaying}
+                currentTrack={currentTrack}
+                playlistLength={playlist.length}
+                currentSong={currentSong}
+                isSpotifyMode={isSpotifyMode}
+                onPlay={togglePlay}
+                onPrev={prevTrack}
+                onNext={nextTrack}
+                onReveal={revealAnswer}
+              />
             </div>
 
             {/* Playlist */}
             <div className="player-box">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <h3 style={{ fontSize: '1.5rem' }}>Playlist ({playlist.length})</h3>
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center', 
+                marginBottom: '1rem' 
+              }}>
+                <h3 style={{ fontSize: '1.5rem' }}>
+                  Playlist ({playlist.length})
+                </h3>
                 {!isSpotifyMode && (
                   <button onClick={handleManualAdd} className="btn btn-purple">
                     + Ajouter
@@ -1074,50 +723,63 @@ const loadSpotifyPlaylists = async (token) => {
                     key={index}
                     className={`playlist-item ${index === currentTrack ? 'current' : ''}`}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
+                    <div style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'flex-start', 
+                      gap: '1rem' 
+                    }}>
                       <div style={{ flex: 1 }}>
                         {/* Numéro et statut */}
                         <div style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>
-                          {index + 1}. {track.revealed ? '✅' : '❓'}
+                          {index + 1}. {track.revealed ? (
+                            <span style={{ color: '#10b981' }}>
+                              ✅ {track.title} {track.artist && `- ${track.artist}`}
+                            </span>
+                          ) : (
+                            <span style={{ opacity: 0.7 }}>
+                              {track.title} {track.artist && `- ${track.artist}`}
+                            </span>
+                          )}
                         </div>
                         
-                        {/* TOUJOURS VISIBLE pour l'animateur */}
-                        <div style={{ 
-                          fontSize: '1.125rem', 
-                          fontWeight: 'bold',
-                          color: '#fbbf24',
-                          marginBottom: '0.25rem'
-                        }}>
-                          🎵 {track.title}
-                        </div>
-                        
-                        {track.artist && (
-                          <div style={{ 
-                            fontSize: '0.875rem', 
-                            opacity: 0.8,
-                            marginBottom: '0.5rem'
-                          }}>
-                            👤 {track.artist}
-                          </div>
-                        )}
-                        
-                        {/* Infos technique (mode MP3) */}
+                        {/* Indicateurs de fichiers (mode MP3 uniquement) */}
                         {!isSpotifyMode && (
-                          <div style={{ fontSize: '0.75rem', marginTop: '0.5rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                            <span style={{ color: track.audioUrl ? '#10b981' : '#ef4444' }}>
+                          <div style={{ 
+                            display: 'flex', 
+                            gap: '1rem', 
+                            fontSize: '0.875rem', 
+                            marginTop: '0.5rem' 
+                          }}>
+                            <span style={{ 
+                              color: track.audioUrl ? '#10b981' : '#ef4444' 
+                            }}>
                               {track.audioUrl ? '✓ Audio' : '⚠️ Pas d\'audio'}
                             </span>
-                            <span style={{ color: track.imageUrl ? '#10b981' : '#ef4444' }}>
+                            <span style={{ 
+                              color: track.imageUrl ? '#10b981' : '#ef4444' 
+                            }}>
                               {track.imageUrl ? '✓ Image' : '⚠️ Pas d\'image'}
                             </span>
                           </div>
                         )}
                       </div>
                       
+                      {/* Boutons d'upload (mode MP3 uniquement) */}
                       {!isSpotifyMode && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <div style={{ 
+                          display: 'flex', 
+                          flexDirection: 'column', 
+                          gap: '0.5rem' 
+                        }}>
                           {!track.audioUrl && (
-                            <label className="file-label" style={{ fontSize: '0.75rem', padding: '0.5rem 1rem' }}>
+                            <label 
+                              className="file-label" 
+                              style={{ 
+                                fontSize: '0.75rem', 
+                                padding: '0.5rem 1rem' 
+                              }}
+                            >
                               📁 MP3
                               <input 
                                 type="file" 
@@ -1127,7 +789,14 @@ const loadSpotifyPlaylists = async (token) => {
                             </label>
                           )}
                           {!track.imageUrl && (
-                            <label className="file-label" style={{ fontSize: '0.75rem', padding: '0.5rem 1rem', backgroundColor: '#7c3aed' }}>
+                            <label 
+                              className="file-label" 
+                              style={{ 
+                                fontSize: '0.75rem', 
+                                padding: '0.5rem 1rem', 
+                                backgroundColor: '#7c3aed' 
+                              }}
+                            >
                               🖼️ Image
                               <input 
                                 type="file" 
