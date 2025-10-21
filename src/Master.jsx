@@ -499,7 +499,7 @@ const revealAnswer = async () => {
             const playerRef = ref(database, `players_session/${teamKey}/${playerKey}`);
             await set(playerRef, { 
               ...player, 
-              consecutiveCorrect: 0 // Reset le streak
+              consecutiveCorrect: 0
             });
           }
         }
@@ -514,16 +514,26 @@ const revealAnswer = async () => {
   setBuzzedTeam(null);
   remove(buzzRef);
   
-  if (isSpotifyMode && spotifyToken) {
-    spotifyService.pausePlayback(spotifyToken);
-  } else if (audioRef.current) {
-    audioRef.current.pause();
-  }
-  
-  setIsPlaying(false);
-  
+  // ✅ NE PAS mettre en pause, juste relancer
   const playingRef = ref(database, 'isPlaying');
-  set(playingRef, false);
+  set(playingRef, true);
+  setIsPlaying(true);
+  
+  // ✅ Relancer la lecture
+  if (isSpotifyMode && spotifyToken && spotifyDeviceId) {
+    try {
+      await spotifyService.playTrack(
+        spotifyToken,
+        spotifyDeviceId,
+        playlist[currentTrack].spotifyUri,
+        spotifyPosition || 0
+      );
+    } catch (error) {
+      console.error('Erreur relance Spotify:', error);
+    }
+  } else if (audioRef.current) {
+    audioRef.current.play();
+  }
   
   const songRef = ref(database, 'currentSong');
   set(songRef, {
@@ -534,7 +544,7 @@ const revealAnswer = async () => {
     number: currentTrack + 1
   });
   
-  setDebugInfo(`✅ Réponse révélée`);
+  setDebugInfo(`✅ Réponse révélée - Lecture reprise`);
 };
 
 const addPoint = async (team) => {

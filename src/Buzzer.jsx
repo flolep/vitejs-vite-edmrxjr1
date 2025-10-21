@@ -141,6 +141,20 @@ export default function Buzzer() {
     }
   };
 
+  // ✅ AJOUTEZ CET useEffect TOUT EN HAUT de votre composant Buzzer, après les autres useEffect
+useEffect(() => {
+  if (step === 'photo' && !photoData) {
+    startCamera();
+  }
+  
+  // Cleanup
+  return () => {
+    if (streamRef.current && step !== 'photo') {
+      streamRef.current.getTracks().forEach(track => track.stop());
+    }
+  };
+}, [step, photoData]);
+
   // NOUVEAU : Sélectionner un joueur existant
   const handleSelectPlayer = (player) => {
     setSelectedPlayer(player);
@@ -279,7 +293,26 @@ export default function Buzzer() {
     }
   };
 
-  const changeTeam = () => {
+  const changeTeam = async () => {
+      if (team && (selectedPlayer?.name || playerName)) {
+    const currentTeamKey = `team${team}`;
+    const playersRef = ref(database, `players_session/${currentTeamKey}`);
+    
+    const snapshot = await new Promise((resolve) => {
+      onValue(playersRef, resolve, { onlyOnce: true });
+    });
+    
+    const players = snapshot.val();
+    if (players) {
+      Object.keys(players).forEach(async (key) => {
+        if (players[key].name === (selectedPlayer?.name || playerName)) {
+          const playerRef = ref(database, `players_session/${currentTeamKey}/${key}`);
+          await remove(playerRef);
+          console.log(`✅ ${players[key].name} retiré de l'équipe ${team}`);
+        }
+      });
+    }
+  }
     setTeam(null);
     setBuzzed(false);
     setBuzzerEnabled(true);
@@ -412,53 +445,62 @@ export default function Buzzer() {
     );
   }
 
-  // ÉCRAN 3 : Prise de selfie
-  if (step === 'photo' && !photoData) {
-    return (
-      <div className="bg-gradient flex-center">
-        <div className="text-center" style={{ maxWidth: '500px', width: '100%', padding: '2rem' }}>
-          <h1 className="title">📸 Selfie !</h1>
-          <h2 style={{ fontSize: '1.25rem', marginBottom: '2rem' }}>
-            Pour vous identifier lors des prochaines parties
-          </h2>
-          
-          <div style={{
-            position: 'relative',
-            borderRadius: '1rem',
-            overflow: 'hidden',
-            marginBottom: '2rem',
-            backgroundColor: '#000'
+ // ÉCRAN 3 : Prise de selfie
+if (step === 'photo') {
+  // ✅ Démarrer la caméra automatiquement
+  useEffect(() => {
+    startCamera();
+    
+    // Cleanup : arrêter la caméra si on quitte cette étape
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
+
+  return (
+    <div className="bg-gradient flex-center">
+      <div className="text-center" style={{ maxWidth: '500px', width: '100%', padding: '2rem' }}>
+        <h1 className="title">📸 Prenez un selfie</h1>
+        
+        {error && (
+          <div style={{ 
+            backgroundColor: 'rgba(239, 68, 68, 0.2)', 
+            padding: '1rem', 
+            borderRadius: '0.5rem',
+            marginBottom: '1rem',
+            color: '#ef4444'
           }}>
-            <video
+            {error}
+          </div>
+        )}
+
+        {!photoData ? (
+          <>
+            <video 
               ref={videoRef}
               autoPlay
               playsInline
-              onLoadedMetadata={startCamera}
               style={{
                 width: '100%',
-                maxHeight: '400px',
-                display: 'block'
+                maxWidth: '400px',
+                borderRadius: '1rem',
+                marginBottom: '1rem',
+                transform: 'scaleX(-1)' // Effet miroir
               }}
             />
             <canvas ref={canvasRef} style={{ display: 'none' }} />
-          </div>
-          
-          {error && (
-            <div style={{ color: '#ef4444', marginBottom: '1rem' }}>
-              {error}
-            </div>
-          )}
-          
-          <div className="space-y">
-            <button
+            
+            <button 
               onClick={takeSelfie}
               className="btn btn-green"
-              style={{ width: '100%', padding: '1.5rem', fontSize: '1.25rem' }}
+              style={{ width: '100%', padding: '1.5rem', fontSize: '1.5rem' }}
             >
               📸 Prendre la photo
             </button>
             
-            <button
+            <button 
               onClick={() => {
                 if (streamRef.current) {
                   streamRef.current.getTracks().forEach(track => track.stop());
@@ -466,15 +508,48 @@ export default function Buzzer() {
                 setStep('team');
               }}
               className="btn btn-gray"
-              style={{ width: '100%', padding: '1rem' }}
+              style={{ width: '100%', padding: '1rem', marginTop: '1rem' }}
             >
-              ⏭️ Passer sans photo
+              Passer sans photo
             </button>
-          </div>
-        </div>
+          </>
+        ) : (
+          <>
+            <img 
+              src={photoData}
+              alt="Votre selfie"
+              style={{
+                width: '100%',
+                maxWidth: '400px',
+                borderRadius: '1rem',
+                marginBottom: '1rem'
+              }}
+            />
+            
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button 
+                onClick={retakeSelfie}
+                className="btn btn-yellow"
+                style={{ flex: 1, padding: '1.5rem' }}
+              >
+                🔄 Reprendre
+              </button>
+              
+              <button 
+                onClick={confirmSelfie}
+                className="btn btn-green"
+                style={{ flex: 1, padding: '1.5rem' }}
+                disabled={isSearching}
+              >
+                {isSearching ? '⏳ Sauvegarde...' : '✅ Confirmer'}
+              </button>
+            </div>
+          </>
+        )}
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   // ÉCRAN 4 : Validation du selfie
   if (step === 'photo' && photoData) {
