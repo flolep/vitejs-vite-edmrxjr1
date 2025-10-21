@@ -24,7 +24,7 @@ export default function App() {
 
   // Sauvegarder la page actuelle dans localStorage
   useEffect(() => {
-    if (page !== 'home') {
+    if (page !== 'home' && page !== 'callback') {
       localStorage.setItem('currentPage', page);
       // Mettre à jour l'URL sans recharger la page
       window.history.pushState({}, '', `/${page}`);
