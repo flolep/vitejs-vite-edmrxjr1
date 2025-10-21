@@ -319,7 +319,7 @@ export default function Master() {
           await spotifyService.playTrack(
             spotifyToken,
             spotifyDeviceId,
-            playlist[currentTrack].uri,
+            playlist[currentTrack].spotifyUri,
             startPosition
           );
           
