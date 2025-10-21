@@ -8,7 +8,7 @@ import SpotifyConnection from './components/master/SpotifyConnection';
 import PlaylistSelector from './components/master/PlaylistSelector';
 import PlayerControls from './components/master/PlayerControls';
 import ScoreDisplay from './components/master/ScoreDisplay';
-import BuzzAler from './components/master/BuzzAlert';
+import BuzzAlert from './components/master/BuzzAlert';
 import GameSettings from './components/master/GameSettings';
 
 /**
