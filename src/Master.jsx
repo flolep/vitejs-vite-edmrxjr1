@@ -1,9 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { database } from './firebase';
+import { database, auth } from './firebase';
 import { ref, onValue, remove, set } from 'firebase/database';
 import { spotifyService } from './spotifyService';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { QRCodeSVG } from 'qrcode.react';
 
 // Import des composants
+import Login from './components/Login';
 import SpotifyConnection from './components/master/SpotifyConnection';
 import PlaylistSelector from './components/master/PlaylistSelector';
 import PlayerControls from './components/master/PlayerControls';
@@ -35,6 +38,11 @@ function calculatePoints(chrono, songDuration) {
 }
 
 export default function Master() {
+  // États d'authentification et session
+  const [user, setUser] = useState(null);
+  const [sessionId, setSessionId] = useState(null);
+  const [showQRCode, setShowQRCode] = useState(false);
+
   // États principaux
   const [playlist, setPlaylist] = useState([]);
   const [currentTrack, setCurrentTrack] = useState(0);
@@ -63,6 +71,25 @@ export default function Master() {
   
   const audioRef = useRef(null);
   const buzzerSoundRef = useRef(null);
+
+  // Gestion de l'authentification
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      if (currentUser && !sessionId) {
+        // Générer un ID de session unique à 6 caractères
+        const newSessionId = Math.random().toString(36).substring(2, 8).toUpperCase();
+        setSessionId(newSessionId);
+        // Stocker la session dans Firebase
+        set(ref(database, `sessions/${newSessionId}`), {
+          createdBy: currentUser.uid,
+          createdAt: Date.now(),
+          active: true
+        });
+      }
+    });
+    return () => unsubscribe();
+  }, [sessionId]);
 
   // Vérifier connexion Spotify au chargement
   useEffect(() => {
@@ -102,7 +129,7 @@ export default function Master() {
 
   // Synchroniser chrono avec Firebase
   useEffect(() => {
-    const chronoRef = ref(database, 'chrono');
+    const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
     const unsubscribe = onValue(chronoRef, (snapshot) => {
       const value = snapshot.val();
       if (value !== null) {
@@ -114,7 +141,7 @@ export default function Master() {
 
 // Écouter les buzz
 useEffect(() => {
-  const buzzRef = ref(database, 'buzz');
+  const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
   const unsubscribe = onValue(buzzRef, (snapshot) => {
     const buzzData = snapshot.val();
     
@@ -137,11 +164,11 @@ useEffect(() => {
       }
       
       setIsPlaying(false);
-      const playingRef = ref(database, 'isPlaying');
+      const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
       set(playingRef, false);
       
       // ✅ FIX : S'assurer que buzzTime est défini avant de sauvegarder
-      const buzzTimesRef = ref(database, `buzz_times/${currentTrack}`);
+      const buzzTimesRef = ref(database, `sessions/${sessionId}/buzz_times/${currentTrack}`);
       const newBuzz = {
         team,
         time: buzzTime, // ✅ Utilise le chrono actuel
@@ -213,9 +240,9 @@ useEffect(() => {
         setSpotifyPlayer(player);
       }
       
-      const scoresRef = ref(database, 'scores');
+      const scoresRef = ref(database, `sessions/${sessionId}/scores`);
       set(scoresRef, { team1: 0, team2: 0 });
-      const chronoRef = ref(database, 'chrono');
+      const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
       set(chronoRef, 0);
       setScores({ team1: 0, team2: 0 });
       setCurrentChrono(0);
@@ -237,11 +264,11 @@ useEffect(() => {
     };
     
     if (playlist.length === 0) {
-      const scoresRef = ref(database, 'scores');
+      const scoresRef = ref(database, `sessions/${sessionId}/scores`);
       set(scoresRef, { team1: 0, team2: 0 });
-      const chronoRef = ref(database, 'chrono');
+      const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
       set(chronoRef, 0);
-      const playingRef = ref(database, 'isPlaying');
+      const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
       set(playingRef, false);
       setScores({ team1: 0, team2: 0 });
       setCurrentChrono(0);
@@ -297,7 +324,7 @@ const togglePlay = async () => {
       const teams = ['team1', 'team2'];
       
       for (const teamKey of teams) {
-        const playersRef = ref(database, `players_session/${teamKey}`);
+        const playersRef = ref(database, `sessions/${sessionId}/players_session/${teamKey}`);
         const snapshot = await new Promise((resolve) => {
           onValue(playersRef, resolve, { onlyOnce: true });
         });
@@ -306,7 +333,7 @@ const togglePlay = async () => {
         if (players) {
           for (const [playerKey, playerData] of Object.entries(players)) {
             if (playerData.hasCooldownPending) {
-              const playerRef = ref(database, `players_session/${teamKey}/${playerKey}`);
+              const playerRef = ref(database, `sessions/${sessionId}/players_session/${teamKey}/${playerKey}`);
               await set(playerRef, {
                 ...playerData,
                 cooldownEnd: Date.now() + 5000,
@@ -322,7 +349,7 @@ const togglePlay = async () => {
     await activatePendingCooldowns();
     
     setBuzzedTeam(null);
-    const buzzRef = ref(database, 'buzz');
+    const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
     remove(buzzRef);
   }
   
@@ -347,7 +374,7 @@ const togglePlay = async () => {
         setIsPlaying(false);
         setDebugInfo('⏸️ Pause');
         
-        const playingRef = ref(database, 'isPlaying');
+        const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
         set(playingRef, false);
       } else {
         const isNewTrack = lastPlayedTrack !== currentTrack;
@@ -364,10 +391,10 @@ const togglePlay = async () => {
         setLastPlayedTrack(currentTrack);
         setDebugInfo('▶️ Lecture');
         
-        const playingRef = ref(database, 'isPlaying');
+        const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
         set(playingRef, true);
         
-        const songRef = ref(database, 'currentSong');
+        const songRef = ref(database, `sessions/${sessionId}/currentSong`);
         set(songRef, {
           title: playlist[currentTrack].title,
           artist: playlist[currentTrack].artist,
@@ -389,17 +416,17 @@ const togglePlay = async () => {
       setIsPlaying(false);
       setDebugInfo('⏸️ Pause');
       
-      const playingRef = ref(database, 'isPlaying');
+      const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
       set(playingRef, false);
     } else {
       audioRef.current.play();
       setIsPlaying(true);
       setDebugInfo('▶️ Lecture');
       
-      const playingRef = ref(database, 'isPlaying');
+      const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
       set(playingRef, true);
       
-      const songRef = ref(database, 'currentSong');
+      const songRef = ref(database, `sessions/${sessionId}/currentSong`);
       set(songRef, {
         title: playlist[currentTrack].title,
         artist: playlist[currentTrack].artist,
@@ -424,21 +451,21 @@ const togglePlay = async () => {
       setIsPlaying(false);
       setBuzzedTeam(null);
       
-      const buzzRef = ref(database, 'buzz');
+      const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
       remove(buzzRef);
       
       setSpotifyPosition(0);
       
-      const chronoRef = ref(database, 'chrono');
+      const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
       set(chronoRef, 0);
       
-      const playingRef = ref(database, 'isPlaying');
+      const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
       set(playingRef, false);
       
-      const trackNumberRef = ref(database, 'currentTrackNumber');
+      const trackNumberRef = ref(database, `sessions/${sessionId}/currentTrackNumber`);
       set(trackNumberRef, newTrackIndex);
       
-      const songRef = ref(database, 'currentSong');
+      const songRef = ref(database, `sessions/${sessionId}/currentSong`);
       set(songRef, {
         title: '',
         artist: '',
@@ -462,25 +489,25 @@ const togglePlay = async () => {
       setIsPlaying(false);
       setBuzzedTeam(null);
       
-      const buzzRef = ref(database, 'buzz');
+      const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
       remove(buzzRef);
       
       setSpotifyPosition(0);
       
-      const chronoRef = ref(database, 'chrono');
+      const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
       set(chronoRef, 0);
       
-      const playingRef = ref(database, 'isPlaying');
+      const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
       set(playingRef, false);
       
-      const trackNumberRef = ref(database, 'currentTrackNumber');
+      const trackNumberRef = ref(database, `sessions/${sessionId}/currentTrackNumber`);
       set(trackNumberRef, newTrackIndex);
     }
   };
 
 const revealAnswer = async () => {
   // Reset le streak du joueur qui s'est trompé
-  const buzzRef = ref(database, 'buzz');
+  const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
   
   onValue(buzzRef, async (snapshot) => {
     const buzzData = snapshot.val();
@@ -489,7 +516,7 @@ const revealAnswer = async () => {
       const teamKey = buzzData.team === 'team1' ? 'team1' : 'team2';
       
       // ✅ Accès DIRECT avec la clé Firebase
-      const playerRef = ref(database, `players_session/${teamKey}/${playerFirebaseKey}`);
+      const playerRef = ref(database, `sessions/${sessionId}/players_session/${teamKey}/${playerFirebaseKey}`);
       
       onValue(playerRef, async (playerSnapshot) => {
         const playerData = playerSnapshot.val();
@@ -512,7 +539,7 @@ const revealAnswer = async () => {
   remove(buzzRef);
   
   // Relancer la lecture
-  const playingRef = ref(database, 'isPlaying');
+  const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
   set(playingRef, true);
   setIsPlaying(true);
   
@@ -531,7 +558,7 @@ const revealAnswer = async () => {
     audioRef.current.play();
   }
   
-  const songRef = ref(database, 'currentSong');
+  const songRef = ref(database, `sessions/${sessionId}/currentSong`);
   set(songRef, {
     title: updatedPlaylist[currentTrack].title,
     artist: updatedPlaylist[currentTrack].artist,
@@ -549,11 +576,11 @@ const addPoint = async (team) => {
   const newScores = { ...scores, [team]: scores[team] + points };
   setScores(newScores);
   
-  const scoresRef = ref(database, 'scores');
+  const scoresRef = ref(database, `sessions/${sessionId}/scores`);
   set(scoresRef, newScores);
   
   // ✅ Mettre à jour les stats du joueur en utilisant SA CLÉ FIREBASE
-  const buzzRef = ref(database, 'buzz');
+  const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
   
   onValue(buzzRef, async (snapshot) => {
     const buzzData = snapshot.val();
@@ -562,7 +589,7 @@ const addPoint = async (team) => {
       const teamKey = team === 'team1' ? 'team1' : 'team2';
       
       // ✅ Accès DIRECT avec la clé Firebase
-      const playerRef = ref(database, `players_session/${teamKey}/${playerFirebaseKey}`);
+      const playerRef = ref(database, `sessions/${sessionId}/players_session/${teamKey}/${playerFirebaseKey}`);
       
       onValue(playerRef, async (playerSnapshot) => {
         const playerData = playerSnapshot.val();
@@ -599,7 +626,7 @@ const addPoint = async (team) => {
   updatedPlaylist[currentTrack].revealed = true;
   setPlaylist(updatedPlaylist);
   
-  const songRef = ref(database, 'currentSong');
+  const songRef = ref(database, `sessions/${sessionId}/currentSong`);
   set(songRef, {
     title: updatedPlaylist[currentTrack].title,
     artist: updatedPlaylist[currentTrack].artist,
@@ -617,35 +644,35 @@ const addPoint = async (team) => {
     
     const newScores = { team1: 0, team2: 0 };
     setScores(newScores);
-    const scoresRef = ref(database, 'scores');
+    const scoresRef = ref(database, `sessions/${sessionId}/scores`);
     set(scoresRef, newScores);
     
     setPlaylist([]);
     setCurrentTrack(0);
     setIsPlaying(false);
     
-    const chronoRef = ref(database, 'chrono');
+    const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
     set(chronoRef, 0);
     setCurrentChrono(0);
     
-    const playingRef = ref(database, 'isPlaying');
+    const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
     set(playingRef, false);
     
-    const songRef = ref(database, 'currentSong');
+    const songRef = ref(database, `sessions/${sessionId}/currentSong`);
     set(songRef, null);
     
-    const gameStatusRef = ref(database, 'game_status');
+    const gameStatusRef = ref(database, `sessions/${sessionId}/game_status`);
     set(gameStatusRef, { ended: false });
     
-    const buzzTimesRef = ref(database, 'buzz_times');
+    const buzzTimesRef = ref(database, `sessions/${sessionId}/buzz_times`);
     set(buzzTimesRef, null);
 
     // ✅ NOUVEAU : Supprimer tous les joueurs de la session
-    const playersSessionRef = ref(database, 'players_session');
+    const playersSessionRef = ref(database, `sessions/${sessionId}/players_session`);
     set(playersSessionRef, null);
     
     // ✅ NOUVEAU : Supprimer le buzz en cours
-    const buzzRef = ref(database, 'buzz');
+    const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
     remove(buzzRef);
     
     setDebugInfo('🔄 Partie réinitialisée !');
@@ -659,7 +686,7 @@ const loadBuzzStats = (shouldShow = true) => {
   }
   
   // Ouvrir la modale et charger les données
-  const buzzTimesRef = ref(database, 'buzz_times');
+  const buzzTimesRef = ref(database, `sessions/${sessionId}/buzz_times`);
   onValue(buzzTimesRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
@@ -682,7 +709,7 @@ const loadBuzzStats = (shouldShow = true) => {
   };
 
   const confirmEndGame = () => {
-    const gameStatusRef = ref(database, 'game_status');
+    const gameStatusRef = ref(database, `sessions/${sessionId}/game_status`);
     set(gameStatusRef, {
       ended: true,
       winner: scores.team1 > scores.team2 ? 'team1' : scores.team2 > scores.team1 ? 'team2' : 'draw',
@@ -697,10 +724,57 @@ const loadBuzzStats = (shouldShow = true) => {
   const currentSong = playlist[currentTrack];
   const availablePoints = calculatePoints(currentChrono, songDuration);
 
+  // Gestion de la déconnexion
+  const handleLogout = async () => {
+    await signOut(auth);
+    setSessionId(null);
+  };
+
+  // Si l'utilisateur n'est pas connecté, afficher le Login
+  if (!user) {
+    return <Login onLoginSuccess={() => {}} />;
+  }
+
   return (
     <div className="bg-gradient">
       <div className="container">
-        <h1 className="title">🎵 BLIND TEST 🎵</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <h1 className="title">🎵 BLIND TEST 🎵</h1>
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            {sessionId && (
+              <button
+                onClick={() => setShowQRCode(true)}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: '#10b981',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '0.5rem',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '0.9rem'
+                }}
+              >
+                📱 QR Code Session
+              </button>
+            )}
+            <button
+              onClick={handleLogout}
+              style={{
+                padding: '0.5rem 1rem',
+                backgroundColor: '#ef4444',
+                color: 'white',
+                border: 'none',
+                borderRadius: '0.5rem',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '0.9rem'
+              }}
+            >
+              🚪 Déconnexion
+            </button>
+          </div>
+        </div>
 
         {/* Connexion Spotify */}
         <SpotifyConnection
@@ -806,7 +880,7 @@ const loadBuzzStats = (shouldShow = true) => {
                   onLoadedMetadata={(e) => {
                     const duration = e.target.duration;
                     setSongDuration(duration);
-                    const durationRef = ref(database, 'songDuration');
+                    const durationRef = ref(database, `sessions/${sessionId}/songDuration`);
                     set(durationRef, duration);
                   }}
                 />
@@ -943,6 +1017,74 @@ const loadBuzzStats = (shouldShow = true) => {
               </div>
             </div>
           </>
+        )}
+
+        {/* Modale QR Code */}
+        {showQRCode && (
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000,
+            }}
+            onClick={() => setShowQRCode(false)}
+          >
+            <div
+              style={{
+                backgroundColor: 'white',
+                padding: '2rem',
+                borderRadius: '1rem',
+                textAlign: 'center',
+                maxWidth: '400px',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 style={{ marginBottom: '1rem', color: '#1f2937' }}>
+                Code de Session
+              </h2>
+              <div style={{
+                fontSize: '3rem',
+                fontWeight: 'bold',
+                color: '#7c3aed',
+                marginBottom: '1.5rem',
+                letterSpacing: '0.5rem'
+              }}>
+                {sessionId}
+              </div>
+              <div style={{ marginBottom: '1.5rem' }}>
+                <QRCodeSVG
+                  value={`${window.location.origin}/buzzer?session=${sessionId}`}
+                  size={256}
+                  level="H"
+                  includeMargin={true}
+                />
+              </div>
+              <p style={{ color: '#6b7280', marginBottom: '1rem', fontSize: '0.9rem' }}>
+                Les joueurs peuvent scanner ce QR Code ou entrer le code manuellement
+              </p>
+              <button
+                onClick={() => setShowQRCode(false)}
+                style={{
+                  padding: '0.75rem 2rem',
+                  backgroundColor: '#7c3aed',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '0.5rem',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                }}
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>

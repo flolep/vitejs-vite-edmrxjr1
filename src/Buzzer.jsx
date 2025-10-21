@@ -4,6 +4,10 @@ import { ref, set, onValue, remove } from 'firebase/database';
 import { airtableService } from './airtableService';
 
 export default function Buzzer() {
+  // États de session
+  const [sessionId, setSessionId] = useState('');
+  const [sessionValid, setSessionValid] = useState(false);
+
   // États existants
   const [team, setTeam] = useState(null);
   const [buzzed, setBuzzed] = useState(false);
@@ -11,9 +15,9 @@ export default function Buzzer() {
   const [scores, setScores] = useState({ team1: 0, team2: 0 });
   const [someoneBuzzed, setSomeoneBuzzed] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  
+
   // NOUVEAUX états pour identification
-  const [step, setStep] = useState('name'); // 'name' | 'search' | 'select' | 'photo' | 'team' | 'game'
+  const [step, setStep] = useState('session'); // 'session' | 'name' | 'search' | 'select' | 'photo' | 'team' | 'game'
   const [playerName, setPlayerName] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
@@ -32,9 +36,43 @@ export default function Buzzer() {
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
 
+  // Vérifier le code de session depuis l'URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionParam = urlParams.get('session');
+    if (sessionParam) {
+      setSessionId(sessionParam);
+      verifySession(sessionParam);
+    }
+  }, []);
+
+  // Fonction pour vérifier si la session existe
+  const verifySession = async (id) => {
+    const sessionRef = ref(database, `sessions/${id}`);
+    onValue(sessionRef, (snapshot) => {
+      if (snapshot.exists() && snapshot.val().active) {
+        setSessionValid(true);
+        setStep('name');
+      } else {
+        setSessionValid(false);
+        setError('Code de session invalide ou expiré');
+      }
+    }, { onlyOnce: true });
+  };
+
+  // Fonction pour valider le code de session entré manuellement
+  const handleJoinSession = () => {
+    if (!sessionId || sessionId.trim().length !== 6) {
+      setError('Le code doit contenir 6 caractères');
+      return;
+    }
+    verifySession(sessionId.toUpperCase());
+  };
+
   // Écouter les scores Firebase
   useEffect(() => {
-    const scoresRef = ref(database, 'scores');
+    if (!sessionValid || !sessionId) return;
+    const scoresRef = ref(database, `sessions/${sessionId}/scores`);
     const unsubscribe = onValue(scoresRef, (snapshot) => {
       const scoresData = snapshot.val();
       if (scoresData) {
@@ -42,21 +80,23 @@ export default function Buzzer() {
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [sessionValid, sessionId]);
   
   // Écouter si une chanson est en cours de lecture
   useEffect(() => {
-    const playingRef = ref(database, 'isPlaying');
+    if (!sessionValid || !sessionId) return;
+    const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
     const unsubscribe = onValue(playingRef, (snapshot) => {
       const playingData = snapshot.val();
       setIsPlaying(playingData === true);
     });
     return () => unsubscribe();
-  }, []);
-  
+  }, [sessionValid, sessionId]);
+
   // Écouter si quelqu'un a buzzé
   useEffect(() => {
-    const buzzRef = ref(database, 'buzz');
+    if (!sessionValid || !sessionId) return;
+    const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
     const unsubscribe = onValue(buzzRef, (snapshot) => {
       const buzzData = snapshot.val();
       if (buzzData) {
@@ -69,15 +109,15 @@ export default function Buzzer() {
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [sessionValid, sessionId]);
 
   // Ajoutez cet useEffect pour écouter le cooldown du joueur
   useEffect(() => {
-    if (!team || !selectedPlayer) return;
-    
+    if (!team || !selectedPlayer || !sessionValid || !sessionId) return;
+
     const teamKey = `team${team}`;
-    const playersRef = ref(database, `players_session/${teamKey}`);
-    
+    const playersRef = ref(database, `sessions/${sessionId}/players_session/${teamKey}`);
+
     const unsubscribe = onValue(playersRef, (snapshot) => {
       const players = snapshot.val();
       if (players) {
@@ -93,9 +133,9 @@ export default function Buzzer() {
         });
       }
     });
-    
+
     return () => unsubscribe();
-  }, [team, selectedPlayer, playerName]);
+  }, [team, selectedPlayer, playerName, sessionValid, sessionId]);
 
   // Compte à rebours du cooldown
   useEffect(() => {
@@ -263,11 +303,11 @@ useEffect(() => {
 const selectTeam = async (teamNumber) => {
   setTeam(teamNumber);
   setStep('game');
-  
+
   const teamKey = `team${teamNumber}`;
   const newPlayerKey = `player_${Date.now()}`; // ✅ Clé unique
-  const playerRef = ref(database, `players_session/${teamKey}/${newPlayerKey}`);
-  
+  const playerRef = ref(database, `sessions/${sessionId}/players_session/${teamKey}/${newPlayerKey}`);
+
   try {
     const playerData = {
       id: selectedPlayer?.id || `temp_${Date.now()}`,
@@ -281,7 +321,7 @@ const selectTeam = async (teamNumber) => {
       consecutiveCorrect: 0,
       joinedAt: Date.now()
     };
-    
+
     await set(playerRef, playerData);
     setPlayerFirebaseKey(newPlayerKey); // ✅ Stocker la clé
     console.log('✅ Joueur enregistré:', playerData.name, 'dans', teamKey, 'clé:', newPlayerKey);
@@ -292,11 +332,11 @@ const selectTeam = async (teamNumber) => {
 
 const handleBuzz = async () => {
   if (!buzzerEnabled || someoneBuzzed || !isPlaying) return;
-  
+
   setBuzzed(true);
   setBuzzerEnabled(false);
-  
-  const buzzRef = ref(database, 'buzz');
+
+  const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
   await set(buzzRef, {
     type: 'BUZZ',
     team: `team${team}`,
@@ -307,7 +347,7 @@ const handleBuzz = async () => {
     playerFirebaseKey: playerFirebaseKey, // ✅ AJOUTEZ CECI
     timestamp: Date.now()
   });
-  
+
   if (navigator.vibrate) {
     navigator.vibrate(200);
   }
@@ -317,8 +357,8 @@ const changeTeam = async () => {
   // ✅ SUPPRIMER le joueur avec sa clé Firebase
   if (team && playerFirebaseKey) {
     const currentTeamKey = `team${team}`;
-    const playerRef = ref(database, `players_session/${currentTeamKey}/${playerFirebaseKey}`);
-    
+    const playerRef = ref(database, `sessions/${sessionId}/players_session/${currentTeamKey}/${playerFirebaseKey}`);
+
     try {
       await remove(playerRef);
       console.log(`✅ Joueur retiré de l'équipe ${team} (clé: ${playerFirebaseKey})`);
@@ -326,7 +366,7 @@ const changeTeam = async () => {
       console.error('❌ Erreur suppression joueur:', error);
     }
   }
-  
+
   setTeam(null);
   setBuzzed(false);
   setBuzzerEnabled(true);
@@ -336,6 +376,81 @@ const changeTeam = async () => {
 };
 
   // ========== ÉCRANS ==========
+
+  // ÉCRAN 0 : Saisie du code de session
+  if (step === 'session') {
+    return (
+      <div className="bg-gradient flex-center">
+        <div className="text-center" style={{ maxWidth: '500px', width: '100%', padding: '2rem' }}>
+          <h1 className="title">🎵 BLIND TEST 🎵</h1>
+          <h2 style={{ fontSize: '1.5rem', marginBottom: '2rem' }}>
+            Entrez le code de session
+          </h2>
+
+          <input
+            type="text"
+            placeholder="CODE"
+            value={sessionId}
+            onChange={(e) => setSessionId(e.target.value.toUpperCase())}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                handleJoinSession();
+              }
+            }}
+            maxLength={6}
+            autoFocus
+            style={{
+              width: '100%',
+              padding: '1.5rem',
+              fontSize: '2rem',
+              fontWeight: 'bold',
+              letterSpacing: '0.5rem',
+              borderRadius: '0.75rem',
+              border: 'none',
+              marginBottom: '1rem',
+              textAlign: 'center',
+              textTransform: 'uppercase'
+            }}
+          />
+
+          {error && (
+            <div style={{
+              color: '#ef4444',
+              marginBottom: '1rem',
+              fontSize: '0.875rem',
+              backgroundColor: '#fee2e2',
+              padding: '1rem',
+              borderRadius: '0.5rem'
+            }}>
+              {error}
+            </div>
+          )}
+
+          <button
+            onClick={handleJoinSession}
+            disabled={!sessionId || sessionId.length !== 6}
+            className="btn btn-green"
+            style={{
+              width: '100%',
+              padding: '1.5rem',
+              fontSize: '1.25rem',
+              opacity: (!sessionId || sessionId.length !== 6) ? 0.5 : 1
+            }}
+          >
+            ✅ Rejoindre la partie
+          </button>
+
+          <p style={{
+            marginTop: '2rem',
+            fontSize: '0.9rem',
+            opacity: 0.7
+          }}>
+            Scannez le QR Code affiché par l'animateur ou entrez le code à 6 caractères
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // ÉCRAN 1 : Saisie du prénom
   if (step === 'name') {

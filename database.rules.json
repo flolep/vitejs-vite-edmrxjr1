@@ -1,0 +1,50 @@
+{
+  "rules": {
+    "sessions": {
+      "$sessionId": {
+        ".read": "data.child('active').val() === true",
+        ".write": "auth != null && (!data.exists() || data.child('createdBy').val() === auth.uid)",
+        "scores": {
+          ".read": "root.child('sessions').child($sessionId).child('active').val() === true",
+          ".write": "auth != null && root.child('sessions').child($sessionId).child('createdBy').val() === auth.uid"
+        },
+        "chrono": {
+          ".read": "root.child('sessions').child($sessionId).child('active').val() === true",
+          ".write": "root.child('sessions').child($sessionId).child('active').val() === true"
+        },
+        "isPlaying": {
+          ".read": "root.child('sessions').child($sessionId).child('active').val() === true",
+          ".write": "auth != null && root.child('sessions').child($sessionId).child('createdBy').val() === auth.uid"
+        },
+        "buzz": {
+          ".read": "root.child('sessions').child($sessionId).child('active').val() === true",
+          ".write": "root.child('sessions').child($sessionId).child('active').val() === true"
+        },
+        "currentSong": {
+          ".read": "root.child('sessions').child($sessionId).child('active').val() === true",
+          ".write": "auth != null && root.child('sessions').child($sessionId).child('createdBy').val() === auth.uid"
+        },
+        "currentTrackNumber": {
+          ".read": "root.child('sessions').child($sessionId).child('active').val() === true",
+          ".write": "auth != null && root.child('sessions').child($sessionId).child('createdBy').val() === auth.uid"
+        },
+        "game_status": {
+          ".read": "root.child('sessions').child($sessionId).child('active').val() === true",
+          ".write": "auth != null && root.child('sessions').child($sessionId).child('createdBy').val() === auth.uid"
+        },
+        "buzz_times": {
+          ".read": "root.child('sessions').child($sessionId).child('active').val() === true",
+          ".write": "auth != null && root.child('sessions').child($sessionId).child('createdBy').val() === auth.uid"
+        },
+        "players_session": {
+          ".read": "root.child('sessions').child($sessionId).child('active').val() === true",
+          ".write": "root.child('sessions').child($sessionId).child('active').val() === true"
+        },
+        "songDuration": {
+          ".read": "root.child('sessions').child($sessionId).child('active').val() === true",
+          ".write": "auth != null && root.child('sessions').child($sessionId).child('createdBy').val() === auth.uid"
+        }
+      }
+    }
+  }
+}

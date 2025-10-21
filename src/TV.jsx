@@ -140,6 +140,11 @@ const PlayerAvatar = ({ player, buzzedPlayerKey, buzzedPlayerName }) => {
 };
 
 export default function TV() {
+  // États de session
+  const [sessionId, setSessionId] = useState('');
+  const [sessionValid, setSessionValid] = useState(false);
+  const [error, setError] = useState('');
+
   const [scores, setScores] = useState({ team1: 0, team2: 0 });
   const [playersTeam1, setPlayersTeam1] = useState([]);
   const [playersTeam2, setPlayersTeam2] = useState([]);
@@ -152,15 +157,48 @@ export default function TV() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [playingTrackNumber, setPlayingTrackNumber] = useState(null);
   const [songDuration, setSongDuration] = useState(0);
-  
+
   // NOUVEAU : État de fin de partie
   const [gameEnded, setGameEnded] = useState(false);
   const [winner, setWinner] = useState(null);
   const [fastestBuzz, setFastestBuzz] = useState(null);
 
+  // Vérifier le code de session depuis l'URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionParam = urlParams.get('session');
+    if (sessionParam) {
+      setSessionId(sessionParam);
+      verifySession(sessionParam);
+    }
+  }, []);
+
+  // Fonction pour vérifier si la session existe
+  const verifySession = async (id) => {
+    const sessionRef = ref(database, `sessions/${id}`);
+    onValue(sessionRef, (snapshot) => {
+      if (snapshot.exists() && snapshot.val().active) {
+        setSessionValid(true);
+      } else {
+        setSessionValid(false);
+        setError('Code de session invalide ou expiré');
+      }
+    }, { onlyOnce: true });
+  };
+
+  // Fonction pour valider le code de session entré manuellement
+  const handleJoinSession = () => {
+    if (!sessionId || sessionId.trim().length !== 6) {
+      setError('Le code doit contenir 6 caractères');
+      return;
+    }
+    verifySession(sessionId.toUpperCase());
+  };
+
   // Écouter le chrono depuis Firebase
   useEffect(() => {
-    const chronoRef = ref(database, 'chrono');
+    if (!sessionValid || !sessionId) return;
+    const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
     const unsubscribe = onValue(chronoRef, (snapshot) => {
       const chronoValue = snapshot.val();
       if (chronoValue !== null) {
@@ -168,11 +206,12 @@ export default function TV() {
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [sessionValid, sessionId]);
 
   // Écouter la durée de la chanson
   useEffect(() => {
-    const durationRef = ref(database, 'songDuration');
+    if (!sessionValid || !sessionId) return;
+    const durationRef = ref(database, `sessions/${sessionId}/songDuration`);
     const unsubscribe = onValue(durationRef, (snapshot) => {
       const duration = snapshot.val();
       if (duration) {
@@ -180,11 +219,12 @@ export default function TV() {
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [sessionValid, sessionId]);
 
   // Écouter les scores
   useEffect(() => {
-    const scoresRef = ref(database, 'scores');
+    if (!sessionValid || !sessionId) return;
+    const scoresRef = ref(database, `sessions/${sessionId}/scores`);
     const unsubscribe = onValue(scoresRef, (snapshot) => {
       const scoresData = snapshot.val();
       if (scoresData) {
@@ -192,39 +232,42 @@ export default function TV() {
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [sessionValid, sessionId]);
 
   // Écouter l'état de lecture (Play/Pause)
   useEffect(() => {
-    const playingRef = ref(database, 'isPlaying');
+    if (!sessionValid || !sessionId) return;
+    const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
     const unsubscribe = onValue(playingRef, (snapshot) => {
       const playing = snapshot.val();
       setIsPlaying(playing || false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [sessionValid, sessionId]);
 
   // Écouter le numéro de morceau actuel (pour détecter les changements)
   useEffect(() => {
-    const trackNumberRef = ref(database, 'currentTrackNumber');
+    if (!sessionValid || !sessionId) return;
+    const trackNumberRef = ref(database, `sessions/${sessionId}/currentTrackNumber`);
     const unsubscribe = onValue(trackNumberRef, (snapshot) => {
       const trackNumber = snapshot.val();
-      
+
       // Reset le chrono quand le morceau change
       if (trackNumber !== null && trackNumber !== playingTrackNumber) {
         setChrono(0);
       }
-      
+
       setPlayingTrackNumber(trackNumber);
     });
     return () => unsubscribe();
-  }, [playingTrackNumber]);
+  }, [playingTrackNumber, sessionValid, sessionId]);
 
   // Écouter les buzz
   useEffect(() => {
+    if (!sessionValid || !sessionId) return;
     // ✅ SUPPRIMÉ : const [buzzedPlayerKey, setBuzzedPlayerKey] = useState(null);
 
-    const buzzRef = ref(database, 'buzz');
+    const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
     const unsubscribe = onValue(buzzRef, (snapshot) => {
       const buzzData = snapshot.val();
       if (buzzData) {
@@ -240,11 +283,12 @@ export default function TV() {
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [sessionValid, sessionId]);
 
   // Écouter le morceau actuel (pour affichage info)
   useEffect(() => {
-    const songRef = ref(database, 'currentSong');
+    if (!sessionValid || !sessionId) return;
+    const songRef = ref(database, `sessions/${sessionId}/currentSong`);
     const unsubscribe = onValue(songRef, (snapshot) => {
       const songData = snapshot.val();
       if (songData) {
@@ -252,21 +296,22 @@ export default function TV() {
       }
     });
     return () => unsubscribe();
-  }, []);
-  
+  }, [sessionValid, sessionId]);
+
   // NOUVEAU : Écouter la fin de partie
   useEffect(() => {
-    const gameStatusRef = ref(database, 'game_status');
+    if (!sessionValid || !sessionId) return;
+    const gameStatusRef = ref(database, `sessions/${sessionId}/game_status`);
     const unsubscribe = onValue(gameStatusRef, (snapshot) => {
       const status = snapshot.val();
-      
+
       // Si la partie est terminée
       if (status && status.ended) {
         setGameEnded(true);
         setWinner(status.winner);
-        
+
         // Charger le buzz le plus rapide
-        const buzzTimesRef = ref(database, 'buzz_times');
+        const buzzTimesRef = ref(database, `sessions/${sessionId}/buzz_times`);
         onValue(buzzTimesRef, (buzzSnapshot) => {
           const data = buzzSnapshot.val();
           if (data) {
@@ -276,7 +321,7 @@ export default function TV() {
                 allBuzzes.push(buzz);
               });
             });
-            
+
             // Trouver le plus rapide
             if (allBuzzes.length > 0) {
               allBuzzes.sort((a, b) => a.time - b.time);
@@ -292,28 +337,30 @@ export default function TV() {
       }
     });
     return () => unsubscribe();
-  }, [gameEnded]);
+  }, [gameEnded, sessionValid, sessionId]);
 
   // Chronomètre - tourne quand la musique joue et synchronise sur Firebase
   useEffect(() => {
+    if (!sessionValid || !sessionId) return;
     let interval;
     if (isPlaying) {
       interval = setInterval(() => {
         setChrono(prev => {
           const newChrono = prev + 0.1;
           // Synchroniser sur Firebase
-          const chronoRef = ref(database, 'chrono');
+          const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
           set(chronoRef, newChrono);
           return newChrono;
         });
       }, 100);
     }
     return () => clearInterval(interval);
-  }, [isPlaying]);
+  }, [isPlaying, sessionValid, sessionId]);
 
     // Écouter les joueurs de l'équipe 1
   useEffect(() => {
-    const team1Ref = ref(database, 'players_session/team1');
+    if (!sessionValid || !sessionId) return;
+    const team1Ref = ref(database, `sessions/${sessionId}/players_session/team1`);
     const unsubscribe = onValue(team1Ref, (snapshot) => {
       const playersObj = snapshot.val();
       if (playersObj) {
@@ -327,11 +374,12 @@ export default function TV() {
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [sessionValid, sessionId]);
 
   // Écouter les joueurs de l'équipe 2
   useEffect(() => {
-    const team2Ref = ref(database, 'players_session/team2');
+    if (!sessionValid || !sessionId) return;
+    const team2Ref = ref(database, `sessions/${sessionId}/players_session/team2`);
     const unsubscribe = onValue(team2Ref, (snapshot) => {
       const playersObj = snapshot.val();
       if (playersObj) {
@@ -345,7 +393,7 @@ export default function TV() {
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [sessionValid, sessionId]);
 
   // Calculer les points disponibles avec le nouveau système
   const availablePoints = calculatePoints(chrono, songDuration);
@@ -365,6 +413,94 @@ export default function TV() {
   const isAt5s = chrono >= 4.5 && chrono < 5.5;
   const isAt15s = chrono >= 14.5 && chrono < 15.5;
   const isNearCritical = isAt5s || isAt15s;
+
+  // Écran de saisie du code de session
+  if (!sessionValid) {
+    return (
+      <div style={{
+        background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
+        minHeight: '100vh',
+        color: 'white',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+      }}>
+        <div style={{ textAlign: 'center', maxWidth: '500px', width: '100%', padding: '2rem' }}>
+          <h1 style={{ fontSize: '3rem', marginBottom: '1rem' }}>📺 ÉCRAN TV</h1>
+          <h2 style={{ fontSize: '1.5rem', marginBottom: '2rem', opacity: 0.8 }}>
+            Entrez le code de session
+          </h2>
+
+          <input
+            type="text"
+            placeholder="CODE"
+            value={sessionId}
+            onChange={(e) => setSessionId(e.target.value.toUpperCase())}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                handleJoinSession();
+              }
+            }}
+            maxLength={6}
+            autoFocus
+            style={{
+              width: '100%',
+              padding: '1.5rem',
+              fontSize: '2rem',
+              fontWeight: 'bold',
+              letterSpacing: '0.5rem',
+              borderRadius: '0.75rem',
+              border: 'none',
+              marginBottom: '1rem',
+              textAlign: 'center',
+              textTransform: 'uppercase'
+            }}
+          />
+
+          {error && (
+            <div style={{
+              color: '#ef4444',
+              marginBottom: '1rem',
+              fontSize: '0.875rem',
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              padding: '1rem',
+              borderRadius: '0.5rem'
+            }}>
+              {error}
+            </div>
+          )}
+
+          <button
+            onClick={handleJoinSession}
+            disabled={!sessionId || sessionId.length !== 6}
+            style={{
+              width: '100%',
+              padding: '1.5rem',
+              fontSize: '1.25rem',
+              backgroundColor: '#7c3aed',
+              color: 'white',
+              border: 'none',
+              borderRadius: '0.75rem',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              opacity: (!sessionId || sessionId.length !== 6) ? 0.5 : 1
+            }}
+          >
+            ✅ Rejoindre la partie
+          </button>
+
+          <p style={{
+            marginTop: '2rem',
+            fontSize: '0.9rem',
+            opacity: 0.7
+          }}>
+            Demandez le code à l'animateur
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // NOUVEAU : Écran de victoire
   if (gameEnded) {
