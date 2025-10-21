@@ -148,7 +148,9 @@ export default function Master() {
           set(buzzTimesRef, [...existingBuzzes, newBuzz]);
         }, { onlyOnce: true });
         
-        setDebugInfo(`🔔 ${team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2'} a buzzé à ${buzzTime.toFixed(1)}s !`);
+        if (buzzTime !== undefined && buzzTime !== null) {
+          setDebugInfo(`🔔 ${team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2'} a buzzé à ${buzzTime.toFixed(1)}s !`);
+        }
       }
     });
 
