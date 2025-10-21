@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { database } from './firebase';
-import { ref, set, onValue } from 'firebase/database';
+import { ref, set, onValue, remove } from 'firebase/database';
 import { airtableService } from './airtableService';
 
 export default function Buzzer() {
@@ -20,6 +20,9 @@ export default function Buzzer() {
   const [isSearching, setIsSearching] = useState(false);
   const [photoData, setPhotoData] = useState(null);
   const [error, setError] = useState('');
+
+  // Changement d'équipe - NOUVEAU
+  const [playerFirebaseKey, setPlayerFirebaseKey] = useState(null);
   
   // Cooldown states
   const [cooldownEnd, setCooldownEnd] = useState(null);
@@ -112,6 +115,20 @@ export default function Buzzer() {
     
     return () => clearInterval(interval);
     }, [cooldownEnd]);
+
+    // ✅ AJOUTEZ CE useEffect AVEC LES AUTRES (vers la ligne 90-100)
+useEffect(() => {
+  if (step === 'photo' && !photoData) {
+    startCamera();
+  }
+  
+  // Cleanup : arrêter la caméra si on quitte cette étape
+  return () => {
+    if (streamRef.current && step !== 'photo') {
+      streamRef.current.getTracks().forEach(track => track.stop());
+    }
+  };
+}, [step, photoData]);
 
   // NOUVEAU : Rechercher le joueur
   const handleSearchPlayer = async () => {
@@ -243,33 +260,35 @@ useEffect(() => {
     startCamera();
   };
 
-  const selectTeam = async (teamNumber) => {
-    setTeam(teamNumber);
-    setStep('game');
+const selectTeam = async (teamNumber) => {
+  setTeam(teamNumber);
+  setStep('game');
+  
+  const teamKey = `team${teamNumber}`;
+  const newPlayerKey = `player_${Date.now()}`; // ✅ Clé unique
+  const playerRef = ref(database, `players_session/${teamKey}/${newPlayerKey}`);
+  
+  try {
+    const playerData = {
+      id: selectedPlayer?.id || `temp_${Date.now()}`,
+      name: selectedPlayer?.name || playerName,
+      photo: selectedPlayer?.photo || photoData || null,
+      status: 'idle',
+      cooldownEnd: null,
+      hasCooldownPending: false,
+      buzzCount: 0,
+      correctCount: 0,
+      consecutiveCorrect: 0,
+      joinedAt: Date.now()
+    };
     
-    // NOUVEAU : Enregistrer le joueur dans la session Firebase
-    const teamKey = `team${teamNumber}`;
-    const newPlayerKey = `player_${Date.now()}`;
-    const playerRef = ref(database, `players_session/${teamKey}/${newPlayerKey}`);
-    
-    try {
-      const playerData = {
-        id: selectedPlayer?.id || `temp_${Date.now()}`,
-        name: selectedPlayer?.name || playerName,
-        photo: selectedPlayer?.photo || photoData || null,
-        status: 'idle',
-        cooldownEnd: null,
-        buzzCount: 0,
-        correctCount: 0,
-        joinedAt: Date.now()
-      };
-      
-      await set(playerRef, playerData);
-      console.log('✅ Joueur enregistré:', playerData.name, 'dans', teamKey);
-    } catch (error) {
-      console.error('❌ Erreur enregistrement joueur:', error);
-    }
-  };
+    await set(playerRef, playerData);
+    setPlayerFirebaseKey(newPlayerKey); // ✅ Stocker la clé
+    console.log('✅ Joueur enregistré:', playerData.name, 'dans', teamKey, 'clé:', newPlayerKey);
+  } catch (error) {
+    console.error('❌ Erreur enregistrement joueur:', error);
+  }
+};
 
   const handleBuzz = async () => {
     if (!buzzerEnabled || someoneBuzzed || !isPlaying) return;
@@ -293,32 +312,27 @@ useEffect(() => {
     }
   };
 
-  const changeTeam = async () => {
-      if (team && (selectedPlayer?.name || playerName)) {
+const changeTeam = async () => {
+  // ✅ SUPPRIMER le joueur avec sa clé Firebase
+  if (team && playerFirebaseKey) {
     const currentTeamKey = `team${team}`;
-    const playersRef = ref(database, `players_session/${currentTeamKey}`);
+    const playerRef = ref(database, `players_session/${currentTeamKey}/${playerFirebaseKey}`);
     
-    const snapshot = await new Promise((resolve) => {
-      onValue(playersRef, resolve, { onlyOnce: true });
-    });
-    
-    const players = snapshot.val();
-    if (players) {
-      Object.keys(players).forEach(async (key) => {
-        if (players[key].name === (selectedPlayer?.name || playerName)) {
-          const playerRef = ref(database, `players_session/${currentTeamKey}/${key}`);
-          await remove(playerRef);
-          console.log(`✅ ${players[key].name} retiré de l'équipe ${team}`);
-        }
-      });
+    try {
+      await remove(playerRef);
+      console.log(`✅ Joueur retiré de l'équipe ${team} (clé: ${playerFirebaseKey})`);
+    } catch (error) {
+      console.error('❌ Erreur suppression joueur:', error);
     }
   }
-    setTeam(null);
-    setBuzzed(false);
-    setBuzzerEnabled(true);
-    setSomeoneBuzzed(false);
-    setStep('team');
-  };
+  
+  setTeam(null);
+  setBuzzed(false);
+  setBuzzerEnabled(true);
+  setSomeoneBuzzed(false);
+  setPlayerFirebaseKey(null); // ✅ Reset la clé
+  setStep('team');
+};
 
   // ========== ÉCRANS ==========
 
@@ -447,17 +461,7 @@ useEffect(() => {
 
  // ÉCRAN 3 : Prise de selfie
 if (step === 'photo') {
-  // ✅ Démarrer la caméra automatiquement
-  useEffect(() => {
-    startCamera();
-    
-    // Cleanup : arrêter la caméra si on quitte cette étape
-    return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, []);
+  
 
   return (
     <div className="bg-gradient flex-center">
