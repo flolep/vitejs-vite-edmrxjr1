@@ -44,6 +44,7 @@ export default function Master() {
   const [debugInfo, setDebugInfo] = useState('');
   const [currentChrono, setCurrentChrono] = useState(0);
   const [songDuration, setSongDuration] = useState(0);
+  const [buzzedPlayerKey, setBuzzedPlayerKey] = useState(null);
   
   // États statistiques
   const [showStats, setShowStats] = useState(false);
@@ -121,7 +122,7 @@ useEffect(() => {
       const { team } = buzzData;
       // ✅ FIX : Utiliser le chrono actuel au lieu d'attendre buzzData.time
       const buzzTime = currentChrono;
-      
+
       setBuzzedTeam(team);
       setBuzzedPlayerKey(buzzData.playerFirebaseKey || null);
       
