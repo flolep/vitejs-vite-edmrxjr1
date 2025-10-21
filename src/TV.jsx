@@ -339,23 +339,8 @@ export default function TV() {
     return () => unsubscribe();
   }, [gameEnded, sessionValid, sessionId]);
 
-  // Chronomètre - tourne quand la musique joue et synchronise sur Firebase
-  useEffect(() => {
-    if (!sessionValid || !sessionId) return;
-    let interval;
-    if (isPlaying) {
-      interval = setInterval(() => {
-        setChrono(prev => {
-          const newChrono = prev + 0.1;
-          // Synchroniser sur Firebase
-          const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
-          set(chronoRef, newChrono);
-          return newChrono;
-        });
-      }, 100);
-    }
-    return () => clearInterval(interval);
-  }, [isPlaying, sessionValid, sessionId]);
+  // Le chrono est maintenant géré par Master, TV ne fait que lire
+  // (Ce useEffect a été supprimé car il créait des conflits)
 
     // Écouter les joueurs de l'équipe 1
   useEffect(() => {

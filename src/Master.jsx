@@ -129,6 +129,7 @@ export default function Master() {
 
   // Synchroniser chrono avec Firebase
   useEffect(() => {
+    if (!sessionId) return;
     const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
     const unsubscribe = onValue(chronoRef, (snapshot) => {
       const value = snapshot.val();
@@ -137,7 +138,27 @@ export default function Master() {
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [sessionId]);
+
+  // Mettre à jour le chrono toutes les 100ms quand la musique joue
+  useEffect(() => {
+    if (!sessionId) return;
+    let interval;
+    if (isPlaying) {
+      interval = setInterval(() => {
+        setCurrentChrono(prev => {
+          const newChrono = parseFloat((prev + 0.1).toFixed(1));
+          // Écrire dans Firebase
+          const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
+          set(chronoRef, newChrono);
+          return newChrono;
+        });
+      }, 100);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isPlaying, sessionId]);
 
 // Écouter les buzz
 useEffect(() => {
