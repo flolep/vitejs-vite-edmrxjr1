@@ -290,7 +290,7 @@ useEffect(() => {
   const togglePlay = async () => {
     if (!isPlaying) {
           // ✅ ACTIVER LES COOLDOWNS EN ATTENTE au début de la chanson
-    const activatePendingCooldowns = async () => {
+ const activatePendingCooldowns = async () => {
       const teams = ['team1', 'team2'];
       
       for (const teamKey of teams) {
@@ -306,14 +306,16 @@ useEffect(() => {
               const playerRef = ref(database, `players_session/${teamKey}/${playerKey}`);
               await set(playerRef, {
                 ...playerData,
-                cooldownEnd: Date.now() + 5000, // ✅ Activer le cooldown MAINTENANT
-                hasCooldownPending: false // Retirer le flag
+                cooldownEnd: Date.now() + 5000,
+                hasCooldownPending: false
               });
               console.log(`🔥 Cooldown activé pour ${playerData.name}`);
             }
           }
+      
         }
       }
+    }
     };
     
     await activatePendingCooldowns();

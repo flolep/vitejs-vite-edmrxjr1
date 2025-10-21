@@ -494,106 +494,113 @@ export default function TV() {
     );
   }
 
-  return (
-    <div style={{
-      background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
-      minHeight: '100vh',
-      color: 'white',
-      padding: '3rem',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+return (
+  <div style={{
+    background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
+    minHeight: '100vh',
+    color: 'white',
+    padding: '2rem',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+  }}>
+    
+    {/* ===== TITRE CENTRÉ EN HAUT ===== */}
+    <h1 style={{
+      fontSize: '4rem',
+      fontWeight: 'bold',
+      textAlign: 'center',
+      color: '#fbbf24',
+      textShadow: '0 0 20px rgba(251, 191, 36, 0.5)',
+      marginBottom: '3rem'
     }}>
-      <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
-        
-        {/* Header avec titre et scores */}
+      🎵 BLIND TEST 🎵
+    </h1>
+
+    {/* ===== SCORES ET JOUEURS - LAYOUT 2 COLONNES ===== */}
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: '3rem',
+      maxWidth: '1400px',
+      margin: '0 auto',
+      marginBottom: '3rem'
+    }}>
+      
+      {/* ===== COLONNE GAUCHE : ÉQUIPE 1 ===== */}
+      <div>
+        {/* Score Équipe 1 */}
         <div style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr auto 1fr',
-          alignItems: 'center',
-          gap: '2rem',
-          marginBottom: '3rem'
+          backgroundColor: '#dc2626',
+          borderRadius: '1.5rem',
+          padding: '2rem',
+          textAlign: 'center',
+          transform: buzzedTeam === 'team1' ? 'scale(1.05)' : 'scale(1)',
+          transition: 'transform 0.3s',
+          boxShadow: buzzedTeam === 'team1' ? '0 0 40px rgba(251, 191, 36, 0.8)' : 'none',
+          marginBottom: '2rem'
         }}>
-          
-          {/* Score Équipe 1 */}
-          <div style={{
-            backgroundColor: '#dc2626',
-            borderRadius: '1.5rem',
-            padding: '2rem',
-            textAlign: 'center',
-            transform: buzzedTeam === 'team1' ? 'scale(1.05)' : 'scale(1)',
-            transition: 'transform 0.3s',
-            boxShadow: buzzedTeam === 'team1' ? '0 0 40px rgba(251, 191, 36, 0.8)' : 'none',
-            outline: buzzedTeam === 'team1' ? '4px solid #fbbf24' : 'none'
-          }}>
-            <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>🔴 ÉQUIPE 1</h2>
-            <div style={{ fontSize: '4rem', fontWeight: 'bold', lineHeight: 1 }}>
-              {scores.team1}
-            </div>
-          </div>
-
-          {/* Avatars Équipe 1 */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'center',
-            flexWrap: 'wrap',
-            gap: '1rem',
-            marginTop: '1rem'
-          }}>
-            {playersTeam1.map((player, idx) => (
-              <PlayerAvatar 
-                key={idx} 
-                player={player} 
-                buzzedPlayerName={buzzedPlayerName}
-              />
-            ))}
-            
-            {playersTeam1.length === 0 && (
-              <div style={{ 
-                opacity: 0.5, 
-                fontSize: '1rem',
-                padding: '1rem'
-              }}>
-                En attente de joueurs...
-              </div>
-            )}
-          </div>
-
-          {/* Titre */}
-          <h1 style={{
-            fontSize: '4rem',
-            fontWeight: 'bold',
-            textAlign: 'center',
-            color: '#fbbf24',
-            textShadow: '0 0 20px rgba(251, 191, 36, 0.5)',
-            whiteSpace: 'nowrap'
-          }}>
-            🎵 BLIND TEST 🎵
-          </h1>
-
-          {/* Score Équipe 2 */}
-          <div style={{
-            backgroundColor: '#2563eb',
-            borderRadius: '1.5rem',
-            padding: '2rem',
-            textAlign: 'center',
-            transform: buzzedTeam === 'team2' ? 'scale(1.05)' : 'scale(1)',
-            transition: 'transform 0.3s',
-            boxShadow: buzzedTeam === 'team2' ? '0 0 40px rgba(251, 191, 36, 0.8)' : 'none',
-            outline: buzzedTeam === 'team2' ? '4px solid #fbbf24' : 'none'
-          }}>
-            <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>🔵 ÉQUIPE 2</h2>
-            <div style={{ fontSize: '4rem', fontWeight: 'bold', lineHeight: 1 }}>
-              {scores.team2}
-            </div>
+          <h2 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>
+            🔴 ÉQUIPE 1
+          </h2>
+          <div style={{ fontSize: '5rem', fontWeight: 'bold', lineHeight: 1 }}>
+            {scores.team1}
           </div>
         </div>
 
-        {/* Avatars Équipe 2 */}
+        {/* Joueurs Équipe 1 */}
         <div style={{
           display: 'flex',
           justifyContent: 'center',
           flexWrap: 'wrap',
-          gap: '1rem',
-          marginTop: '1rem'
+          gap: '1rem'
+        }}>
+          {playersTeam1.map((player, idx) => (
+            <PlayerAvatar 
+              key={idx} 
+              player={player} 
+              buzzedPlayerName={buzzedPlayerName}
+            />
+          ))}
+          
+          {playersTeam1.length === 0 && (
+            <div style={{ 
+              opacity: 0.5, 
+              fontSize: '1.2rem',
+              padding: '2rem',
+              textAlign: 'center'
+            }}>
+              En attente de joueurs...
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ===== COLONNE DROITE : ÉQUIPE 2 ===== */}
+      <div>
+        {/* Score Équipe 2 */}
+        <div style={{
+          backgroundColor: '#2563eb',
+          borderRadius: '1.5rem',
+          padding: '2rem',
+          textAlign: 'center',
+          transform: buzzedTeam === 'team2' ? 'scale(1.05)' : 'scale(1)',
+          transition: 'transform 0.3s',
+          boxShadow: buzzedTeam === 'team2' ? '0 0 40px rgba(251, 191, 36, 0.8)' : 'none',
+          marginBottom: '2rem'
+        }}>
+          <h2 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>
+            🔵 ÉQUIPE 2
+          </h2>
+          <div style={{ fontSize: '5rem', fontWeight: 'bold', lineHeight: 1 }}>
+            {scores.team2}
+          </div>
+        </div>
+
+        {/* Joueurs Équipe 2 */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          flexWrap: 'wrap',
+          gap: '1rem'
         }}>
           {playersTeam2.map((player, idx) => (
             <PlayerAvatar 
@@ -606,199 +613,193 @@ export default function TV() {
           {playersTeam2.length === 0 && (
             <div style={{ 
               opacity: 0.5, 
-              fontSize: '1rem',
-              padding: '1rem'
+              fontSize: '1.2rem',
+              padding: '2rem',
+              textAlign: 'center'
             }}>
               En attente de joueurs...
             </div>
           )}
         </div>
+      </div>
+    </div>
 
-        {/* Chronomètre et Points - affiché quand la musique joue OU en pause après avoir joué */}
-        {(isPlaying || chrono > 0) && (
-          <div style={{
-            backgroundColor: 'rgba(0, 0, 0, 0.3)',
-            borderRadius: '2rem',
-            padding: '3rem',
-            marginBottom: '3rem'
-          }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3rem' }}>
-              
-              {/* Chrono */}
-              <div style={{ textAlign: 'center' }}>
-                <h3 style={{
-                  fontSize: '2rem',
-                  marginBottom: '2rem',
-                  color: '#fbbf24'
-                }}>
-                  ⏱️ {isPlaying ? 'TEMPS ÉCOULÉ' : 'TEMPS FIGÉ'}
-                </h3>
-                <div style={{
-                  fontSize: '6rem',
-                  fontWeight: 'bold',
-                  color: '#60a5fa',
-                  lineHeight: 1,
-                  marginBottom: '1rem'
-                }}>
-                  {chrono.toFixed(1)}s
-                </div>
-                <div style={{
-                  fontSize: '1.5rem',
-                  opacity: 0.7
-                }}>
-                  / {songDuration.toFixed(0)}s
-                </div>
-              </div>
-
-              {/* Points disponibles */}
-              <div style={{ textAlign: 'center' }}>
-                <h3 style={{
-                  fontSize: '2rem',
-                  marginBottom: '2rem',
-                  color: '#fbbf24'
-                }}>
-                  💰 POINTS DISPONIBLES
-                </h3>
-                <div style={{
-                  fontSize: '6rem',
-                  fontWeight: 'bold',
-                  color: pointsColor,
-                  lineHeight: 1,
-                  marginBottom: '1rem',
-                  textShadow: `0 0 30px ${pointsColor}`,
-                  animation: isNearCritical ? 'pulse 0.5s infinite' : 'none'
-                }}>
-                  {availablePoints}
-                </div>
-                <div style={{
-                  fontSize: '1.5rem',
-                  opacity: 0.7
-                }}>
-                  / 2500 pts
-                </div>
-                
-                {/* Alertes aux paliers critiques */}
-                {isAt5s && (
-                  <div style={{
-                    marginTop: '1rem',
-                    fontSize: '1.5rem',
-                    color: '#fbbf24',
-                    fontWeight: 'bold',
-                    animation: 'pulse 0.5s infinite'
-                  }}>
-                    ⚠️ Palier à 5s !
-                  </div>
-                )}
-                
-                {isAt15s && (
-                  <div style={{
-                    marginTop: '1rem',
-                    fontSize: '1.5rem',
-                    color: '#ef4444',
-                    fontWeight: 'bold',
-                    animation: 'pulse 0.5s infinite'
-                  }}>
-                    ⚠️ Palier à 15s !
-                  </div>
-                )}
-              </div>
+    {/* ===== CHRONO ET POINTS (en dessous, centré) ===== */}
+    {(isPlaying || chrono > 0) && (
+      <div style={{
+        backgroundColor: 'rgba(0, 0, 0, 0.3)',
+        borderRadius: '2rem',
+        padding: '3rem',
+        maxWidth: '1200px',
+        margin: '0 auto 3rem'
+      }}>
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: '1fr 1fr', 
+          gap: '3rem' 
+        }}>
+          
+          {/* Chrono */}
+          <div style={{ textAlign: 'center' }}>
+            <h3 style={{
+              fontSize: '2rem',
+              marginBottom: '2rem',
+              color: '#fbbf24'
+            }}>
+              ⏱️ {isPlaying ? 'TEMPS ÉCOULÉ' : 'TEMPS FIGÉ'}
+            </h3>
+            <div style={{
+              fontSize: '6rem',
+              fontWeight: 'bold',
+              color: '#60a5fa',
+              lineHeight: 1,
+              marginBottom: '1rem'
+            }}>
+              {chrono.toFixed(1)}s
             </div>
-
-            {/* Barre de progression */}
-            <div style={{ marginTop: '3rem' }}>
-              <div style={{
-                width: '100%',
-                height: '40px',
-                backgroundColor: 'rgba(255,255,255,0.1)',
-                borderRadius: '20px',
-                overflow: 'hidden',
-                position: 'relative'
-              }}>
-                <div style={{
-                  width: `${progressPercent}%`,
-                  height: '100%',
-                  background: `linear-gradient(90deg, ${pointsColor} 0%, ${pointsColor}88 100%)`,
-                  transition: 'width 0.1s linear',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'flex-end',
-                  paddingRight: '1rem',
-                  fontSize: '1.2rem',
-                  fontWeight: 'bold'
-                }}>
-                  {progressPercent > 10 && `${progressPercent.toFixed(0)}%`}
-                </div>
-              </div>
+            <div style={{
+              fontSize: '1.5rem',
+              opacity: 0.7
+            }}>
+              / {songDuration.toFixed(0)}s
             </div>
           </div>
-        )}
 
-        {/* Morceau actuel */}
-        {currentSong && (
-          <div style={{
-            backgroundColor: 'rgba(255, 255, 255, 0.1)',
-            borderRadius: '2rem',
-            padding: '3rem',
-            textAlign: 'center'
-          }}>
-            {currentSong.revealed ? (
-              <>
-                {currentSong.imageUrl && (
-                  <div style={{ marginBottom: '2rem' }}>
-                    <img 
-                      src={currentSong.imageUrl} 
-                      alt="Album cover" 
-                      style={{
-                        width: '300px',
-                        height: '300px',
-                        objectFit: 'cover',
-                        borderRadius: '1rem',
-                        margin: '0 auto',
-                        display: 'block',
-                        boxShadow: '0 10px 40px rgba(0,0,0,0.5)'
-                      }}
-                    />
-                  </div>
-                )}
-                <div style={{
-                  fontSize: '4rem',
-                  fontWeight: 'bold',
-                  marginBottom: '1rem',
-                  color: '#10b981'
-                }}>
-                  ✓ {currentSong.title}
-                </div>
-                {currentSong.artist && (
-                  <div style={{
-                    fontSize: '3rem',
-                    opacity: 0.8
-                  }}>
-                    {currentSong.artist}
-                  </div>
-                )}
-              </>
-            ) : (
+          {/* Points disponibles */}
+          <div style={{ textAlign: 'center' }}>
+            <h3 style={{
+              fontSize: '2rem',
+              marginBottom: '2rem',
+              color: '#fbbf24'
+            }}>
+              💰 POINTS DISPONIBLES
+            </h3>
+            <div style={{
+              fontSize: '6rem',
+              fontWeight: 'bold',
+              color: pointsColor,
+              lineHeight: 1,
+              marginBottom: '1rem',
+              textShadow: `0 0 30px ${pointsColor}`,
+              animation: isNearCritical ? 'pulse 0.5s infinite' : 'none'
+            }}>
+              {availablePoints}
+            </div>
+            <div style={{
+              fontSize: '1.5rem',
+              opacity: 0.7
+            }}>
+              / 2500 pts
+            </div>
+            
+            {/* Alertes paliers */}
+            {isAt5s && (
               <div style={{
-                fontSize: '3rem',
-                color: '#9ca3af'
+                marginTop: '1rem',
+                fontSize: '1.5rem',
+                color: '#fbbf24',
+                fontWeight: 'bold',
+                animation: 'pulse 0.5s infinite'
               }}>
-                🎵 Morceau {currentSong.number || '?'}
+                ⚠️ Palier à 5s !
+              </div>
+            )}
+            
+            {isAt15s && (
+              <div style={{
+                marginTop: '1rem',
+                fontSize: '1.5rem',
+                color: '#ef4444',
+                fontWeight: 'bold',
+                animation: 'pulse 0.5s infinite'
+              }}>
+                ⚠️ Palier à 15s !
               </div>
             )}
           </div>
-        )}
+        </div>
+      </div>
+    )}
 
-        {/* Légende */}
+    {/* ===== BARRE DE PROGRESSION ===== */}
+    {(isPlaying || chrono > 0) && (
+      <div style={{
+        maxWidth: '1200px',
+        margin: '0 auto 3rem'
+      }}>
         <div style={{
-          marginTop: '3rem',
-          textAlign: 'center',
-          fontSize: '1.5rem',
+          width: '100%',
+          height: '40px',
+          backgroundColor: 'rgba(255,255,255,0.1)',
+          borderRadius: '20px',
+          overflow: 'hidden',
+          position: 'relative'
+        }}>
+          <div style={{
+            width: `${progressPercent}%`,
+            height: '100%',
+            background: `linear-gradient(90deg, ${pointsColor} 0%, ${pointsColor}88 100%)`,
+            transition: 'width 0.1s linear',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            paddingRight: '1rem',
+            fontSize: '1.2rem',
+            fontWeight: 'bold'
+          }}>
+            {progressPercent > 10 && `${progressPercent.toFixed(0)}%`}
+          </div>
+        </div>
+        
+        {/* Légende des paliers */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          marginTop: '1rem',
+          fontSize: '0.9rem',
           opacity: 0.7
         }}>
-          💡 0-5s : 2500 pts • 5-15s : décroissance • 15s+ : décroissance rapide
+          <div>🟢 0-5s : 2500 pts</div>
+          <div>🟡 5-15s : 2000-1000 pts</div>
+          <div>🔴 15s+ : 1000-0 pts</div>
         </div>
-
       </div>
-    </div>
-  );
+    )}
+
+    {/* ===== MORCEAU ACTUEL (en bas, centré) ===== */}
+    {currentSong && (
+      <div style={{
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        borderRadius: '2rem',
+        padding: '2rem',
+        textAlign: 'center',
+        maxWidth: '800px',
+        margin: '0 auto'
+      }}>
+        {currentSong.revealed ? (
+          <>
+            <div style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+              {currentSong.title}
+            </div>
+            <div style={{ fontSize: '1.5rem', opacity: 0.8 }}>
+              {currentSong.artist}
+            </div>
+          </>
+        ) : (
+          <div style={{ fontSize: '2rem', opacity: 0.5 }}>
+            🎵 Mystère...
+          </div>
+        )}
+      </div>
+    )}
+
+    {/* Styles d'animation */}
+    <style>{`
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+      }
+    `}</style>
+  </div>
+);
 }
