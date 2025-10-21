@@ -8,7 +8,6 @@ export default function GameSettings({
   showEndGameConfirm,
   onResetGame,
   onShowStats,
-  onCloseStats,
   onEndGame,
   onConfirmEndGame,
   onCancelEndGame
@@ -133,28 +132,34 @@ export default function GameSettings({
 
       {/* Modal des statistiques */}
       {showStats && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.8)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-          padding: '2rem'
-        }}>
-          <div style={{
-            backgroundColor: '#1f2937',
-            borderRadius: '1rem',
-            padding: '2rem',
-            maxWidth: '600px',
-            width: '100%',
-            maxHeight: '80vh',
-            overflowY: 'auto'
-          }}>
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '2rem'
+          }}
+          onClick={() => onShowStats(false)}
+        >
+          <div 
+            style={{
+              backgroundColor: '#1f2937',
+              borderRadius: '1rem',
+              padding: '2rem',
+              maxWidth: '600px',
+              width: '100%',
+              maxHeight: '80vh',
+              overflowY: 'auto'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <h2 style={{ fontSize: '2rem', marginBottom: '1.5rem' }}>
               📊 Statistiques des Buzz
             </h2>
@@ -208,7 +213,7 @@ export default function GameSettings({
                     gridTemplateColumns: '1fr 1fr', 
                     gap: '1rem' 
                   }}>
-                    {['team1', 'team2'].map((team, teamIndex) => {
+                    {['team1', 'team2'].map((team) => {
                       const teamBuzzes = buzzStats.filter(b => b.team === team);
                       const avgTime = teamBuzzes.length > 0
                         ? (teamBuzzes.reduce((sum, b) => sum + b.time, 0) / teamBuzzes.length)
@@ -244,7 +249,7 @@ export default function GameSettings({
             )}
             
             <button 
-              onClick={() => onCloseStats()} 
+              onClick={() => onShowStats(false)}
               className="btn btn-gray"
               style={{ marginTop: '1.5rem', width: '100%' }}
             >

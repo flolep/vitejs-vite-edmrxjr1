@@ -542,9 +542,16 @@ useEffect(() => {
     setDebugInfo('🔄 Partie réinitialisée !');
   };
 
-  const loadBuzzStats = () => {
-    const buzzTimesRef = ref(database, 'buzz_times');
-    onValue(buzzTimesRef, (snapshot) => {
+const loadBuzzStats = (shouldShow = true) => {
+  if (shouldShow === false) {
+    // Fermer la modale
+    setShowStats(false);
+    return;
+  }
+  
+  // Ouvrir la modale et charger les données
+  const buzzTimesRef = ref(database, 'buzz_times');
+  onValue(buzzTimesRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
         const allBuzzes = [];
