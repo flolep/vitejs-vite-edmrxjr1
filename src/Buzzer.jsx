@@ -21,6 +21,10 @@ export default function Buzzer() {
   const [photoData, setPhotoData] = useState(null);
   const [error, setError] = useState('');
   
+  // Cooldown states
+  const [cooldownEnd, setCooldownEnd] = useState(null);
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
@@ -63,6 +67,51 @@ export default function Buzzer() {
     });
     return () => unsubscribe();
   }, []);
+
+  // Ajoutez cet useEffect pour écouter le cooldown du joueur
+  useEffect(() => {
+    if (!team || !selectedPlayer) return;
+    
+    const teamKey = `team${team}`;
+    const playersRef = ref(database, `players_session/${teamKey}`);
+    
+    const unsubscribe = onValue(playersRef, (snapshot) => {
+      const players = snapshot.val();
+      if (players) {
+        // Trouver le joueur actuel
+        Object.values(players).forEach(player => {
+          if (player.name === (selectedPlayer?.name || playerName)) {
+            if (player.cooldownEnd && player.cooldownEnd > Date.now()) {
+              setCooldownEnd(player.cooldownEnd);
+            } else {
+              setCooldownEnd(null);
+            }
+          }
+        });
+      }
+    });
+    
+    return () => unsubscribe();
+  }, [team, selectedPlayer, playerName]);
+
+  // Compte à rebours du cooldown
+  useEffect(() => {
+    if (!cooldownEnd) {
+      setCooldownRemaining(0);
+      return;
+    }
+    
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, (cooldownEnd - Date.now()) / 1000);
+      setCooldownRemaining(remaining);
+      
+      if (remaining <= 0) {
+        setCooldownEnd(null);
+      }
+    }, 100);
+    
+    return () => clearInterval(interval);
+    }, [cooldownEnd]);
 
   // NOUVEAU : Rechercher le joueur
   const handleSearchPlayer = async () => {
@@ -545,91 +594,111 @@ export default function Buzzer() {
     );
   }
 
-  // ÉCRAN 6 : Jeu (buzzer)
-  if (step === 'game') {
-    const bgClass = team === 1 ? 'bg-gradient-red' : 'bg-gradient-blue';
-    const buttonColor = team === 1 ? '#ef4444' : '#3b82f6';
-    const canBuzz = buzzerEnabled && !someoneBuzzed && isPlaying;
+// ÉCRAN 6 : Jeu (buzzer)
+if (step === 'game') {
+  const bgClass = team === 1 ? 'bg-gradient-red' : 'bg-gradient-blue';
+  const buttonColor = team === 1 ? '#ef4444' : '#3b82f6';
+  const isInCooldown = cooldownEnd && cooldownEnd > Date.now();
+  const canBuzz = buzzerEnabled && !someoneBuzzed && isPlaying && !isInCooldown; // ✅ Ajout du cooldown
 
-    return (
-      <div className={`${bgClass} flex-center`}>
-        <div className="score-display">
-          <div className={`score-mini ${team === 1 ? 'highlighted' : ''}`} style={{ backgroundColor: 'rgba(220, 38, 38, 0.5)' }}>
-            <div className="label">ÉQUIPE 1</div>
-            <div className="value">{scores.team1}</div>
-          </div>
-          <div className={`score-mini ${team === 2 ? 'highlighted' : ''}`} style={{ backgroundColor: 'rgba(37, 99, 235, 0.5)' }}>
-            <div className="label">ÉQUIPE 2</div>
-            <div className="value">{scores.team2}</div>
-          </div>
+  return (
+    <div className={`${bgClass} flex-center`}>
+      <div className="score-display">
+        <div className={`score-mini ${team === 1 ? 'highlighted' : ''}`} style={{ backgroundColor: 'rgba(220, 38, 38, 0.5)' }}>
+          <div className="label">ÉQUIPE 1</div>
+          <div className="value">{scores.team1}</div>
         </div>
+        <div className={`score-mini ${team === 2 ? 'highlighted' : ''}`} style={{ backgroundColor: 'rgba(37, 99, 235, 0.5)' }}>
+          <div className="label">ÉQUIPE 2</div>
+          <div className="value">{scores.team2}</div>
+        </div>
+      </div>
 
-        <div className="text-center mb-8">
-          {selectedPlayer?.photo && (
-            <img 
-              src={selectedPlayer.photo}
-              alt={selectedPlayer.name}
-              style={{
-                width: '60px',
-                height: '60px',
-                borderRadius: '50%',
-                objectFit: 'cover',
-                margin: '0 auto 0.5rem',
-                border: '3px solid #fbbf24'
-              }}
-            />
-          )}
-          <div style={{ fontSize: '1.25rem', marginBottom: '0.5rem', opacity: 0.9 }}>
-            {selectedPlayer?.name || playerName}
+      <div className="text-center mb-8">
+        {selectedPlayer?.photo && (
+          <img 
+            src={selectedPlayer.photo}
+            alt={selectedPlayer.name}
+            style={{
+              width: '60px',
+              height: '60px',
+              borderRadius: '50%',
+              objectFit: 'cover',
+              margin: '0 auto 0.5rem',
+              border: '3px solid #fbbf24'
+            }}
+          />
+        )}
+        <div style={{ fontSize: '1.25rem', marginBottom: '0.5rem', opacity: 0.9 }}>
+          {selectedPlayer?.name || playerName}
+        </div>
+        <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+          {team === 1 ? '🔴 ÉQUIPE 1' : '🔵 ÉQUIPE 2'}
+        </h1>
+        
+        {/* ✅ Affichage du cooldown */}
+        {isInCooldown ? (
+          <div style={{ 
+            fontSize: '1.5rem', 
+            fontWeight: 'bold',
+            color: '#ef4444',
+            marginTop: '1rem'
+          }}>
+            🔥 COOLDOWN : {cooldownRemaining.toFixed(1)}s
+            <div style={{ fontSize: '1rem', marginTop: '0.5rem', opacity: 0.8 }}>
+              (2 bonnes réponses de suite)
+            </div>
           </div>
-          <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
-            {team === 1 ? '🔴 ÉQUIPE 1' : '🔵 ÉQUIPE 2'}
-          </h1>
+        ) : (
           <p style={{ fontSize: '1.125rem', opacity: 0.8 }}>
             {buzzed ? 'Buzzé !' : 
              someoneBuzzed ? 'Une autre équipe a buzzé...' : 
              !isPlaying ? 'En attente de la musique...' : 
              'Appuyez pour buzzer'}
           </p>
-        </div>
-
-        <button
-          onClick={handleBuzz}
-          disabled={!canBuzz}
-          className={`buzzer ${buzzed ? 'buzzed' : ''}`}
-          style={{
-            backgroundColor: buzzed ? '#fbbf24' : canBuzz ? buttonColor : '#6b7280',
-            cursor: !canBuzz ? 'not-allowed' : 'pointer',
-            opacity: !canBuzz ? 0.5 : 1
-          }}
-        >
-          <span style={{ fontSize: '5rem' }}>🔔</span>
-          <span style={{ marginTop: '1rem' }}>
-            {buzzed ? 'BUZZÉ !' : 
-             someoneBuzzed ? 'BLOQUÉ' : 
-             !isPlaying ? 'EN ATTENTE' : 
-             'BUZZ'}
-          </span>
-        </button>
-
-        <button onClick={changeTeam} className="btn btn-gray mt-8">
-          Changer d'équipe
-        </button>
-
-        {someoneBuzzed && !buzzed && (
-          <div className="mt-8" style={{ fontSize: '0.875rem', opacity: 0.7 }}>
-            En attente de la décision de l'animateur...
-          </div>
-        )}
-        
-        {!isPlaying && !someoneBuzzed && (
-          <div className="mt-8" style={{ fontSize: '0.875rem', opacity: 0.7 }}>
-            ⏸️ Attendez que l'animateur lance la musique...
-          </div>
         )}
       </div>
-    );
-  }
+
+      <button
+        onClick={handleBuzz}
+        disabled={!canBuzz}
+        className={`buzzer ${buzzed ? 'buzzed' : ''} ${isInCooldown ? 'cooldown' : ''}`}
+        style={{
+          backgroundColor: buzzed ? '#fbbf24' : isInCooldown ? '#ef4444' : canBuzz ? buttonColor : '#6b7280',
+          cursor: !canBuzz ? 'not-allowed' : 'pointer',
+          opacity: !canBuzz ? 0.5 : 1
+        }}
+      >
+        <span style={{ fontSize: '5rem' }}>
+          {isInCooldown ? '🔥' : '🔔'}
+        </span>
+        <span style={{ marginTop: '1rem' }}>
+          {isInCooldown ? `${cooldownRemaining.toFixed(1)}s` :
+           buzzed ? 'BUZZÉ !' : 
+           someoneBuzzed ? 'BLOQUÉ' : 
+           !isPlaying ? 'EN ATTENTE' : 
+           'BUZZ'}
+        </span>
+      </button>
+
+      <button onClick={changeTeam} className="btn btn-gray mt-8">
+        Changer d'équipe
+      </button>
+
+      {someoneBuzzed && !buzzed && (
+        <div className="mt-8" style={{ fontSize: '0.875rem', opacity: 0.7 }}>
+          En attente de la décision de l'animateur...
+        </div>
+      )}
+      
+      {!isPlaying && !someoneBuzzed && !isInCooldown && (
+        <div className="mt-8" style={{ fontSize: '0.875rem', opacity: 0.7 }}>
+          ⏸️ Attendez que l'animateur lance la musique...
+        </div>
+      )}
+    </div>
+  );
+}
 
   return null;
 }

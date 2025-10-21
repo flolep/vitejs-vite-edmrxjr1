@@ -441,66 +441,147 @@ useEffect(() => {
     }
   };
 
-  const revealAnswer = () => {
-    const updatedPlaylist = [...playlist];
-    updatedPlaylist[currentTrack].revealed = true;
-    setPlaylist(updatedPlaylist);
-    
-    setBuzzedTeam(null);
-    const buzzRef = ref(database, 'buzz');
-    remove(buzzRef);
-    
-    if (isSpotifyMode && spotifyToken) {
-      spotifyService.pausePlayback(spotifyToken);
-    } else if (audioRef.current) {
-      audioRef.current.pause();
+const revealAnswer = async () => {
+  // Reset le streak du joueur qui s'est trompé
+  const buzzRef = ref(database, 'buzz');
+  onValue(buzzRef, async (snapshot) => {
+    const buzzData = snapshot.val();
+    if (buzzData && buzzData.playerName) {
+      const playerName = buzzData.playerName;
+      const teamKey = buzzData.team === 'team1' ? 'team1' : 'team2';
+      
+      const playersRef = ref(database, `players_session/${teamKey}`);
+      onValue(playersRef, async (playersSnapshot) => {
+        const players = playersSnapshot.val();
+        if (players) {
+          let playerKey = null;
+          Object.keys(players).forEach(key => {
+            if (players[key].name === playerName) {
+              playerKey = key;
+            }
+          });
+          
+          if (playerKey) {
+            const player = players[playerKey];
+            const playerRef = ref(database, `players_session/${teamKey}/${playerKey}`);
+            await set(playerRef, { 
+              ...player, 
+              consecutiveCorrect: 0 // Reset le streak
+            });
+          }
+        }
+      }, { onlyOnce: true });
     }
-    
-    setIsPlaying(false);
-    
-    const playingRef = ref(database, 'isPlaying');
-    set(playingRef, false);
-    
-    const songRef = ref(database, 'currentSong');
-    set(songRef, {
-      title: updatedPlaylist[currentTrack].title,
-      artist: updatedPlaylist[currentTrack].artist,
-      imageUrl: updatedPlaylist[currentTrack].imageUrl,
-      revealed: true,
-      number: currentTrack + 1
-    });
-    
-    setDebugInfo(`✅ Réponse révélée`);
-  };
+  }, { onlyOnce: true });
 
-  const addPoint = async (team) => {
-    const points = calculatePoints(currentChrono, songDuration);
-    
-    const newScores = { ...scores, [team]: scores[team] + points };
-    setScores(newScores);
-    
-    setBuzzedTeam(null);
-    const buzzRef = ref(database, 'buzz');
-    remove(buzzRef);
-    
-    const scoresRef = ref(database, 'scores');
-    set(scoresRef, newScores);
-    
-    const updatedPlaylist = [...playlist];
-    updatedPlaylist[currentTrack].revealed = true;
-    setPlaylist(updatedPlaylist);
-    
-    const songRef = ref(database, 'currentSong');
-    set(songRef, {
-      title: updatedPlaylist[currentTrack].title,
-      artist: updatedPlaylist[currentTrack].artist,
-      imageUrl: updatedPlaylist[currentTrack].imageUrl,
-      revealed: true,
-      number: currentTrack + 1
-    });
-    
-    setDebugInfo(`✅ ${points} points pour ${team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2'}`);
-  };
+  const updatedPlaylist = [...playlist];
+  updatedPlaylist[currentTrack].revealed = true;
+  setPlaylist(updatedPlaylist);
+  
+  setBuzzedTeam(null);
+  remove(buzzRef);
+  
+  if (isSpotifyMode && spotifyToken) {
+    spotifyService.pausePlayback(spotifyToken);
+  } else if (audioRef.current) {
+    audioRef.current.pause();
+  }
+  
+  setIsPlaying(false);
+  
+  const playingRef = ref(database, 'isPlaying');
+  set(playingRef, false);
+  
+  const songRef = ref(database, 'currentSong');
+  set(songRef, {
+    title: updatedPlaylist[currentTrack].title,
+    artist: updatedPlaylist[currentTrack].artist,
+    imageUrl: updatedPlaylist[currentTrack].imageUrl,
+    revealed: true,
+    number: currentTrack + 1
+  });
+  
+  setDebugInfo(`✅ Réponse révélée`);
+};
+
+const addPoint = async (team) => {
+  const points = calculatePoints(currentChrono, songDuration);
+  
+  const newScores = { ...scores, [team]: scores[team] + points };
+  setScores(newScores);
+  
+  const scoresRef = ref(database, 'scores');
+  set(scoresRef, newScores);
+  
+  // ✅ Mettre à jour les stats du joueur
+  const buzzRef = ref(database, 'buzz');
+  
+  onValue(buzzRef, async (snapshot) => {
+    const buzzData = snapshot.val();
+    if (buzzData && buzzData.playerName) {
+      const playerName = buzzData.playerName;
+      const teamKey = team === 'team1' ? 'team1' : 'team2';
+      
+      const playersRef = ref(database, `players_session/${teamKey}`);
+      onValue(playersRef, async (playersSnapshot) => {
+        const players = playersSnapshot.val();
+        if (players) {
+          let playerKey = null;
+          let playerData = null;
+          
+          Object.keys(players).forEach(key => {
+            if (players[key].name === playerName) {
+              playerKey = key;
+              playerData = players[key];
+            }
+          });
+          
+          if (playerKey && playerData) {
+            const consecutiveCorrect = (playerData.consecutiveCorrect || 0) + 1;
+            const correctCount = (playerData.correctCount || 0) + 1;
+            
+            const updates = {
+              consecutiveCorrect: consecutiveCorrect,
+              correctCount: correctCount,
+              buzzCount: (playerData.buzzCount || 0) + 1
+            };
+            
+            // Si 2 bonnes réponses consécutives → COOLDOWN !
+            if (consecutiveCorrect >= 2) {
+              updates.cooldownEnd = Date.now() + 5000;
+              updates.consecutiveCorrect = 0;
+              console.log(`🔥 ${playerName} en COOLDOWN ! Total: ${correctCount} bonnes réponses`);
+            } else {
+              console.log(`✅ ${playerName} : ${correctCount} bonne(s) réponse(s)`);
+            }
+            
+            const playerRef = ref(database, `players_session/${teamKey}/${playerKey}`);
+            await set(playerRef, { ...playerData, ...updates });
+          }
+        }
+      }, { onlyOnce: true });
+    }
+  }, { onlyOnce: true });
+  
+  setBuzzedTeam(null);
+  remove(buzzRef);
+  
+  const updatedPlaylist = [...playlist];
+  updatedPlaylist[currentTrack].revealed = true;
+  setPlaylist(updatedPlaylist);
+  
+  const songRef = ref(database, 'currentSong');
+  set(songRef, {
+    title: updatedPlaylist[currentTrack].title,
+    artist: updatedPlaylist[currentTrack].artist,
+    imageUrl: updatedPlaylist[currentTrack].imageUrl,
+    revealed: true,
+    number: currentTrack + 1
+  });
+  
+  // ✅ Message général visible pour l'animateur
+  setDebugInfo(`✅ ${points} points pour ${team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2'}`);
+};
 
   // === GESTION DE PARTIE ===
   const resetScores = () => {

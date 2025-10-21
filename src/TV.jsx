@@ -25,15 +25,36 @@ function calculatePoints(chrono, songDuration) {
   return Math.max(0, Math.round(availablePoints));
 }
 
-// Composant pour afficher un joueur
 const PlayerAvatar = ({ player, buzzedPlayerName }) => {
   const isBuzzed = player.name === buzzedPlayerName;
+  const isInCooldown = player.cooldownEnd && player.cooldownEnd > Date.now();
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  
+  useEffect(() => {
+    if (!isInCooldown) {
+      setCooldownRemaining(0);
+      return;
+    }
+    
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, (player.cooldownEnd - Date.now()) / 1000);
+      setCooldownRemaining(remaining);
+    }, 100);
+    
+    return () => clearInterval(interval);
+  }, [player.cooldownEnd, isInCooldown]);
   
   const getBorderStyle = () => {
     if (isBuzzed) {
       return {
         border: '6px solid #fbbf24',
         boxShadow: '0 0 30px rgba(251, 191, 36, 0.8)'
+      };
+    }
+    if (isInCooldown) {
+      return {
+        border: '4px solid #ef4444',
+        boxShadow: '0 0 20px rgba(239, 68, 68, 0.6)'
       };
     }
     return {
@@ -59,7 +80,8 @@ const PlayerAvatar = ({ player, buzzedPlayerName }) => {
           borderRadius: '50%',
           objectFit: 'cover',
           ...getBorderStyle(),
-          transition: 'all 0.3s ease'
+          transition: 'all 0.3s ease',
+          filter: isInCooldown ? 'grayscale(50%)' : 'none'
         }}
       />
       
@@ -74,11 +96,34 @@ const PlayerAvatar = ({ player, buzzedPlayerName }) => {
         </div>
       )}
       
+      {/* ✅ Affichage du cooldown */}
+      {isInCooldown && (
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          fontSize: '1.5rem',
+          fontWeight: 'bold',
+          color: '#ef4444',
+          textShadow: '0 0 10px black',
+          backgroundColor: 'rgba(0,0,0,0.7)',
+          borderRadius: '50%',
+          width: '70px',
+          height: '70px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+          {cooldownRemaining.toFixed(1)}
+        </div>
+      )}
+      
       <div style={{
         marginTop: '0.5rem',
         fontSize: '0.9rem',
         fontWeight: isBuzzed ? 'bold' : 'normal',
-        color: isBuzzed ? '#fbbf24' : 'white',
+        color: isInCooldown ? '#ef4444' : isBuzzed ? '#fbbf24' : 'white',
         textAlign: 'center',
         maxWidth: '90px',
         overflow: 'hidden',
@@ -86,6 +131,7 @@ const PlayerAvatar = ({ player, buzzedPlayerName }) => {
         whiteSpace: 'nowrap'
       }}>
         {player.name}
+        {isInCooldown && ' 🔥'}
       </div>
     </div>
   );
