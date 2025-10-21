@@ -594,7 +594,7 @@ export default function Master() {
 
         {/* Modal de buzz */}
         {buzzedTeam && (
-          <BuzzModal
+          <BuzzAlert
             buzzedTeam={buzzedTeam}
             currentChrono={currentChrono}
             availablePoints={availablePoints}
