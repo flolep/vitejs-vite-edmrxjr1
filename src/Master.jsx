@@ -111,51 +111,54 @@ export default function Master() {
     return () => unsubscribe();
   }, []);
 
-  // Écouter les buzz
-  useEffect(() => {
-    const buzzRef = ref(database, 'buzz');
-    const unsubscribe = onValue(buzzRef, (snapshot) => {
-      const buzzData = snapshot.val();
+// Écouter les buzz
+useEffect(() => {
+  const buzzRef = ref(database, 'buzz');
+  const unsubscribe = onValue(buzzRef, (snapshot) => {
+    const buzzData = snapshot.val();
+    
+    if (buzzData && isPlaying) {
+      const { team } = buzzData;
+      // ✅ FIX : Utiliser le chrono actuel au lieu d'attendre buzzData.time
+      const buzzTime = currentChrono;
       
-      if (buzzData && isPlaying) {
-        const { team, time: buzzTime } = buzzData;
-        setBuzzedTeam(team);
-        
-        if (buzzerSoundRef.current) {
-          buzzerSoundRef.current.play();
-        }
-        
-        if (isSpotifyMode && spotifyToken) {
-          spotifyService.pausePlayback(spotifyToken);
-        } else if (audioRef.current) {
-          audioRef.current.pause();
-        }
-        
-        setIsPlaying(false);
-        const playingRef = ref(database, 'isPlaying');
-        set(playingRef, false);
-        
-        const buzzTimesRef = ref(database, `buzz_times/${currentTrack}`);
-        const newBuzz = {
-          team,
-          time: buzzTime,
-          trackNumber: currentTrack + 1,
-          timestamp: Date.now()
-        };
-        
-        onValue(buzzTimesRef, (snapshot) => {
-          const existingBuzzes = snapshot.val() || [];
-          set(buzzTimesRef, [...existingBuzzes, newBuzz]);
-        }, { onlyOnce: true });
-        
-        if (buzzTime !== undefined && buzzTime !== null) {
-          setDebugInfo(`🔔 ${team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2'} a buzzé à ${buzzTime.toFixed(1)}s !`);
-        }
+      setBuzzedTeam(team);
+      
+      if (buzzerSoundRef.current) {
+        buzzerSoundRef.current.play();
       }
-    });
+      
+      if (isSpotifyMode && spotifyToken) {
+        spotifyService.pausePlayback(spotifyToken);
+      } else if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      
+      setIsPlaying(false);
+      const playingRef = ref(database, 'isPlaying');
+      set(playingRef, false);
+      
+      // ✅ FIX : S'assurer que buzzTime est défini avant de sauvegarder
+      const buzzTimesRef = ref(database, `buzz_times/${currentTrack}`);
+      const newBuzz = {
+        team,
+        time: buzzTime, // ✅ Utilise le chrono actuel
+        playerName: buzzData.playerName || 'Anonyme',
+        trackNumber: currentTrack + 1,
+        timestamp: Date.now()
+      };
+      
+      onValue(buzzTimesRef, (snapshot) => {
+        const existingBuzzes = snapshot.val() || [];
+        set(buzzTimesRef, [...existingBuzzes, newBuzz]);
+      }, { onlyOnce: true });
+      
+      setDebugInfo(`🔔 ${team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2'} a buzzé à ${buzzTime.toFixed(1)}s !`);
+    }
+  });
 
-    return () => unsubscribe();
-  }, [isPlaying, isSpotifyMode, spotifyToken, currentChrono, currentTrack]);
+  return () => unsubscribe();
+}, [isPlaying, isSpotifyMode, spotifyToken, currentChrono, currentTrack]);
 
   // === SPOTIFY ===
   const handleSpotifyLogin = () => {
