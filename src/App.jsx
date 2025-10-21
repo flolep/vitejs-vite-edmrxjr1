@@ -5,7 +5,31 @@ import TV from './TV';
 import SpotifyCallback from './SpotifyCallback';
 
 export default function App() {
-  const [page, setPage] = useState('home');
+  // Initialiser la page depuis l'URL ou localStorage
+  const getInitialPage = () => {
+    const path = window.location.pathname;
+    if (path === '/callback') return 'callback';
+    if (path === '/master' || path === '/') {
+      // Vérifier si on était sur Master avant
+      const savedPage = localStorage.getItem('currentPage');
+      if (savedPage === 'master') return 'master';
+      if (path === '/master') return 'master';
+    }
+    if (path === '/buzzer') return 'buzzer';
+    if (path === '/tv') return 'tv';
+    return localStorage.getItem('currentPage') || 'home';
+  };
+
+  const [page, setPage] = useState(getInitialPage);
+
+  // Sauvegarder la page actuelle dans localStorage
+  useEffect(() => {
+    if (page !== 'home') {
+      localStorage.setItem('currentPage', page);
+      // Mettre à jour l'URL sans recharger la page
+      window.history.pushState({}, '', `/${page}`);
+    }
+  }, [page]);
 
   // Détecter si on est sur la page callback
   useEffect(() => {

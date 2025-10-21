@@ -415,10 +415,10 @@ const togglePlay = async () => {
         setIsPlaying(true);
         setLastPlayedTrack(currentTrack);
         setDebugInfo('▶️ Lecture');
-        
+
         const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
         set(playingRef, true);
-        
+
         const songRef = ref(database, `sessions/${sessionId}/currentSong`);
         set(songRef, {
           title: playlist[currentTrack].title,
@@ -427,6 +427,12 @@ const togglePlay = async () => {
           revealed: false,
           number: currentTrack + 1
         });
+
+        // Écrire la durée de la chanson dans Firebase
+        const duration = playlist[currentTrack].duration || 30;
+        setSongDuration(duration);
+        const durationRef = ref(database, `sessions/${sessionId}/songDuration`);
+        set(durationRef, duration);
       }
     } catch (error) {
       console.error('Erreur Spotify:', error);
