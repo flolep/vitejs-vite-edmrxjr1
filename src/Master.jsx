@@ -316,7 +316,7 @@ export default function Master() {
           const isNewTrack = lastPlayedTrack !== currentTrack;
           const startPosition = isNewTrack ? 0 : (spotifyPosition || 0);
           
-          await spotifyService.startPlayback(
+          await spotifyService.playTrack(
             spotifyToken,
             spotifyDeviceId,
             playlist[currentTrack].uri,
