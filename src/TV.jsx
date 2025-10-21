@@ -458,6 +458,7 @@ return (
         </div>
         
         {/* Prix de la rapidité */}
+        
         {fastestBuzz && (
           <div style={{
             backgroundColor: 'rgba(251, 191, 36, 0.2)',
@@ -495,6 +496,15 @@ return (
             }}>
               {fastestBuzz.time.toFixed(1)}s
             </div>
+            {/* ✅ AJOUT : Afficher le titre de la chanson */}
+            <div style={{ fontSize: '1.8rem', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+              🎵 {fastestBuzz.songTitle}
+            </div>
+            {fastestBuzz.songArtist && (
+              <div style={{ fontSize: '1.3rem', opacity: 0.8, marginBottom: '1rem' }}>
+                {fastestBuzz.songArtist}
+              </div>
+            )}
             <div style={{ fontSize: '1.5rem', opacity: 0.8 }}>
               Morceau #{fastestBuzz.trackNumber}
             </div>

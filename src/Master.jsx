@@ -146,6 +146,8 @@ useEffect(() => {
         team,
         time: buzzTime, // ✅ Utilise le chrono actuel
         playerName: buzzData.playerName || 'Anonyme',
+        songTitle: playlist[currentTrack]?.title || 'Inconnu',
+        songArtist: playlist[currentTrack]?.artist || 'Inconnu',
         trackNumber: currentTrack + 1,
         timestamp: Date.now()
       };
