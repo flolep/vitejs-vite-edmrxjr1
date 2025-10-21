@@ -289,6 +289,36 @@ useEffect(() => {
   // === CONTRÔLES DE LECTURE ===
   const togglePlay = async () => {
     if (!isPlaying) {
+          // ✅ ACTIVER LES COOLDOWNS EN ATTENTE au début de la chanson
+    const activatePendingCooldowns = async () => {
+      const teams = ['team1', 'team2'];
+      
+      for (const teamKey of teams) {
+        const playersRef = ref(database, `players_session/${teamKey}`);
+        const snapshot = await new Promise((resolve) => {
+          onValue(playersRef, resolve, { onlyOnce: true });
+        });
+        
+        const players = snapshot.val();
+        if (players) {
+          for (const [playerKey, playerData] of Object.entries(players)) {
+            if (playerData.hasCooldownPending) {
+              const playerRef = ref(database, `players_session/${teamKey}/${playerKey}`);
+              await set(playerRef, {
+                ...playerData,
+                cooldownEnd: Date.now() + 5000, // ✅ Activer le cooldown MAINTENANT
+                hasCooldownPending: false // Retirer le flag
+              });
+              console.log(`🔥 Cooldown activé pour ${playerData.name}`);
+            }
+          }
+        }
+      }
+    };
+    
+    await activatePendingCooldowns();
+
+
       setBuzzedTeam(null);
       const buzzRef = ref(database, 'buzz');
       remove(buzzRef);
@@ -546,11 +576,11 @@ const addPoint = async (team) => {
               buzzCount: (playerData.buzzCount || 0) + 1
             };
             
-            // Si 2 bonnes réponses consécutives → COOLDOWN !
+            // Si 2 bonnes réponses consécutives → FLAG de cooldown en attente !
             if (consecutiveCorrect >= 2) {
-              updates.cooldownEnd = Date.now() + 5000;
+              updates.hasCooldownPending = true; // ✅ Flag au lieu du timestamp
               updates.consecutiveCorrect = 0;
-              console.log(`🔥 ${playerName} en COOLDOWN ! Total: ${correctCount} bonnes réponses`);
+              console.log(`🔥 ${playerName} aura un COOLDOWN à la prochaine chanson ! Total: ${correctCount} bonnes réponses`);
             } else {
               console.log(`✅ ${playerName} : ${correctCount} bonne(s) réponse(s)`);
             }
@@ -579,7 +609,6 @@ const addPoint = async (team) => {
     number: currentTrack + 1
   });
   
-  // ✅ Message général visible pour l'animateur
   setDebugInfo(`✅ ${points} points pour ${team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2'}`);
 };
 
