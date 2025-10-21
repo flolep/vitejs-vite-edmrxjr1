@@ -286,11 +286,10 @@ useEffect(() => {
     reader.readAsDataURL(file);
   };
 
-  // === CONTRÔLES DE LECTURE ===
-  const togglePlay = async () => {
-    if (!isPlaying) {
-          // ✅ ACTIVER LES COOLDOWNS EN ATTENTE au début de la chanson
- const activatePendingCooldowns = async () => {
+const togglePlay = async () => {
+  if (!isPlaying) {
+    // ✅ ACTIVER LES COOLDOWNS EN ATTENTE seulement au PLAY
+    const activatePendingCooldowns = async () => {
       const teams = ['team1', 'team2'];
       
       for (const teamKey of teams) {
@@ -312,99 +311,101 @@ useEffect(() => {
               console.log(`🔥 Cooldown activé pour ${playerData.name}`);
             }
           }
-      
         }
       }
-    }
     };
     
     await activatePendingCooldowns();
-
-
-      setBuzzedTeam(null);
-      const buzzRef = ref(database, 'buzz');
-      remove(buzzRef);
-    }
     
-    if (isSpotifyMode) {
-      if (!spotifyToken || !spotifyDeviceId) {
-        setDebugInfo('❌ Player Spotify non initialisé');
-        return;
-      }
+    setBuzzedTeam(null);
+    const buzzRef = ref(database, 'buzz');
+    remove(buzzRef);
+  }
+  
+  if (isSpotifyMode) {
+    if (!spotifyToken || !spotifyDeviceId) {
+      setDebugInfo('❌ Player Spotify non initialisé');
+      return;
+    }
 
-      try {
-        if (isPlaying) {
-          const stateResponse = await fetch('https://api.spotify.com/v1/me/player', {
-            headers: { 'Authorization': `Bearer ${spotifyToken}` }
-          });
-          
-          if (stateResponse.ok) {
-            const playerState = await stateResponse.json();
-            setSpotifyPosition(playerState.progress_ms);
-          }
-          
-          await spotifyService.pausePlayback(spotifyToken);
-          setIsPlaying(false);
-          setDebugInfo('⏸️ Pause');
-          
-          const playingRef = ref(database, 'isPlaying');
-          set(playingRef, false);
-        } else {
-          const isNewTrack = lastPlayedTrack !== currentTrack;
-          const startPosition = isNewTrack ? 0 : (spotifyPosition || 0);
-          
-          await spotifyService.playTrack(
-            spotifyToken,
-            spotifyDeviceId,
-            playlist[currentTrack].spotifyUri,
-            startPosition
-          );
-          
-          setIsPlaying(true);
-          setLastPlayedTrack(currentTrack);
-          setDebugInfo('▶️ Lecture');
-          
-          const playingRef = ref(database, 'isPlaying');
-          set(playingRef, true);
-          
-          const songRef = ref(database, 'currentSong');
-          set(songRef, {
-            title: '',
-            artist: '',
-            imageUrl: playlist[currentTrack].imageUrl,
-            revealed: false,
-            number: currentTrack + 1
-          });
-        }
-      } catch (error) {
-        console.error('Spotify error:', error);
-        setDebugInfo('❌ Erreur Spotify');
-      }
-    } else {
-      if (!audioRef.current) return;
-      
+    try {
       if (isPlaying) {
-        audioRef.current.pause();
+        const stateResponse = await fetch('https://api.spotify.com/v1/me/player', {
+          headers: { 'Authorization': `Bearer ${spotifyToken}` }
+        });
+        
+        if (stateResponse.ok) {
+          const playerState = await stateResponse.json();
+          setSpotifyPosition(playerState.progress_ms);
+        }
+        
+        await spotifyService.pausePlayback(spotifyToken);
         setIsPlaying(false);
+        setDebugInfo('⏸️ Pause');
+        
         const playingRef = ref(database, 'isPlaying');
         set(playingRef, false);
       } else {
-        audioRef.current.play();
+        const isNewTrack = lastPlayedTrack !== currentTrack;
+        const startPosition = isNewTrack ? 0 : spotifyPosition;
+        
+        await spotifyService.playTrack(
+          spotifyToken,
+          spotifyDeviceId,
+          playlist[currentTrack].spotifyUri,
+          startPosition
+        );
+        
         setIsPlaying(true);
+        setLastPlayedTrack(currentTrack);
+        setDebugInfo('▶️ Lecture');
+        
         const playingRef = ref(database, 'isPlaying');
         set(playingRef, true);
         
         const songRef = ref(database, 'currentSong');
         set(songRef, {
-          title: '',
-          artist: '',
+          title: playlist[currentTrack].title,
+          artist: playlist[currentTrack].artist,
           imageUrl: playlist[currentTrack].imageUrl,
           revealed: false,
           number: currentTrack + 1
         });
       }
+    } catch (error) {
+      console.error('Erreur Spotify:', error);
+      setDebugInfo('❌ Erreur Spotify');
     }
-  };
+  } else {
+    // Mode MP3
+    if (!audioRef.current) return;
+    
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+      setDebugInfo('⏸️ Pause');
+      
+      const playingRef = ref(database, 'isPlaying');
+      set(playingRef, false);
+    } else {
+      audioRef.current.play();
+      setIsPlaying(true);
+      setDebugInfo('▶️ Lecture');
+      
+      const playingRef = ref(database, 'isPlaying');
+      set(playingRef, true);
+      
+      const songRef = ref(database, 'currentSong');
+      set(songRef, {
+        title: playlist[currentTrack].title,
+        artist: playlist[currentTrack].artist,
+        imageUrl: playlist[currentTrack].imageUrl,
+        revealed: false,
+        number: currentTrack + 1
+      });
+    }
+  }
+};
 
   const nextTrack = () => {
     if (currentTrack < playlist.length - 1) {
