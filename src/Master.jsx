@@ -569,30 +569,26 @@ const revealAnswer = async () => {
   const updatedPlaylist = [...playlist];
   updatedPlaylist[currentTrack].revealed = true;
   setPlaylist(updatedPlaylist);
-  
+
   setBuzzedTeam(null);
   remove(buzzRef);
-  
-  // Relancer la lecture
+
+  // ARRÊTER la lecture et figer le chrono (personne n'a trouvé)
   const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
-  set(playingRef, true);
-  setIsPlaying(true);
-  
-  if (isSpotifyMode && spotifyToken && spotifyDeviceId) {
+  set(playingRef, false);
+  setIsPlaying(false);
+
+  // Arrêter la musique
+  if (isSpotifyMode && spotifyToken) {
     try {
-      await spotifyService.playTrack(
-        spotifyToken,
-        spotifyDeviceId,
-        playlist[currentTrack].spotifyUri,
-        spotifyPosition || 0
-      );
+      await spotifyService.pausePlayback(spotifyToken);
     } catch (error) {
-      console.error('Erreur relance Spotify:', error);
+      console.error('Erreur pause Spotify:', error);
     }
   } else if (audioRef.current) {
-    audioRef.current.play();
+    audioRef.current.pause();
   }
-  
+
   const songRef = ref(database, `sessions/${sessionId}/currentSong`);
   set(songRef, {
     title: updatedPlaylist[currentTrack].title,
@@ -601,8 +597,8 @@ const revealAnswer = async () => {
     revealed: true,
     number: currentTrack + 1
   });
-  
-  setDebugInfo(`✅ Réponse révélée - Lecture reprise`);
+
+  setDebugInfo(`✅ Réponse révélée - Chrono figé à ${currentChrono.toFixed(1)}s`);
 };
 
 const addPoint = async (team) => {
