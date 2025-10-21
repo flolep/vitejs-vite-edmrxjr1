@@ -40,7 +40,7 @@ export const spotifyService = {
     }
   },
 
-  // Récupérer les playlists de l'utilisateur (MODIFIÉ)
+  // Récupérer les playlists de l'utilisateur
   async getUserPlaylists(accessToken) {
     const response = await fetch('https://api.spotify.com/v1/me/playlists?limit=50', {
       headers: { 'Authorization': `Bearer ${accessToken}` }
@@ -48,14 +48,6 @@ export const spotifyService = {
     
     if (!response.ok) throw new Error('Failed to get playlists');
     const data = await response.json();
-    
-    // DEBUG: Afficher les playlists récupérées
-    console.log('Playlists récupérées:', data.items.map(p => ({
-      name: p.name,
-      description: p.description,
-      hasDescription: !!p.description,
-      hasBT: p.description?.includes('#BT')
-    })));
     
     return data.items;
   },
@@ -113,9 +105,9 @@ export const spotifyService = {
     });
   },
 
-  // Jouer un morceau
+  // Jouer un morceau - CORRIGÉ : ne pas parser JSON
   async playTrack(accessToken, deviceId, spotifyUri, positionMs = 0) {
-    await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
+    const response = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -126,21 +118,46 @@ export const spotifyService = {
         position_ms: positionMs
       })
     });
+    
+    // IMPORTANT : L'API play ne retourne pas de JSON, juste un status 204
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Spotify play error: ${response.status} - ${errorText}`);
+    }
+    
+    // Ne pas essayer de parser JSON, la réponse est vide
+    return;
   },
 
-  // Pause
+  // Pause - CORRIGÉ : ne pas parser JSON
   async pausePlayback(accessToken) {
-    await fetch('https://api.spotify.com/v1/me/player/pause', {
+    const response = await fetch('https://api.spotify.com/v1/me/player/pause', {
       method: 'PUT',
       headers: { 'Authorization': `Bearer ${accessToken}` }
     });
+    
+    // L'API pause ne retourne pas de JSON non plus
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Spotify pause error: ${response.status} - ${errorText}`);
+    }
+    
+    return;
   },
 
-  // Resume
+  // Resume - CORRIGÉ : ne pas parser JSON
   async resumePlayback(accessToken) {
-    await fetch('https://api.spotify.com/v1/me/player/play', {
+    const response = await fetch('https://api.spotify.com/v1/me/player/play', {
       method: 'PUT',
       headers: { 'Authorization': `Bearer ${accessToken}` }
     });
+    
+    // L'API resume ne retourne pas de JSON
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Spotify resume error: ${response.status} - ${errorText}`);
+    }
+    
+    return;
   }
 };
