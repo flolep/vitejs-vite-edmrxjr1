@@ -530,6 +530,14 @@ useEffect(() => {
     
     const buzzTimesRef = ref(database, 'buzz_times');
     set(buzzTimesRef, null);
+
+    // ✅ NOUVEAU : Supprimer tous les joueurs de la session
+    const playersSessionRef = ref(database, 'players_session');
+    set(playersSessionRef, null);
+    
+    // ✅ NOUVEAU : Supprimer le buzz en cours
+    const buzzRef = ref(database, 'buzz');
+    remove(buzzRef);
     
     setDebugInfo('🔄 Partie réinitialisée !');
   };

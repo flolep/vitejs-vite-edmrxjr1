@@ -8,6 +8,7 @@ export default function GameSettings({
   showEndGameConfirm,
   onResetGame,
   onShowStats,
+  onCloseStats,
   onEndGame,
   onConfirmEndGame,
   onCancelEndGame
@@ -243,7 +244,7 @@ export default function GameSettings({
             )}
             
             <button 
-              onClick={() => onShowStats()} 
+              onClick={() => onCloseStats()} 
               className="btn btn-gray"
               style={{ marginTop: '1.5rem', width: '100%' }}
             >
