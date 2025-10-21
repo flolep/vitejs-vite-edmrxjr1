@@ -15,9 +15,6 @@ export default function SpotifyCallback() {
           sessionStorage.setItem('spotify_access_token', tokenData.access_token);
           sessionStorage.setItem('spotify_refresh_token', tokenData.refresh_token);
 
-          // Forcer la page master dans localStorage avant de rediriger
-          localStorage.setItem('currentPage', 'master');
-
           // Rediriger vers Master
           window.location.href = '/master';
         } catch (error) {
