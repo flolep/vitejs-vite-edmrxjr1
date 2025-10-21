@@ -371,141 +371,159 @@ export default function TV() {
     const winnerTeam = winner === 'team1' ? 1 : winner === 'team2' ? 2 : null;
     const winnerColor = winner === 'team1' ? '#dc2626' : winner === 'team2' ? '#2563eb' : '#6b7280';
     
-    return (
+return (
+    <div style={{
+      background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
+      minHeight: '100vh',
+      color: 'white',
+      padding: '3rem',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center'
+    }}>
+      {/* Animation de victoire */}
       <div style={{
-        background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
-        minHeight: '100vh',
-        color: 'white',
-        padding: '3rem',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center'
+        textAlign: 'center',
+        animation: 'fadeInScale 1s ease-out',
+        width: '100%',
+        maxWidth: '1200px', // ✅ Largeur max pour tout centrer
+        margin: '0 auto' // ✅ Centrage horizontal
       }}>
-        {/* Animation de victoire */}
-        <div style={{
-          textAlign: 'center',
-          animation: 'fadeInScale 1s ease-out'
+        <h1 style={{
+          fontSize: '5rem',
+          marginBottom: '2rem',
+          color: '#fbbf24',
+          animation: 'pulse 2s infinite'
         }}>
-          <h1 style={{
-            fontSize: '5rem',
-            marginBottom: '2rem',
-            color: '#fbbf24',
-            animation: 'pulse 2s infinite'
-          }}>
-            🎉 PARTIE TERMINÉE ! 🎉
-          </h1>
-          
-          {winner === 'draw' ? (
-            <h2 style={{ fontSize: '3rem', marginBottom: '3rem' }}>
-              🤝 ÉGALITÉ !
-            </h2>
-          ) : (
-            <>
-              <h2 style={{
-                fontSize: '6rem',
-                marginBottom: '2rem',
-                color: winnerColor,
-                textShadow: `0 0 40px ${winnerColor}`,
-                animation: 'bounce 1s infinite'
-              }}>
-                {winner === 'team1' ? '🔴' : '🔵'} ÉQUIPE {winnerTeam} GAGNE !
-              </h2>
-              
-              <div style={{
-                fontSize: '4rem',
-                fontWeight: 'bold',
-                marginBottom: '3rem',
-                animation: 'pulse 1.5s infinite'
-              }}>
-                {winner === 'team1' ? scores.team1 : scores.team2} points
-              </div>
-            </>
-          )}
-          
-          {/* Scores finaux */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '2rem',
-            marginBottom: '4rem',
-            maxWidth: '800px'
-          }}>
-            <div style={{
-              backgroundColor: winner === 'team1' ? 'rgba(220, 38, 38, 0.3)' : 'rgba(220, 38, 38, 0.1)',
-              borderRadius: '1rem',
-              padding: '2rem',
-              border: winner === 'team1' ? '4px solid #fbbf24' : 'none'
+          🎉 PARTIE TERMINÉE ! 🎉
+        </h1>
+        
+        {winner === 'draw' ? (
+          <h2 style={{ fontSize: '3rem', marginBottom: '3rem' }}>
+            🤝 ÉGALITÉ !
+          </h2>
+        ) : (
+          <>
+            <h2 style={{
+              fontSize: '6rem',
+              marginBottom: '2rem',
+              color: winnerColor,
+              textShadow: `0 0 40px ${winnerColor}`,
+              animation: 'bounce 1s infinite'
             }}>
-              <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>🔴 ÉQUIPE 1</div>
-              <div style={{ fontSize: '3rem', fontWeight: 'bold' }}>{scores.team1}</div>
-            </div>
+              {winner === 'team1' ? '🔴' : '🔵'} ÉQUIPE {winnerTeam} GAGNE !
+            </h2>
             
             <div style={{
-              backgroundColor: winner === 'team2' ? 'rgba(37, 99, 235, 0.3)' : 'rgba(37, 99, 235, 0.1)',
-              borderRadius: '1rem',
-              padding: '2rem',
-              border: winner === 'team2' ? '4px solid #fbbf24' : 'none'
+              fontSize: '4rem',
+              fontWeight: 'bold',
+              marginBottom: '3rem',
+              animation: 'pulse 1.5s infinite'
             }}>
-              <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>🔵 ÉQUIPE 2</div>
-              <div style={{ fontSize: '3rem', fontWeight: 'bold' }}>{scores.team2}</div>
+              {winner === 'team1' ? scores.team1 : scores.team2} points
             </div>
+          </>
+        )}
+        
+        {/* Scores finaux */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '2rem',
+          marginBottom: '4rem',
+          maxWidth: '800px',
+          margin: '0 auto 4rem' // ✅ Centrer les scores
+        }}>
+          <div style={{
+            backgroundColor: winner === 'team1' ? 'rgba(220, 38, 38, 0.3)' : 'rgba(220, 38, 38, 0.1)',
+            borderRadius: '1rem',
+            padding: '2rem',
+            border: winner === 'team1' ? '4px solid #fbbf24' : 'none'
+          }}>
+            <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>🔴 ÉQUIPE 1</div>
+            <div style={{ fontSize: '3rem', fontWeight: 'bold' }}>{scores.team1}</div>
           </div>
           
-          {/* Prix de la rapidité */}
-          {fastestBuzz && (
-            <div style={{
-              backgroundColor: 'rgba(251, 191, 36, 0.2)',
-              borderRadius: '2rem',
-              padding: '3rem',
-              border: '3px solid #fbbf24',
-              maxWidth: '800px',
-              animation: 'fadeInUp 1.5s ease-out'
-            }}>
-              <h3 style={{
-                fontSize: '3rem',
-                marginBottom: '2rem',
-                color: '#fbbf24'
-              }}>
-                ⚡ PRIX DE LA RAPIDITÉ ⚡
-              </h3>
-              <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>
-                {fastestBuzz.teamName}
-              </div>
-              <div style={{
-                fontSize: '5rem',
-                fontWeight: 'bold',
-                color: '#10b981',
-                marginBottom: '1rem'
-              }}>
-                {fastestBuzz.time.toFixed(1)}s
-              </div>
-              <div style={{ fontSize: '1.5rem', opacity: 0.8 }}>
-                Morceau #{fastestBuzz.trackNumber}
-              </div>
-            </div>
-          )}
+          <div style={{
+            backgroundColor: winner === 'team2' ? 'rgba(37, 99, 235, 0.3)' : 'rgba(37, 99, 235, 0.1)',
+            borderRadius: '1rem',
+            padding: '2rem',
+            border: winner === 'team2' ? '4px solid #fbbf24' : 'none'
+          }}>
+            <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>🔵 ÉQUIPE 2</div>
+            <div style={{ fontSize: '3rem', fontWeight: 'bold' }}>{scores.team2}</div>
+          </div>
         </div>
         
-        {/* Styles d'animation */}
-        <style>{`
-          @keyframes fadeInScale {
-            from { opacity: 0; transform: scale(0.8); }
-            to { opacity: 1; transform: scale(1); }
-          }
-          @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(30px); }
-            to { opacity: 1; transform: translateY(0); }
-          }
-          @keyframes bounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-20px); }
-          }
-        `}</style>
+        {/* Prix de la rapidité */}
+        {fastestBuzz && (
+          <div style={{
+            backgroundColor: 'rgba(251, 191, 36, 0.2)',
+            borderRadius: '2rem',
+            padding: '3rem',
+            border: '3px solid #fbbf24',
+            maxWidth: '800px',
+            margin: '0 auto', // ✅ Centrer le prix
+            animation: 'fadeInUp 1.5s ease-out'
+          }}>
+            <h3 style={{
+              fontSize: '3rem',
+              marginBottom: '2rem',
+              color: '#fbbf24'
+            }}>
+              ⚡ PRIX DE LA RAPIDITÉ ⚡
+            </h3>
+            <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>
+              {fastestBuzz.teamName}
+            </div>
+            {/* ✅ AJOUT : Afficher le prénom du joueur */}
+            <div style={{ 
+              fontSize: '2rem', 
+              marginBottom: '1rem',
+              color: '#fbbf24',
+              fontWeight: 'bold'
+            }}>
+              {fastestBuzz.playerName}
+            </div>
+            <div style={{
+              fontSize: '5rem',
+              fontWeight: 'bold',
+              color: '#10b981',
+              marginBottom: '1rem'
+            }}>
+              {fastestBuzz.time.toFixed(1)}s
+            </div>
+            <div style={{ fontSize: '1.5rem', opacity: 0.8 }}>
+              Morceau #{fastestBuzz.trackNumber}
+            </div>
+          </div>
+        )}
       </div>
-    );
-  }
+      
+      {/* Styles d'animation */}
+      <style>{`
+        @keyframes fadeInScale {
+          from { opacity: 0; transform: scale(0.8); }
+          to { opacity: 1; transform: scale(1); }
+        }
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(30px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes bounce {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-20px); }
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.7; }
+        }
+      `}</style>
+    </div>
+  );
+}
 
 return (
   <div style={{
