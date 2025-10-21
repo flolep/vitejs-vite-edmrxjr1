@@ -290,27 +290,28 @@ const selectTeam = async (teamNumber) => {
   }
 };
 
-  const handleBuzz = async () => {
-    if (!buzzerEnabled || someoneBuzzed || !isPlaying) return;
-    
-    setBuzzed(true);
-    setBuzzerEnabled(false);
-    
-    const buzzRef = ref(database, 'buzz');
-    await set(buzzRef, {
-      type: 'BUZZ',
-      team: `team${team}`,
-      teamName: team === 1 ? 'Équipe 1' : 'Équipe 2',
-      playerName: selectedPlayer?.name || playerName,
-      playerId: selectedPlayer?.id || null,
-      playerPhoto: selectedPlayer?.photo || photoData || null,
-      timestamp: Date.now()
-    });
-    
-    if (navigator.vibrate) {
-      navigator.vibrate(200);
-    }
-  };
+const handleBuzz = async () => {
+  if (!buzzerEnabled || someoneBuzzed || !isPlaying) return;
+  
+  setBuzzed(true);
+  setBuzzerEnabled(false);
+  
+  const buzzRef = ref(database, 'buzz');
+  await set(buzzRef, {
+    type: 'BUZZ',
+    team: `team${team}`,
+    teamName: team === 1 ? 'Équipe 1' : 'Équipe 2',
+    playerName: selectedPlayer?.name || playerName,
+    playerId: selectedPlayer?.id || null,
+    playerPhoto: selectedPlayer?.photo || photoData || null,
+    playerFirebaseKey: playerFirebaseKey, // ✅ AJOUTEZ CECI
+    timestamp: Date.now()
+  });
+  
+  if (navigator.vibrate) {
+    navigator.vibrate(200);
+  }
+};
 
 const changeTeam = async () => {
   // ✅ SUPPRIMER le joueur avec sa clé Firebase

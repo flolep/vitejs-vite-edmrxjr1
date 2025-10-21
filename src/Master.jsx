@@ -477,31 +477,24 @@ const togglePlay = async () => {
 const revealAnswer = async () => {
   // Reset le streak du joueur qui s'est trompé
   const buzzRef = ref(database, 'buzz');
+  
   onValue(buzzRef, async (snapshot) => {
     const buzzData = snapshot.val();
-    if (buzzData && buzzData.playerName) {
-      const playerName = buzzData.playerName;
+    if (buzzData && buzzData.playerFirebaseKey) { // ✅ Vérifier la clé
+      const playerFirebaseKey = buzzData.playerFirebaseKey;
       const teamKey = buzzData.team === 'team1' ? 'team1' : 'team2';
       
-      const playersRef = ref(database, `players_session/${teamKey}`);
-      onValue(playersRef, async (playersSnapshot) => {
-        const players = playersSnapshot.val();
-        if (players) {
-          let playerKey = null;
-          Object.keys(players).forEach(key => {
-            if (players[key].name === playerName) {
-              playerKey = key;
-            }
+      // ✅ Accès DIRECT avec la clé Firebase
+      const playerRef = ref(database, `players_session/${teamKey}/${playerFirebaseKey}`);
+      
+      onValue(playerRef, async (playerSnapshot) => {
+        const playerData = playerSnapshot.val();
+        
+        if (playerData) {
+          await set(playerRef, { 
+            ...playerData, 
+            consecutiveCorrect: 0 // Reset le streak
           });
-          
-          if (playerKey) {
-            const player = players[playerKey];
-            const playerRef = ref(database, `players_session/${teamKey}/${playerKey}`);
-            await set(playerRef, { 
-              ...player, 
-              consecutiveCorrect: 0
-            });
-          }
         }
       }, { onlyOnce: true });
     }
@@ -514,12 +507,11 @@ const revealAnswer = async () => {
   setBuzzedTeam(null);
   remove(buzzRef);
   
-  // ✅ NE PAS mettre en pause, juste relancer
+  // Relancer la lecture
   const playingRef = ref(database, 'isPlaying');
   set(playingRef, true);
   setIsPlaying(true);
   
-  // ✅ Relancer la lecture
   if (isSpotifyMode && spotifyToken && spotifyDeviceId) {
     try {
       await spotifyService.playTrack(
@@ -556,51 +548,41 @@ const addPoint = async (team) => {
   const scoresRef = ref(database, 'scores');
   set(scoresRef, newScores);
   
-  // ✅ Mettre à jour les stats du joueur
+  // ✅ Mettre à jour les stats du joueur en utilisant SA CLÉ FIREBASE
   const buzzRef = ref(database, 'buzz');
   
   onValue(buzzRef, async (snapshot) => {
     const buzzData = snapshot.val();
-    if (buzzData && buzzData.playerName) {
-      const playerName = buzzData.playerName;
+    if (buzzData && buzzData.playerFirebaseKey) { // ✅ Vérifier la clé
+      const playerFirebaseKey = buzzData.playerFirebaseKey;
       const teamKey = team === 'team1' ? 'team1' : 'team2';
       
-      const playersRef = ref(database, `players_session/${teamKey}`);
-      onValue(playersRef, async (playersSnapshot) => {
-        const players = playersSnapshot.val();
-        if (players) {
-          let playerKey = null;
-          let playerData = null;
+      // ✅ Accès DIRECT avec la clé Firebase
+      const playerRef = ref(database, `players_session/${teamKey}/${playerFirebaseKey}`);
+      
+      onValue(playerRef, async (playerSnapshot) => {
+        const playerData = playerSnapshot.val();
+        
+        if (playerData) {
+          const consecutiveCorrect = (playerData.consecutiveCorrect || 0) + 1;
+          const correctCount = (playerData.correctCount || 0) + 1;
           
-          Object.keys(players).forEach(key => {
-            if (players[key].name === playerName) {
-              playerKey = key;
-              playerData = players[key];
-            }
-          });
+          const updates = {
+            consecutiveCorrect: consecutiveCorrect,
+            correctCount: correctCount,
+            buzzCount: (playerData.buzzCount || 0) + 1
+          };
           
-          if (playerKey && playerData) {
-            const consecutiveCorrect = (playerData.consecutiveCorrect || 0) + 1;
-            const correctCount = (playerData.correctCount || 0) + 1;
-            
-            const updates = {
-              consecutiveCorrect: consecutiveCorrect,
-              correctCount: correctCount,
-              buzzCount: (playerData.buzzCount || 0) + 1
-            };
-            
-            // Si 2 bonnes réponses consécutives → FLAG de cooldown en attente !
-            if (consecutiveCorrect >= 2) {
-              updates.hasCooldownPending = true; // ✅ Flag au lieu du timestamp
-              updates.consecutiveCorrect = 0;
-              console.log(`🔥 ${playerName} aura un COOLDOWN à la prochaine chanson ! Total: ${correctCount} bonnes réponses`);
-            } else {
-              console.log(`✅ ${playerName} : ${correctCount} bonne(s) réponse(s)`);
-            }
-            
-            const playerRef = ref(database, `players_session/${teamKey}/${playerKey}`);
-            await set(playerRef, { ...playerData, ...updates });
+          // Si 2 bonnes réponses consécutives → COOLDOWN !
+          if (consecutiveCorrect >= 2) {
+            updates.hasCooldownPending = true;
+            updates.consecutiveCorrect = 0;
+            console.log(`🔥 ${playerData.name} aura un COOLDOWN à la prochaine chanson ! Total: ${correctCount} bonnes réponses`);
+          } else {
+            console.log(`✅ ${playerData.name} : ${correctCount} bonne(s) réponse(s)`);
           }
+          
+          await set(playerRef, { ...playerData, ...updates });
         }
       }, { onlyOnce: true });
     }
