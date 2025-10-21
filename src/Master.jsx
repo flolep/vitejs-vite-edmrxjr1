@@ -476,10 +476,12 @@ const togglePlay = async () => {
       remove(buzzRef);
       
       setSpotifyPosition(0);
-      
+
+      // Réinitialiser le chrono (local + Firebase)
+      setCurrentChrono(0);
       const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
       set(chronoRef, 0);
-      
+
       const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
       set(playingRef, false);
       
@@ -514,10 +516,12 @@ const togglePlay = async () => {
       remove(buzzRef);
       
       setSpotifyPosition(0);
-      
+
+      // Réinitialiser le chrono (local + Firebase)
+      setCurrentChrono(0);
       const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
       set(chronoRef, 0);
-      
+
       const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
       set(playingRef, false);
       
