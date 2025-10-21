@@ -220,17 +220,21 @@ useEffect(() => {
   const loadSpotifyPlaylists = async (token) => {
     try {
       const allPlaylists = await spotifyService.getUserPlaylists(token);
-      const filteredPlaylists = allPlaylists.filter(playlist => 
-        playlist.description && playlist.description.includes('#BT')
-      );
-      
-      setSpotifyPlaylists(filteredPlaylists);
-      
-      if (filteredPlaylists.length === 0) {
-        setDebugInfo('⚠️ Aucune playlist avec le tag #BT trouvée');
-      } else {
-        setDebugInfo(`✅ ${filteredPlaylists.length} playlist(s) avec tag #BT`);
-      }
+
+      // OPTION 1 : Afficher TOUTES les playlists (filtre désactivé)
+      setSpotifyPlaylists(allPlaylists);
+      setDebugInfo(`✅ ${allPlaylists.length} playlist(s) chargées`);
+
+      // OPTION 2 : Filtrer uniquement celles avec #BT (décommentez pour activer)
+      // const filteredPlaylists = allPlaylists.filter(playlist =>
+      //   playlist.description && playlist.description.includes('#BT')
+      // );
+      // setSpotifyPlaylists(filteredPlaylists);
+      // if (filteredPlaylists.length === 0) {
+      //   setDebugInfo('⚠️ Aucune playlist avec le tag #BT trouvée');
+      // } else {
+      //   setDebugInfo(`✅ ${filteredPlaylists.length} playlist(s) avec tag #BT`);
+      // }
     } catch (error) {
       console.error('Error loading playlists:', error);
       setDebugInfo('❌ Erreur chargement playlists');
