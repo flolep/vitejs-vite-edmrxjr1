@@ -123,6 +123,7 @@ useEffect(() => {
       const buzzTime = currentChrono;
       
       setBuzzedTeam(team);
+      setBuzzedPlayerKey(buzzData.playerFirebaseKey || null);
       
       if (buzzerSoundRef.current) {
         buzzerSoundRef.current.play();
@@ -721,6 +722,7 @@ const loadBuzzStats = (shouldShow = true) => {
         {buzzedTeam && (
           <BuzzAlert
             buzzedTeam={buzzedTeam}
+            buzzedPlayerKey={buzzedPlayerKey}
             currentChrono={currentChrono}
             availablePoints={availablePoints}
             onCorrect={() => addPoint(buzzedTeam)}

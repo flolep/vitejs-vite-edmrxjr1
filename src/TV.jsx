@@ -25,10 +25,11 @@ function calculatePoints(chrono, songDuration) {
   return Math.max(0, Math.round(availablePoints));
 }
 
-const PlayerAvatar = ({ player, buzzedPlayerName }) => {
+const PlayerAvatar = ({ player, buzzedPlayerKey, buzzedPlayerName }) => {
   const isBuzzed = player.name === buzzedPlayerName;
   const isInCooldown = player.cooldownEnd && player.cooldownEnd > Date.now();
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  const [buzzedPlayerKey, setBuzzedPlayerKey] = useState(null);
   
   useEffect(() => {
     if (!isInCooldown) {
@@ -219,6 +220,8 @@ export default function TV() {
 
   // Écouter les buzz
   useEffect(() => {
+    const [buzzedPlayerKey, setBuzzedPlayerKey] = useState(null);
+
     const buzzRef = ref(database, 'buzz');
     const unsubscribe = onValue(buzzRef, (snapshot) => {
       const buzzData = snapshot.val();
@@ -226,10 +229,12 @@ export default function TV() {
         setBuzzedTeam(buzzData.team);
         setBuzzedPlayerName(buzzData.playerName || null);
         setBuzzedPlayerPhoto(buzzData.playerPhoto || null);
+        setBuzzedPlayerKey(buzzData.playerFirebaseKey || null);
       } else {
         setBuzzedTeam(null);
         setBuzzedPlayerName(null);
         setBuzzedPlayerPhoto(null);
+        setBuzzedPlayerKey(null);
       }
     });
     return () => unsubscribe();
@@ -310,7 +315,10 @@ export default function TV() {
     const unsubscribe = onValue(team1Ref, (snapshot) => {
       const playersObj = snapshot.val();
       if (playersObj) {
-        const playersArray = Object.values(playersObj);
+        const playersArray = Object.entries(playersObj).map(([key, player]) => ({
+        ...player,           // Toutes les propriétés du joueur (name, photo, etc.)
+        firebaseKey: key     // Ajouter la clé Firebase (player_1234567)
+      }));
         setPlayersTeam1(playersArray);
       } else {
         setPlayersTeam1([]);
@@ -325,7 +333,10 @@ export default function TV() {
     const unsubscribe = onValue(team2Ref, (snapshot) => {
       const playersObj = snapshot.val();
       if (playersObj) {
-        const playersArray = Object.values(playersObj);
+        const playersArray = Object.entries(playersObj).map(([key, player]) => ({
+        ...player,           // Toutes les propriétés du joueur (name, photo, etc.)
+        firebaseKey: key     // Ajouter la clé Firebase (player_1234567)
+      }));
         setPlayersTeam2(playersArray);
       } else {
         setPlayersTeam2([]);
@@ -557,6 +568,7 @@ return (
             <PlayerAvatar 
               key={idx} 
               player={player} 
+              buzzedPlayerKey={buzzedPlayerKey}
               buzzedPlayerName={buzzedPlayerName}
             />
           ))}
@@ -605,7 +617,8 @@ return (
           {playersTeam2.map((player, idx) => (
             <PlayerAvatar 
               key={idx} 
-              player={player} 
+              player={player}
+              buzzedPlayerKey={buzzedPlayerKey}
               buzzedPlayerName={buzzedPlayerName}
             />
           ))}
