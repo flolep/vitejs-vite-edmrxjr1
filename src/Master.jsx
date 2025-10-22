@@ -858,386 +858,453 @@ const loadBuzzStats = (shouldShow = true) => {
   }
 
   return (
-    <div className="bg-gradient">
-      <div className="container">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-          <h1 className="title">🎵 BLIND TEST 🎵</h1>
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-            {sessionId && (
-              <button
-                onClick={toggleQRCodeOnTV}
-                style={{
-                  padding: '0.5rem 1rem',
-                  backgroundColor: showQRCode ? '#ef4444' : '#10b981',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '0.5rem',
-                  cursor: 'pointer',
-                  fontWeight: 'bold',
-                  fontSize: '0.9rem'
-                }}
-              >
-                {showQRCode ? '🔴 Masquer QR Code (TV)' : '📺 Afficher QR Code sur TV'}
-              </button>
-            )}
-            <button
-              onClick={handleLogout}
-              style={{
-                padding: '0.5rem 1rem',
-                backgroundColor: '#ef4444',
-                color: 'white',
-                border: 'none',
-                borderRadius: '0.5rem',
-                cursor: 'pointer',
-                fontWeight: 'bold',
-                fontSize: '0.9rem'
-              }}
-            >
-              🚪 Déconnexion
-            </button>
-          </div>
-        </div>
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      color: 'white'
+    }}>
+      {/* HEADER */}
+      <header style={{
+        background: 'rgba(0, 0, 0, 0.3)',
+        backdropFilter: 'blur(10px)',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+        padding: '1rem 2rem',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        position: 'sticky',
+        top: 0,
+        zIndex: 100
+      }}>
+        <h1 style={{
+          fontSize: '1.75rem',
+          fontWeight: 'bold',
+          margin: 0,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem'
+        }}>
+          🎵 BLIND TEST
+        </h1>
 
-        {/* Code de session - visible uniquement après création d'une partie */}
-        {sessionId && (
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          {/* Statut Spotify */}
+          {spotifyToken ? (
+            <div style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: 'rgba(16, 185, 129, 0.2)',
+              border: '1px solid #10b981',
+              borderRadius: '0.5rem',
+              fontSize: '0.9rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <span style={{ color: '#10b981' }}>●</span>
+              Spotify connecté
+            </div>
+          ) : null}
+
+          <button
+            onClick={handleLogout}
+            style={{
+              padding: '0.5rem 1.5rem',
+              backgroundColor: 'rgba(239, 68, 68, 0.2)',
+              border: '1px solid #ef4444',
+              borderRadius: '0.5rem',
+              color: 'white',
+              cursor: 'pointer',
+              fontWeight: '500',
+              fontSize: '0.9rem',
+              transition: 'all 0.2s'
+            }}
+            onMouseOver={(e) => e.target.style.backgroundColor = 'rgba(239, 68, 68, 0.3)'}
+            onMouseOut={(e) => e.target.style.backgroundColor = 'rgba(239, 68, 68, 0.2)'}
+          >
+            🚪 Déconnexion
+          </button>
+        </div>
+      </header>
+
+      {/* MAIN LAYOUT */}
+      <div style={{
+        display: 'flex',
+        height: 'calc(100vh - 73px)', // 73px = header height
+        overflow: 'hidden'
+      }}>
+        {/* SIDEBAR */}
+        <aside style={{
+          width: '320px',
+          backgroundColor: 'rgba(0, 0, 0, 0.2)',
+          borderRight: '1px solid rgba(255, 255, 255, 0.1)',
+          overflowY: 'auto',
+          padding: '1.5rem',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1.5rem'
+        }}>
+          {/* Section Connexion Spotify */}
+          <SpotifyConnection
+            spotifyToken={spotifyToken}
+            onConnect={handleSpotifyLogin}
+            onShowPlaylists={() => setShowPlaylistSelector(true)}
+            onAddManual={handleManualAdd}
+            isSpotifyMode={isSpotifyMode}
+          />
+
+          {/* Section Session */}
+          {sessionId && (
+            <div style={{
+              backgroundColor: 'rgba(124, 58, 237, 0.2)',
+              border: '1px solid rgba(124, 58, 237, 0.5)',
+              borderRadius: '0.75rem',
+              padding: '1.25rem'
+            }}>
+              <h3 style={{
+                fontSize: '0.875rem',
+                fontWeight: '600',
+                marginBottom: '0.75rem',
+                opacity: 0.8,
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em'
+              }}>
+                📺 Code de session
+              </h3>
+              <div style={{
+                fontSize: '2rem',
+                fontWeight: 'bold',
+                letterSpacing: '0.3rem',
+                fontFamily: 'monospace',
+                color: '#fbbf24',
+                marginBottom: '1rem',
+                textAlign: 'center',
+                textShadow: '0 0 10px rgba(251, 191, 36, 0.3)'
+              }}>
+                {sessionId}
+              </div>
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.5rem'
+              }}>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(sessionId);
+                    setDebugInfo('✅ Code copié !');
+                  }}
+                  className="btn"
+                  style={{
+                    padding: '0.6rem',
+                    backgroundColor: 'rgba(124, 58, 237, 0.3)',
+                    border: '1px solid #7c3aed',
+                    fontSize: '0.85rem'
+                  }}
+                >
+                  📋 Copier le code
+                </button>
+                <button
+                  onClick={() => window.open('/tv', '_blank')}
+                  className="btn"
+                  style={{
+                    padding: '0.6rem',
+                    backgroundColor: 'rgba(16, 185, 129, 0.3)',
+                    border: '1px solid #10b981',
+                    fontSize: '0.85rem'
+                  }}
+                >
+                  📺 Ouvrir TV
+                </button>
+                <button
+                  onClick={toggleQRCodeOnTV}
+                  className="btn"
+                  style={{
+                    padding: '0.6rem',
+                    backgroundColor: showQRCode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)',
+                    border: showQRCode ? '1px solid #ef4444' : '1px solid #10b981',
+                    fontSize: '0.85rem'
+                  }}
+                >
+                  {showQRCode ? '🔴 Masquer QR Code' : '📱 Afficher QR Code'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Section Paramètres */}
           <div style={{
-            backgroundColor: 'rgba(124, 58, 237, 0.2)',
-            border: '3px solid #7c3aed',
-            borderRadius: '1rem',
-            padding: '1.5rem',
-            marginBottom: '2rem',
-            textAlign: 'center'
+            backgroundColor: 'rgba(0, 0, 0, 0.2)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '0.75rem',
+            padding: '1.25rem'
           }}>
             <h3 style={{
-              fontSize: '1.2rem',
-              marginBottom: '1rem',
-              color: '#c4b5fd'
+              fontSize: '0.875rem',
+              fontWeight: '600',
+              marginBottom: '0.75rem',
+              opacity: 0.8,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em'
             }}>
-              📺 Code de session pour l'écran TV
+              ⚙️ Paramètres
             </h3>
-            <div style={{
-              fontSize: '3rem',
-              fontWeight: 'bold',
-              letterSpacing: '0.5rem',
-              fontFamily: 'monospace',
-              color: '#fbbf24',
-              marginBottom: '1rem',
-              textShadow: '0 0 10px rgba(251, 191, 36, 0.5)'
-            }}>
-              {sessionId}
-            </div>
-            <div style={{
-              display: 'flex',
-              gap: '1rem',
-              justifyContent: 'center',
-              flexWrap: 'wrap'
-            }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               <button
-                onClick={() => {
-                  navigator.clipboard.writeText(sessionId);
-                  setDebugInfo('✅ Code copié !');
-                }}
+                onClick={resetScores}
+                className="btn"
                 style={{
-                  padding: '0.75rem 1.5rem',
-                  backgroundColor: '#7c3aed',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '0.5rem',
-                  cursor: 'pointer',
-                  fontWeight: 'bold',
-                  fontSize: '0.9rem'
+                  padding: '0.6rem',
+                  backgroundColor: 'rgba(156, 163, 175, 0.3)',
+                  border: '1px solid #9ca3af',
+                  fontSize: '0.85rem'
                 }}
               >
-                📋 Copier le code
+                🔄 Nouvelle partie
               </button>
-              <button
-                onClick={() => {
-                  window.open('/tv', '_blank');
-                }}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  backgroundColor: '#10b981',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '0.5rem',
-                  cursor: 'pointer',
-                  fontWeight: 'bold',
-                  fontSize: '0.9rem'
-                }}
-              >
-                📺 Ouvrir TV dans un nouvel onglet
-              </button>
-            </div>
-            <p style={{
-              marginTop: '1rem',
-              fontSize: '0.9rem',
-              opacity: 0.8
-            }}>
-              Utilisez ce code pour connecter l'écran TV sur un autre appareil
-            </p>
-          </div>
-        )}
-
-        {/* Connexion Spotify */}
-        <SpotifyConnection
-          spotifyToken={spotifyToken}
-          onConnect={handleSpotifyLogin}
-          onShowPlaylists={() => setShowPlaylistSelector(true)}
-          onAddManual={handleManualAdd}
-        />
-
-        {/* Sélecteur de playlist */}
-        <PlaylistSelector
-          show={showPlaylistSelector}
-          playlists={spotifyPlaylists}
-          onSelect={importSpotifyPlaylist}
-          onClose={() => setShowPlaylistSelector(false)}
-        />
-
-        {/* Scores */}
-        <ScoreDisplay scores={scores} buzzedTeam={buzzedTeam} />
-
-        {/* Modal de buzz */}
-        {buzzedTeam && (
-          <BuzzAlert
-            buzzedTeam={buzzedTeam}
-            buzzedPlayerKey={buzzedPlayerKey}
-            currentChrono={currentChrono}
-            availablePoints={availablePoints}
-            onCorrect={() => addPoint(buzzedTeam)}
-            onWrong={revealAnswer}
-          />
-        )}
-
-        {/* Paramètres */}
-        <GameSettings
-          playlist={playlist}
-          scores={scores}
-          showStats={showStats}
-          buzzStats={buzzStats}
-          showEndGameConfirm={showEndGameConfirm}
-          onResetGame={resetScores}
-          onShowStats={loadBuzzStats}
-          onEndGame={handleEndGame}
-          onConfirmEndGame={confirmEndGame}
-          onCancelEndGame={() => setShowEndGameConfirm(false)}
-        />
-
-        {/* Lecteur */}
-        {playlist.length === 0 ? (
-          <div className="player-box text-center">
-            <h3 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>
-              Aucune playlist chargée
-            </h3>
-            <p>Connectez-vous à Spotify ou ajoutez des morceaux</p>
-          </div>
-        ) : (
-          <>
-            <div className="player-box">
-              <h3 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>
-                Morceau {currentTrack + 1} / {playlist.length}
-              </h3>
-              
-              {currentSong && (
+              {playlist.length > 0 && (
                 <>
-                  {currentSong.revealed ? (
-                    <div className="revealed mb-4">
-                      <div style={{ fontWeight: 'bold', fontSize: '1.5rem' }}>
-                        {currentSong.title}
-                      </div>
-                      {currentSong.artist && (
-                        <div style={{ opacity: 0.8, marginTop: '0.5rem' }}>
-                          {currentSong.artist}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-mystery mb-4">🎵 Mystère...</div>
-                  )}
-
-                  {currentSong.imageUrl && (
-                    <div className="mb-4">
-                      <img 
-                        src={currentSong.imageUrl} 
-                        alt="Album cover" 
-                        style={{ 
-                          width: '150px', 
-                          height: '150px', 
-                          objectFit: 'cover', 
-                          borderRadius: '0.5rem',
-                          margin: '0 auto',
-                          display: 'block'
-                        }} 
-                      />
-                    </div>
-                  )}
+                  <button
+                    onClick={() => loadBuzzStats(true)}
+                    className="btn"
+                    style={{
+                      padding: '0.6rem',
+                      backgroundColor: 'rgba(124, 58, 237, 0.3)',
+                      border: '1px solid #7c3aed',
+                      fontSize: '0.85rem'
+                    }}
+                  >
+                    📊 Statistiques
+                  </button>
+                  <button
+                    onClick={() => setShowEndGameConfirm(true)}
+                    className="btn"
+                    style={{
+                      padding: '0.6rem',
+                      backgroundColor: 'rgba(251, 191, 36, 0.3)',
+                      border: '1px solid #fbbf24',
+                      fontSize: '0.85rem'
+                    }}
+                  >
+                    🏁 Terminer la partie
+                  </button>
                 </>
               )}
-
-              {!isSpotifyMode && (
-                <audio 
-                  ref={audioRef}
-                  src={currentSong?.audioUrl || ''}
-                  onEnded={() => setIsPlaying(false)}
-                  onLoadedMetadata={(e) => {
-                    const duration = e.target.duration;
-                    setSongDuration(duration);
-                    const durationRef = ref(database, `sessions/${sessionId}/songDuration`);
-                    set(durationRef, duration);
-                  }}
-                />
-              )}
-
-              {debugInfo && (
-                <div className="debug-info mb-4">{debugInfo}</div>
-              )}
-
-              <PlayerControls
-                isPlaying={isPlaying}
-                currentTrack={currentTrack}
-                playlistLength={playlist.length}
-                currentSong={currentSong}
-                isSpotifyMode={isSpotifyMode}
-                onPlay={togglePlay}
-                onPrev={prevTrack}
-                onNext={nextTrack}
-                onReveal={revealAnswer}
-              />
             </div>
+          </div>
 
-            {/* Playlist */}
-            <div className="player-box">
-              <div style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center', 
-                marginBottom: '1rem' 
+          {/* Section Playlist */}
+          {playlist.length > 0 && (
+            <div style={{
+              backgroundColor: 'rgba(0, 0, 0, 0.2)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '0.75rem',
+              padding: '1.25rem',
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: 0
+            }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '0.75rem'
               }}>
-                <h3 style={{ fontSize: '1.5rem' }}>
-                  Playlist ({playlist.length})
+                <h3 style={{
+                  fontSize: '0.875rem',
+                  fontWeight: '600',
+                  opacity: 0.8,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  margin: 0
+                }}>
+                  📚 Playlist ({playlist.length})
                 </h3>
                 {!isSpotifyMode && (
-                  <button onClick={handleManualAdd} className="btn btn-purple">
+                  <button
+                    onClick={handleManualAdd}
+                    style={{
+                      padding: '0.4rem 0.8rem',
+                      backgroundColor: 'rgba(124, 58, 237, 0.3)',
+                      border: '1px solid #7c3aed',
+                      borderRadius: '0.5rem',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontSize: '0.75rem'
+                    }}
+                  >
                     + Ajouter
                   </button>
                 )}
               </div>
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+
+              <div style={{
+                flex: 1,
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.4rem'
+              }}>
                 {playlist.map((track, index) => (
                   <div
                     key={index}
                     onClick={() => loadTrack(index)}
-                    className={`playlist-item ${index === currentTrack ? 'current' : ''}`}
                     style={{
-                      padding: '0.75rem',
+                      padding: '0.6rem',
                       cursor: track.revealed ? 'not-allowed' : 'pointer',
-                      opacity: track.revealed ? 0.5 : 1,
-                      transition: 'all 0.2s',
+                      opacity: track.revealed ? 0.4 : 1,
                       backgroundColor: index === currentTrack
-                        ? 'rgba(124, 58, 237, 0.2)'
-                        : track.revealed
-                        ? 'rgba(0, 0, 0, 0.1)'
+                        ? 'rgba(124, 58, 237, 0.4)'
                         : 'rgba(255, 255, 255, 0.05)',
-                      border: index === currentTrack ? '2px solid #7c3aed' : '1px solid rgba(255, 255, 255, 0.1)',
-                      borderRadius: '0.5rem'
+                      border: index === currentTrack ? '1px solid #7c3aed' : '1px solid transparent',
+                      borderRadius: '0.5rem',
+                      transition: 'all 0.2s',
+                      fontSize: '0.85rem'
+                    }}
+                    onMouseOver={(e) => {
+                      if (!track.revealed) {
+                        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                      }
+                    }}
+                    onMouseOut={(e) => {
+                      if (index !== currentTrack && !track.revealed) {
+                        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                      }
                     }}
                   >
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      gap: '1rem'
-                    }}>
-                      <div style={{ flex: 1 }}>
-                        {/* Numéro et statut */}
-                        <div style={{ fontWeight: 'bold', fontSize: '0.95rem' }}>
-                          {index + 1}. {track.revealed ? (
-                            <span style={{ color: '#10b981' }}>
-                              ✅ {track.title} {track.artist && `- ${track.artist}`}
-                            </span>
-                          ) : (
-                            <span style={{ opacity: 0.9 }}>
-                              {track.title} {track.artist && `- ${track.artist}`}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Indicateurs de fichiers (mode MP3 uniquement) */}
-                        {!isSpotifyMode && (
-                          <div style={{
-                            display: 'flex',
-                            gap: '0.75rem',
-                            fontSize: '0.75rem',
-                            marginTop: '0.25rem'
-                          }}>
-                            <span style={{
-                              color: track.audioUrl ? '#10b981' : '#ef4444'
-                            }}>
-                              {track.audioUrl ? '✓ Audio' : '⚠️ Audio'}
-                            </span>
-                            <span style={{
-                              color: track.imageUrl ? '#10b981' : '#ef4444'
-                            }}>
-                              {track.imageUrl ? '✓ Image' : '⚠️ Image'}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* Boutons d'upload (mode MP3 uniquement) */}
-                      {!isSpotifyMode && !track.revealed && (
-                        <div
-                          style={{
-                            display: 'flex',
-                            flexDirection: 'row',
-                            gap: '0.5rem'
-                          }}
-                          onClick={(e) => e.stopPropagation()} // Empêcher le clic de charger la chanson
-                        >
-                          {!track.audioUrl && (
-                            <label
-                              className="file-label"
-                              style={{
-                                fontSize: '0.7rem',
-                                padding: '0.4rem 0.8rem'
-                              }}
-                            >
-                              📁 MP3
-                              <input
-                                type="file"
-                                accept="audio/*"
-                                onChange={(e) => e.target.files[0] && handleAudioForTrack(index, e.target.files[0])}
-                              />
-                            </label>
-                          )}
-                          {!track.imageUrl && (
-                            <label
-                              className="file-label"
-                              style={{
-                                fontSize: '0.7rem',
-                                padding: '0.4rem 0.8rem',
-                                backgroundColor: '#7c3aed'
-                              }}
-                            >
-                              🖼️ Image
-                              <input
-                                type="file"
-                                accept="image/*"
-                                onChange={(e) => e.target.files[0] && handleImageForTrack(index, e.target.files[0])}
-                              />
-                            </label>
-                          )}
-                        </div>
-                      )}
+                    <div style={{ fontWeight: '500' }}>
+                      {index + 1}. {track.revealed && '✅ '}
+                      {track.title}
                     </div>
+                    {track.artist && (
+                      <div style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '0.2rem' }}>
+                        {track.artist}
+                      </div>
+                    )}
+                    {!isSpotifyMode && (
+                      <div style={{
+                        display: 'flex',
+                        gap: '0.5rem',
+                        fontSize: '0.7rem',
+                        marginTop: '0.3rem'
+                      }}>
+                        <span style={{ color: track.audioUrl ? '#10b981' : '#ef4444' }}>
+                          {track.audioUrl ? '✓' : '⚠️'} Audio
+                        </span>
+                        <span style={{ color: track.imageUrl ? '#10b981' : '#ef4444' }}>
+                          {track.imageUrl ? '✓' : '⚠️'} Image
+                        </span>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             </div>
-          </>
-        )}
+          )}
+        </aside>
+
+        {/* ZONE PRINCIPALE */}
+        <main style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '2rem',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1.5rem'
+        }}>
+          {playlist.length > 0 ? (
+            <>
+              {/* Scores */}
+              <ScoreDisplay scores={scores} />
+
+              {/* Buzz Alert */}
+              {buzzedTeam && (
+                <BuzzAlert
+                  buzzedTeam={buzzedTeam}
+                  buzzedPlayerKey={buzzedPlayerKey}
+                  currentChrono={currentChrono}
+                  availablePoints={availablePoints}
+                  onCorrect={() => addPoint(buzzedTeam)}
+                  onWrong={revealAnswer}
+                />
+              )}
+
+              {/* Player Controls */}
+              <PlayerControls
+                currentTrack={currentTrack}
+                playlistLength={playlist.length}
+                isPlaying={isPlaying}
+                currentSong={currentSong}
+                currentChrono={currentChrono}
+                availablePoints={availablePoints}
+                songDuration={songDuration}
+                onPrev={prevTrack}
+                onTogglePlay={togglePlay}
+                onNext={nextTrack}
+                onReveal={revealAnswer}
+              />
+
+              {/* Debug info */}
+              {debugInfo && (
+                <div style={{
+                  padding: '1rem',
+                  backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                  borderRadius: '0.5rem',
+                  textAlign: 'center',
+                  fontSize: '0.9rem'
+                }}>
+                  {debugInfo}
+                </div>
+              )}
+            </>
+          ) : (
+            <div style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              textAlign: 'center'
+            }}>
+              <div>
+                <h2 style={{ fontSize: '2rem', marginBottom: '1rem' }}>
+                  👋 Bienvenue !
+                </h2>
+                <p style={{ fontSize: '1.1rem', opacity: 0.8 }}>
+                  {!sessionId
+                    ? 'Cliquez sur "🔄 Nouvelle partie" pour commencer'
+                    : 'Connectez-vous à Spotify ou ajoutez des morceaux manuellement'}
+                </p>
+              </div>
+            </div>
+          )}
+        </main>
       </div>
+
+      {/* Modales */}
+      {showPlaylistSelector && (
+        <PlaylistSelector
+          spotifyToken={spotifyToken}
+          playlists={playlists}
+          onClose={() => setShowPlaylistSelector(false)}
+          onSelectPlaylist={handleSelectPlaylist}
+        />
+      )}
+
+      <GameSettings
+        playlist={playlist}
+        scores={scores}
+        showStats={showStats}
+        buzzStats={buzzStats}
+        showEndGameConfirm={showEndGameConfirm}
+        onResetGame={resetScores}
+        onShowStats={loadBuzzStats}
+        onEndGame={() => setShowEndGameConfirm(true)}
+        onConfirmEndGame={endGame}
+        onCancelEndGame={() => setShowEndGameConfirm(false)}
+      />
+
+      {/* Audio caché */}
+      <audio ref={audioRef} style={{ display: 'none' }} />
+      <audio ref={buzzerSoundRef} src="/buzzer.mp3" preload="auto" style={{ display: 'none' }} />
     </div>
   );
 }
