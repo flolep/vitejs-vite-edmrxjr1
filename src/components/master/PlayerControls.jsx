@@ -5,9 +5,12 @@ export default function PlayerControls({
   currentTrack,
   playlistLength,
   currentSong,
+  currentChrono,
+  availablePoints,
+  songDuration,
   isSpotifyMode,
-  onPlay,
   onPrev,
+  onTogglePlay,
   onNext,
   onReveal
 }) {
@@ -23,7 +26,7 @@ export default function PlayerControls({
         </button>
 
         <button
-          onClick={onPlay}
+          onClick={onTogglePlay}
           disabled={!isSpotifyMode && !currentSong?.audioUrl}
           className="btn btn-green btn-round btn-play"
         >

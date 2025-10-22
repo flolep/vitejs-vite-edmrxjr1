@@ -1237,6 +1237,7 @@ const loadBuzzStats = (shouldShow = true) => {
                 currentChrono={currentChrono}
                 availablePoints={availablePoints}
                 songDuration={songDuration}
+                isSpotifyMode={isSpotifyMode}
                 onPrev={prevTrack}
                 onTogglePlay={togglePlay}
                 onNext={nextTrack}
