@@ -905,6 +905,66 @@ const loadBuzzStats = (shouldShow = true) => {
             </div>
           ) : null}
 
+          {/* Boutons d'actions */}
+          {playlist.length > 0 && (
+            <>
+              <button
+                onClick={resetScores}
+                className="btn"
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: 'rgba(156, 163, 175, 0.3)',
+                  border: '1px solid #9ca3af',
+                  fontSize: '0.85rem',
+                  borderRadius: '0.5rem',
+                  color: 'white',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => e.target.style.backgroundColor = 'rgba(156, 163, 175, 0.4)'}
+                onMouseOut={(e) => e.target.style.backgroundColor = 'rgba(156, 163, 175, 0.3)'}
+              >
+                🔄 Nouvelle partie
+              </button>
+              <button
+                onClick={() => loadBuzzStats(true)}
+                className="btn"
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: 'rgba(124, 58, 237, 0.3)',
+                  border: '1px solid #7c3aed',
+                  fontSize: '0.85rem',
+                  borderRadius: '0.5rem',
+                  color: 'white',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => e.target.style.backgroundColor = 'rgba(124, 58, 237, 0.4)'}
+                onMouseOut={(e) => e.target.style.backgroundColor = 'rgba(124, 58, 237, 0.3)'}
+              >
+                📊 Statistiques
+              </button>
+              <button
+                onClick={() => setShowEndGameConfirm(true)}
+                className="btn"
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: 'rgba(251, 191, 36, 0.3)',
+                  border: '1px solid #fbbf24',
+                  fontSize: '0.85rem',
+                  borderRadius: '0.5rem',
+                  color: 'white',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => e.target.style.backgroundColor = 'rgba(251, 191, 36, 0.4)'}
+                onMouseOut={(e) => e.target.style.backgroundColor = 'rgba(251, 191, 36, 0.3)'}
+              >
+                🏁 Terminer la partie
+              </button>
+            </>
+          )}
+
           <button
             onClick={handleLogout}
             style={{
@@ -1182,55 +1242,6 @@ const loadBuzzStats = (shouldShow = true) => {
                 onNext={nextTrack}
                 onReveal={revealAnswer}
               />
-
-              {/* Actions de partie */}
-              <div style={{
-                backgroundColor: 'rgba(0, 0, 0, 0.2)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                borderRadius: '0.75rem',
-                padding: '1rem',
-                display: 'flex',
-                gap: '0.75rem',
-                justifyContent: 'center',
-                flexWrap: 'wrap'
-              }}>
-                <button
-                  onClick={resetScores}
-                  className="btn"
-                  style={{
-                    padding: '0.6rem 1rem',
-                    backgroundColor: 'rgba(156, 163, 175, 0.3)',
-                    border: '1px solid #9ca3af',
-                    fontSize: '0.85rem'
-                  }}
-                >
-                  🔄 Nouvelle partie
-                </button>
-                <button
-                  onClick={() => loadBuzzStats(true)}
-                  className="btn"
-                  style={{
-                    padding: '0.6rem 1rem',
-                    backgroundColor: 'rgba(124, 58, 237, 0.3)',
-                    border: '1px solid #7c3aed',
-                    fontSize: '0.85rem'
-                  }}
-                >
-                  📊 Statistiques
-                </button>
-                <button
-                  onClick={() => setShowEndGameConfirm(true)}
-                  className="btn"
-                  style={{
-                    padding: '0.6rem 1rem',
-                    backgroundColor: 'rgba(251, 191, 36, 0.3)',
-                    border: '1px solid #fbbf24',
-                    fontSize: '0.85rem'
-                  }}
-                >
-                  🏁 Terminer la partie
-                </button>
-              </div>
 
               {/* Debug info */}
               {debugInfo && (
