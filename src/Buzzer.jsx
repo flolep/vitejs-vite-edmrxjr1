@@ -32,6 +32,15 @@ export default function Buzzer() {
   const [cooldownEnd, setCooldownEnd] = useState(null);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
 
+  // Stats personnelles
+  const [showStats, setShowStats] = useState(false);
+  const [personalStats, setPersonalStats] = useState({
+    totalBuzzes: 0,
+    winningBuzzes: 0,
+    totalPoints: 0,
+    recognizedSongs: []
+  });
+
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
@@ -373,6 +382,62 @@ const changeTeam = async () => {
   setSomeoneBuzzed(false);
   setPlayerFirebaseKey(null); // ✅ Reset la clé
   setStep('team');
+};
+
+// Charger les statistiques personnelles du joueur
+const loadPersonalStats = () => {
+  if (!sessionId || !selectedPlayer) return;
+
+  const buzzTimesRef = ref(database, `sessions/${sessionId}/buzz_times`);
+  onValue(buzzTimesRef, (snapshot) => {
+    const data = snapshot.val();
+    if (data) {
+      const allBuzzes = [];
+
+      // Collecter tous les buzz de toutes les chansons
+      Object.keys(data).forEach(trackIndex => {
+        const trackBuzzes = data[trackIndex];
+        if (Array.isArray(trackBuzzes)) {
+          trackBuzzes.forEach(buzz => {
+            allBuzzes.push(buzz);
+          });
+        }
+      });
+
+      // Filtrer les buzz du joueur actuel
+      const myBuzzes = allBuzzes.filter(buzz =>
+        buzz.playerName === (selectedPlayer?.name || playerName)
+      );
+
+      // Calculer les statistiques
+      const winningBuzzes = myBuzzes.filter(buzz => buzz.correct === true);
+      const totalPoints = winningBuzzes.reduce((sum, buzz) => sum + (buzz.points || 0), 0);
+
+      // Récupérer les chansons reconnues
+      const recognizedSongs = winningBuzzes.map(buzz => ({
+        title: buzz.songTitle,
+        artist: buzz.songArtist,
+        time: buzz.time,
+        points: buzz.points,
+        trackNumber: buzz.trackNumber
+      }));
+
+      // Calculer le pourcentage de contribution aux points de l'équipe
+      const teamKey = team === 1 ? 'team1' : 'team2';
+      const teamScore = scores[teamKey] || 0;
+      const percentageContribution = teamScore > 0 ? ((totalPoints / teamScore) * 100).toFixed(1) : '0';
+
+      setPersonalStats({
+        totalBuzzes: myBuzzes.length,
+        winningBuzzes: winningBuzzes.length,
+        totalPoints: totalPoints,
+        recognizedSongs: recognizedSongs,
+        percentageContribution: percentageContribution
+      });
+
+      setShowStats(true);
+    }
+  }, { onlyOnce: true });
 };
 
   // ========== ÉCRANS ==========
@@ -798,6 +863,30 @@ if (step === 'game') {
 
   return (
     <div className={`${bgClass} flex-center`}>
+      {/* Bouton de statistiques personnelles */}
+      <button
+        onClick={loadPersonalStats}
+        style={{
+          position: 'fixed',
+          top: '1rem',
+          right: '1rem',
+          backgroundColor: 'rgba(0, 0, 0, 0.3)',
+          border: '2px solid rgba(255, 255, 255, 0.3)',
+          borderRadius: '50%',
+          width: '50px',
+          height: '50px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          fontSize: '1.5rem',
+          zIndex: 100
+        }}
+        title="Mes statistiques"
+      >
+        📊
+      </button>
+
       <div className="score-display">
         <div className={`score-mini ${team === 1 ? 'highlighted' : ''}`} style={{ backgroundColor: 'rgba(220, 38, 38, 0.5)' }}>
           <div className="label">ÉQUIPE 1</div>
@@ -889,6 +978,171 @@ if (step === 'game') {
       {!isPlaying && !someoneBuzzed && !isInCooldown && (
         <div className="mt-8" style={{ fontSize: '0.875rem', opacity: 0.7 }}>
           ⏸️ Attendez que l'animateur lance la musique...
+        </div>
+      )}
+
+      {/* Modale des statistiques personnelles */}
+      {showStats && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '2rem'
+          }}
+          onClick={() => setShowStats(false)}
+        >
+          <div
+            style={{
+              backgroundColor: '#1f2937',
+              borderRadius: '1.5rem',
+              padding: '2rem',
+              maxWidth: '500px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              color: 'white'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{
+              fontSize: '2rem',
+              marginBottom: '1.5rem',
+              textAlign: 'center'
+            }}>
+              📊 Mes Statistiques
+            </h2>
+
+            {/* Résumé des stats */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '1rem',
+              marginBottom: '2rem'
+            }}>
+              <div style={{
+                backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                padding: '1rem',
+                borderRadius: '0.75rem',
+                textAlign: 'center'
+              }}>
+                <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#60a5fa' }}>
+                  {personalStats.totalBuzzes}
+                </div>
+                <div style={{ fontSize: '0.875rem', opacity: 0.8, marginTop: '0.5rem' }}>
+                  Buzz totaux
+                </div>
+              </div>
+
+              <div style={{
+                backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                padding: '1rem',
+                borderRadius: '0.75rem',
+                textAlign: 'center'
+              }}>
+                <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#10b981' }}>
+                  {personalStats.winningBuzzes}
+                </div>
+                <div style={{ fontSize: '0.875rem', opacity: 0.8, marginTop: '0.5rem' }}>
+                  Buzz gagnants
+                </div>
+              </div>
+
+              <div style={{
+                backgroundColor: 'rgba(251, 191, 36, 0.2)',
+                padding: '1rem',
+                borderRadius: '0.75rem',
+                textAlign: 'center',
+                gridColumn: '1 / -1'
+              }}>
+                <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#fbbf24' }}>
+                  {personalStats.totalPoints}
+                </div>
+                <div style={{ fontSize: '0.875rem', opacity: 0.8, marginTop: '0.5rem' }}>
+                  Points gagnés ({personalStats.percentageContribution}% de l'équipe)
+                </div>
+              </div>
+            </div>
+
+            {/* Liste des chansons reconnues */}
+            {personalStats.recognizedSongs.length > 0 ? (
+              <>
+                <h3 style={{
+                  fontSize: '1.25rem',
+                  marginBottom: '1rem',
+                  color: '#10b981'
+                }}>
+                  🎵 Chansons reconnues
+                </h3>
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem',
+                  marginBottom: '1.5rem'
+                }}>
+                  {personalStats.recognizedSongs.map((song, index) => (
+                    <div
+                      key={index}
+                      style={{
+                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                        padding: '1rem',
+                        borderRadius: '0.75rem',
+                        borderLeft: '4px solid #10b981'
+                      }}
+                    >
+                      <div style={{ fontWeight: 'bold', fontSize: '1.1rem', marginBottom: '0.25rem' }}>
+                        {song.title}
+                      </div>
+                      {song.artist && (
+                        <div style={{ fontSize: '0.9rem', opacity: 0.7, marginBottom: '0.5rem' }}>
+                          {song.artist}
+                        </div>
+                      )}
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        fontSize: '0.875rem',
+                        opacity: 0.8
+                      }}>
+                        <span>⏱️ {song.time.toFixed(1)}s</span>
+                        <span>💰 {song.points} pts</span>
+                        <span>#{song.trackNumber}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div style={{
+                textAlign: 'center',
+                padding: '2rem',
+                opacity: 0.6,
+                marginBottom: '1.5rem'
+              }}>
+                Aucune chanson reconnue pour le moment. Continuez à buzzer ! 🎵
+              </div>
+            )}
+
+            <button
+              onClick={() => setShowStats(false)}
+              className="btn"
+              style={{
+                width: '100%',
+                padding: '1rem',
+                fontSize: '1.1rem',
+                backgroundColor: '#6b7280'
+              }}
+            >
+              Fermer
+            </button>
+          </div>
         </div>
       )}
     </div>
