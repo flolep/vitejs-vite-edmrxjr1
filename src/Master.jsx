@@ -1254,35 +1254,13 @@ const loadBuzzStats = (shouldShow = true) => {
                 />
               )}
 
-              {/* Info chanson actuelle */}
-              <div style={{
-                backgroundColor: 'rgba(0, 0, 0, 0.2)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                borderRadius: '0.75rem',
-                padding: '1.5rem',
-                textAlign: 'center'
-              }}>
-                <div style={{
-                  fontSize: '1.2rem',
-                  fontWeight: '600',
-                  marginBottom: '0.5rem'
-                }}>
-                  🎵 Chanson #{currentTrack + 1} / {playlist.length}
-                </div>
-                {currentSong?.revealed && (
-                  <div style={{ fontSize: '0.9rem', opacity: 0.8, marginTop: '0.5rem' }}>
-                    <div style={{ fontWeight: '500' }}>{currentSong.title}</div>
-                    <div style={{ fontSize: '0.85rem', opacity: 0.7 }}>{currentSong.artist}</div>
-                  </div>
-                )}
-              </div>
-
               {/* Player Controls */}
               <PlayerControls
                 currentTrack={currentTrack}
                 playlistLength={playlist.length}
                 isPlaying={isPlaying}
                 currentSong={currentSong}
+                currentTrackData={playlist[currentTrack]}
                 currentChrono={currentChrono}
                 availablePoints={availablePoints}
                 songDuration={songDuration}
