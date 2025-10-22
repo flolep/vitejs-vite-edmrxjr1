@@ -337,36 +337,7 @@ useEffect(() => {
 
 const togglePlay = async () => {
   if (!isPlaying) {
-    // ✅ ACTIVER LES COOLDOWNS EN ATTENTE seulement au PLAY (en arrière-plan, sans bloquer)
-    const activatePendingCooldowns = async () => {
-      const teams = ['team1', 'team2'];
-
-      for (const teamKey of teams) {
-        const playersRef = ref(database, `sessions/${sessionId}/players_session/${teamKey}`);
-        const snapshot = await new Promise((resolve) => {
-          onValue(playersRef, resolve, { onlyOnce: true });
-        });
-
-        const players = snapshot.val();
-        if (players) {
-          for (const [playerKey, playerData] of Object.entries(players)) {
-            if (playerData.hasCooldownPending) {
-              const playerRef = ref(database, `sessions/${sessionId}/players_session/${teamKey}/${playerKey}`);
-              await set(playerRef, {
-                ...playerData,
-                cooldownEnd: Date.now() + 5000,
-                hasCooldownPending: false
-              });
-              console.log(`🔥 Cooldown activé pour ${playerData.name}`);
-            }
-          }
-        }
-      }
-    };
-
-    // Activer les cooldowns en arrière-plan sans bloquer le démarrage de la musique
-    activatePendingCooldowns().catch(err => console.error('Erreur activation cooldowns:', err));
-
+    // Réinitialiser l'état du buzz quand on démarre une nouvelle chanson
     setBuzzedTeam(null);
     const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
     remove(buzzRef);
@@ -656,16 +627,17 @@ const addPoint = async (team) => {
             correctCount: correctCount,
             buzzCount: (playerData.buzzCount || 0) + 1
           };
-          
-          // Si 2 bonnes réponses consécutives → COOLDOWN !
+
+          // Si 2 bonnes réponses consécutives → COOLDOWN IMMÉDIAT !
           if (consecutiveCorrect >= 2) {
-            updates.hasCooldownPending = true;
+            updates.cooldownEnd = Date.now() + 5000; // 5 secondes de cooldown
             updates.consecutiveCorrect = 0;
-            console.log(`🔥 ${playerData.name} aura un COOLDOWN à la prochaine chanson ! Total: ${correctCount} bonnes réponses`);
+            updates.hasCooldownPending = false;
+            console.log(`🔥 ${playerData.name} a maintenant un COOLDOWN de 5s ! Total: ${correctCount} bonnes réponses`);
           } else {
             console.log(`✅ ${playerData.name} : ${correctCount} bonne(s) réponse(s)`);
           }
-          
+
           await set(playerRef, { ...playerData, ...updates });
         }
       }, { onlyOnce: true });
