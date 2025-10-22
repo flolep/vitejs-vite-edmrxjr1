@@ -1280,14 +1280,12 @@ const loadBuzzStats = (shouldShow = true) => {
       </div>
 
       {/* Modales */}
-      {showPlaylistSelector && (
-        <PlaylistSelector
-          spotifyToken={spotifyToken}
-          playlists={spotifyPlaylists}
-          onClose={() => setShowPlaylistSelector(false)}
-          onSelectPlaylist={handleSelectPlaylist}
-        />
-      )}
+      <PlaylistSelector
+        show={showPlaylistSelector}
+        playlists={spotifyPlaylists}
+        onClose={() => setShowPlaylistSelector(false)}
+        onSelect={handleSelectPlaylist}
+      />
 
       <GameSettings
         playlist={playlist}
