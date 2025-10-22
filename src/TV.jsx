@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { database } from './firebase';
 import { ref, onValue, set } from 'firebase/database';
+import { QRCodeSVG } from 'qrcode.react';
 
 /**
  * Calcule les points disponibles selon le nouveau système
@@ -162,6 +163,9 @@ export default function TV() {
   const [gameEnded, setGameEnded] = useState(false);
   const [winner, setWinner] = useState(null);
   const [fastestBuzz, setFastestBuzz] = useState(null);
+
+  // État pour le QR Code
+  const [showQRCode, setShowQRCode] = useState(false);
 
   // Vérifier le code de session depuis l'URL
   useEffect(() => {
@@ -376,6 +380,17 @@ export default function TV() {
       } else {
         setPlayersTeam2([]);
       }
+    });
+    return () => unsubscribe();
+  }, [sessionValid, sessionId]);
+
+  // Écouter l'affichage du QR Code
+  useEffect(() => {
+    if (!sessionValid || !sessionId) return;
+    const qrCodeRef = ref(database, `sessions/${sessionId}/showQRCode`);
+    const unsubscribe = onValue(qrCodeRef, (snapshot) => {
+      const show = snapshot.val();
+      setShowQRCode(show === true);
     });
     return () => unsubscribe();
   }, [sessionValid, sessionId]);
@@ -954,6 +969,76 @@ return (
             🎵 Mystère...
           </div>
         )}
+      </div>
+    )}
+
+    {/* Modale QR Code */}
+    {showQRCode && sessionId && (
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        backgroundColor: 'rgba(0, 0, 0, 0.95)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000
+      }}>
+        <div style={{
+          backgroundColor: 'white',
+          borderRadius: '2rem',
+          padding: '4rem',
+          textAlign: 'center',
+          maxWidth: '600px'
+        }}>
+          <h2 style={{
+            fontSize: '3rem',
+            marginBottom: '2rem',
+            color: '#1e1b4b',
+            fontWeight: 'bold'
+          }}>
+            📱 Rejoindre la partie
+          </h2>
+
+          <div style={{
+            backgroundColor: 'white',
+            padding: '2rem',
+            borderRadius: '1rem',
+            marginBottom: '2rem',
+            display: 'inline-block'
+          }}>
+            <QRCodeSVG
+              value={`${window.location.origin}/buzzer?session=${sessionId}`}
+              size={300}
+              level="H"
+              includeMargin={true}
+            />
+          </div>
+
+          <div style={{
+            fontSize: '1.5rem',
+            color: '#666',
+            marginBottom: '1rem'
+          }}>
+            Scannez le QR code ou entrez le code :
+          </div>
+
+          <div style={{
+            fontSize: '4rem',
+            fontWeight: 'bold',
+            color: '#7c3aed',
+            letterSpacing: '0.5rem',
+            fontFamily: 'monospace',
+            backgroundColor: '#f3f4f6',
+            padding: '1.5rem',
+            borderRadius: '1rem',
+            marginTop: '1rem'
+          }}>
+            {sessionId}
+          </div>
+        </div>
       </div>
     )}
 

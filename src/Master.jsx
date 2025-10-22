@@ -761,6 +761,13 @@ const loadBuzzStats = (shouldShow = true) => {
     setSessionId(null);
   };
 
+  // Afficher/masquer le QR Code sur TV
+  const toggleQRCodeOnTV = () => {
+    const qrCodeRef = ref(database, `sessions/${sessionId}/showQRCode`);
+    set(qrCodeRef, !showQRCode);
+    setShowQRCode(!showQRCode);
+  };
+
   // Si l'utilisateur n'est pas connecté, afficher le Login
   if (!user) {
     return <Login onLoginSuccess={() => {}} />;
@@ -774,10 +781,10 @@ const loadBuzzStats = (shouldShow = true) => {
           <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
             {sessionId && (
               <button
-                onClick={() => setShowQRCode(true)}
+                onClick={toggleQRCodeOnTV}
                 style={{
                   padding: '0.5rem 1rem',
-                  backgroundColor: '#10b981',
+                  backgroundColor: showQRCode ? '#ef4444' : '#10b981',
                   color: 'white',
                   border: 'none',
                   borderRadius: '0.5rem',
@@ -786,7 +793,7 @@ const loadBuzzStats = (shouldShow = true) => {
                   fontSize: '0.9rem'
                 }}
               >
-                📱 QR Code Session
+                {showQRCode ? '🔴 Masquer QR Code (TV)' : '📺 Afficher QR Code sur TV'}
               </button>
             )}
             <button
@@ -1048,74 +1055,6 @@ const loadBuzzStats = (shouldShow = true) => {
               </div>
             </div>
           </>
-        )}
-
-        {/* Modale QR Code */}
-        {showQRCode && (
-          <div
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: 'rgba(0, 0, 0, 0.8)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 1000,
-            }}
-            onClick={() => setShowQRCode(false)}
-          >
-            <div
-              style={{
-                backgroundColor: 'white',
-                padding: '2rem',
-                borderRadius: '1rem',
-                textAlign: 'center',
-                maxWidth: '400px',
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h2 style={{ marginBottom: '1rem', color: '#1f2937' }}>
-                Code de Session
-              </h2>
-              <div style={{
-                fontSize: '3rem',
-                fontWeight: 'bold',
-                color: '#7c3aed',
-                marginBottom: '1.5rem',
-                letterSpacing: '0.5rem'
-              }}>
-                {sessionId}
-              </div>
-              <div style={{ marginBottom: '1.5rem' }}>
-                <QRCodeSVG
-                  value={`${window.location.origin}/buzzer?session=${sessionId}`}
-                  size={256}
-                  level="H"
-                  includeMargin={true}
-                />
-              </div>
-              <p style={{ color: '#6b7280', marginBottom: '1rem', fontSize: '0.9rem' }}>
-                Les joueurs peuvent scanner ce QR Code ou entrer le code manuellement
-              </p>
-              <button
-                onClick={() => setShowQRCode(false)}
-                style={{
-                  padding: '0.75rem 2rem',
-                  backgroundColor: '#7c3aed',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '0.5rem',
-                  cursor: 'pointer',
-                  fontWeight: 'bold',
-                }}
-              >
-                Fermer
-              </button>
-            </div>
-          </div>
         )}
       </div>
     </div>
