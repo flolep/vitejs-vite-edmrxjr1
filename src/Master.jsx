@@ -617,6 +617,9 @@ const addPoint = async (team) => {
   const scoresRef = ref(database, `sessions/${sessionId}/scores`);
   set(scoresRef, newScores);
 
+  // Référence au buzz actuel
+  const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
+
   // ✅ Marquer le dernier buzz de ce track comme correct et ajouter les points
   const buzzTimesRef = ref(database, `sessions/${sessionId}/buzz_times/${currentTrack}`);
   onValue(buzzTimesRef, (snapshot) => {
