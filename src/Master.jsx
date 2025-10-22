@@ -1283,7 +1283,7 @@ const loadBuzzStats = (shouldShow = true) => {
       {showPlaylistSelector && (
         <PlaylistSelector
           spotifyToken={spotifyToken}
-          playlists={playlists}
+          playlists={spotifyPlaylists}
           onClose={() => setShowPlaylistSelector(false)}
           onSelectPlaylist={handleSelectPlaylist}
         />
