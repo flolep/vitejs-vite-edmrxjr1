@@ -781,7 +781,7 @@ const loadBuzzStats = (shouldShow = true) => {
     setShowEndGameConfirm(true);
   };
 
-  const confirmEndGame = () => {
+  const endGame = () => {
     const gameStatusRef = ref(database, `sessions/${sessionId}/game_status`);
     set(gameStatusRef, {
       ended: true,
@@ -789,7 +789,7 @@ const loadBuzzStats = (shouldShow = true) => {
       final_scores: scores,
       timestamp: Date.now()
     });
-    
+
     setShowEndGameConfirm(false);
     setDebugInfo('🎉 Partie terminée !');
   };
