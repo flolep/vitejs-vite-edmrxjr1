@@ -1030,67 +1030,6 @@ const loadBuzzStats = (shouldShow = true) => {
             </div>
           )}
 
-          {/* Section Paramètres */}
-          <div style={{
-            backgroundColor: 'rgba(0, 0, 0, 0.2)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '0.75rem',
-            padding: '1.25rem'
-          }}>
-            <h3 style={{
-              fontSize: '0.875rem',
-              fontWeight: '600',
-              marginBottom: '0.75rem',
-              opacity: 0.8,
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em'
-            }}>
-              ⚙️ Paramètres
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <button
-                onClick={resetScores}
-                className="btn"
-                style={{
-                  padding: '0.6rem',
-                  backgroundColor: 'rgba(156, 163, 175, 0.3)',
-                  border: '1px solid #9ca3af',
-                  fontSize: '0.85rem'
-                }}
-              >
-                🔄 Nouvelle partie
-              </button>
-              {playlist.length > 0 && (
-                <>
-                  <button
-                    onClick={() => loadBuzzStats(true)}
-                    className="btn"
-                    style={{
-                      padding: '0.6rem',
-                      backgroundColor: 'rgba(124, 58, 237, 0.3)',
-                      border: '1px solid #7c3aed',
-                      fontSize: '0.85rem'
-                    }}
-                  >
-                    📊 Statistiques
-                  </button>
-                  <button
-                    onClick={() => setShowEndGameConfirm(true)}
-                    className="btn"
-                    style={{
-                      padding: '0.6rem',
-                      backgroundColor: 'rgba(251, 191, 36, 0.3)',
-                      border: '1px solid #fbbf24',
-                      fontSize: '0.85rem'
-                    }}
-                  >
-                    🏁 Terminer la partie
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-
           {/* Section Playlist */}
           {playlist.length > 0 && (
             <div style={{
@@ -1243,6 +1182,55 @@ const loadBuzzStats = (shouldShow = true) => {
                 onNext={nextTrack}
                 onReveal={revealAnswer}
               />
+
+              {/* Actions de partie */}
+              <div style={{
+                backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '0.75rem',
+                padding: '1rem',
+                display: 'flex',
+                gap: '0.75rem',
+                justifyContent: 'center',
+                flexWrap: 'wrap'
+              }}>
+                <button
+                  onClick={resetScores}
+                  className="btn"
+                  style={{
+                    padding: '0.6rem 1rem',
+                    backgroundColor: 'rgba(156, 163, 175, 0.3)',
+                    border: '1px solid #9ca3af',
+                    fontSize: '0.85rem'
+                  }}
+                >
+                  🔄 Nouvelle partie
+                </button>
+                <button
+                  onClick={() => loadBuzzStats(true)}
+                  className="btn"
+                  style={{
+                    padding: '0.6rem 1rem',
+                    backgroundColor: 'rgba(124, 58, 237, 0.3)',
+                    border: '1px solid #7c3aed',
+                    fontSize: '0.85rem'
+                  }}
+                >
+                  📊 Statistiques
+                </button>
+                <button
+                  onClick={() => setShowEndGameConfirm(true)}
+                  className="btn"
+                  style={{
+                    padding: '0.6rem 1rem',
+                    backgroundColor: 'rgba(251, 191, 36, 0.3)',
+                    border: '1px solid #fbbf24',
+                    fontSize: '0.85rem'
+                  }}
+                >
+                  🏁 Terminer la partie
+                </button>
+              </div>
 
               {/* Debug info */}
               {debugInfo && (

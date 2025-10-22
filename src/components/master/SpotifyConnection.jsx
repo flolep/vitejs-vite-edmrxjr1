@@ -25,16 +25,13 @@ export default function SpotifyConnection({
 
   return (
     <div className="player-box mb-4">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span>✅ Connecté à Spotify</span>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button onClick={onShowPlaylists} className="btn btn-green">
-            🎵 Importer playlist
-          </button>
-          <button onClick={onAddManual} className="btn btn-purple">
-            📁 Ajouter MP3
-          </button>
-        </div>
+      <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+        <button onClick={onShowPlaylists} className="btn btn-green">
+          🎵 Importer playlist
+        </button>
+        <button onClick={onAddManual} className="btn btn-purple">
+          📁 Ajouter MP3
+        </button>
       </div>
     </div>
   );
