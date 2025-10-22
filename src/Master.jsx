@@ -803,6 +803,48 @@ const loadBuzzStats = (shouldShow = true) => {
     setSessionId(null);
   };
 
+  // Charger une chanson depuis la playlist
+  const loadTrack = (index) => {
+    // Ne pas charger si la chanson a déjà été révélée
+    if (playlist[index].revealed) return;
+
+    // Arrêter la musique en cours
+    if (isSpotifyMode && spotifyToken) {
+      spotifyService.pausePlayback(spotifyToken);
+    } else if (audioRef.current) {
+      audioRef.current.pause();
+    }
+
+    setCurrentTrack(index);
+    setIsPlaying(false);
+    setBuzzedTeam(null);
+
+    const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
+    remove(buzzRef);
+
+    setSpotifyPosition(0);
+    setCurrentChrono(0);
+    const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
+    set(chronoRef, 0);
+
+    const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
+    set(playingRef, false);
+
+    const trackNumberRef = ref(database, `sessions/${sessionId}/currentTrackNumber`);
+    set(trackNumberRef, index);
+
+    const songRef = ref(database, `sessions/${sessionId}/currentSong`);
+    set(songRef, {
+      title: '',
+      artist: '',
+      imageUrl: null,
+      revealed: false,
+      number: index + 1
+    });
+
+    setDebugInfo(`🎵 Chanson #${index + 1} chargée`);
+  };
+
   // Afficher/masquer le QR Code sur TV
   const toggleQRCodeOnTV = () => {
     const qrCodeRef = ref(database, `sessions/${sessionId}/showQRCode`);
@@ -1081,89 +1123,106 @@ const loadBuzzStats = (shouldShow = true) => {
                 )}
               </div>
               
-              <div className="space-y">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {playlist.map((track, index) => (
-                  <div 
+                  <div
                     key={index}
+                    onClick={() => loadTrack(index)}
                     className={`playlist-item ${index === currentTrack ? 'current' : ''}`}
+                    style={{
+                      padding: '0.75rem',
+                      cursor: track.revealed ? 'not-allowed' : 'pointer',
+                      opacity: track.revealed ? 0.5 : 1,
+                      transition: 'all 0.2s',
+                      backgroundColor: index === currentTrack
+                        ? 'rgba(124, 58, 237, 0.2)'
+                        : track.revealed
+                        ? 'rgba(0, 0, 0, 0.1)'
+                        : 'rgba(255, 255, 255, 0.05)',
+                      border: index === currentTrack ? '2px solid #7c3aed' : '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: '0.5rem'
+                    }}
                   >
-                    <div style={{ 
-                      display: 'flex', 
-                      justifyContent: 'space-between', 
-                      alignItems: 'flex-start', 
-                      gap: '1rem' 
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: '1rem'
                     }}>
                       <div style={{ flex: 1 }}>
                         {/* Numéro et statut */}
-                        <div style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                        <div style={{ fontWeight: 'bold', fontSize: '0.95rem' }}>
                           {index + 1}. {track.revealed ? (
                             <span style={{ color: '#10b981' }}>
                               ✅ {track.title} {track.artist && `- ${track.artist}`}
                             </span>
                           ) : (
-                            <span style={{ opacity: 0.7 }}>
+                            <span style={{ opacity: 0.9 }}>
                               {track.title} {track.artist && `- ${track.artist}`}
                             </span>
                           )}
                         </div>
-                        
+
                         {/* Indicateurs de fichiers (mode MP3 uniquement) */}
                         {!isSpotifyMode && (
-                          <div style={{ 
-                            display: 'flex', 
-                            gap: '1rem', 
-                            fontSize: '0.875rem', 
-                            marginTop: '0.5rem' 
+                          <div style={{
+                            display: 'flex',
+                            gap: '0.75rem',
+                            fontSize: '0.75rem',
+                            marginTop: '0.25rem'
                           }}>
-                            <span style={{ 
-                              color: track.audioUrl ? '#10b981' : '#ef4444' 
+                            <span style={{
+                              color: track.audioUrl ? '#10b981' : '#ef4444'
                             }}>
-                              {track.audioUrl ? '✓ Audio' : '⚠️ Pas d\'audio'}
+                              {track.audioUrl ? '✓ Audio' : '⚠️ Audio'}
                             </span>
-                            <span style={{ 
-                              color: track.imageUrl ? '#10b981' : '#ef4444' 
+                            <span style={{
+                              color: track.imageUrl ? '#10b981' : '#ef4444'
                             }}>
-                              {track.imageUrl ? '✓ Image' : '⚠️ Pas d\'image'}
+                              {track.imageUrl ? '✓ Image' : '⚠️ Image'}
                             </span>
                           </div>
                         )}
                       </div>
                       
                       {/* Boutons d'upload (mode MP3 uniquement) */}
-                      {!isSpotifyMode && (
-                        <div style={{ 
-                          display: 'flex', 
-                          flexDirection: 'column', 
-                          gap: '0.5rem' 
-                        }}>
+                      {!isSpotifyMode && !track.revealed && (
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'row',
+                            gap: '0.5rem'
+                          }}
+                          onClick={(e) => e.stopPropagation()} // Empêcher le clic de charger la chanson
+                        >
                           {!track.audioUrl && (
-                            <label 
-                              className="file-label" 
-                              style={{ 
-                                fontSize: '0.75rem', 
-                                padding: '0.5rem 1rem' 
+                            <label
+                              className="file-label"
+                              style={{
+                                fontSize: '0.7rem',
+                                padding: '0.4rem 0.8rem'
                               }}
                             >
                               📁 MP3
-                              <input 
-                                type="file" 
+                              <input
+                                type="file"
                                 accept="audio/*"
                                 onChange={(e) => e.target.files[0] && handleAudioForTrack(index, e.target.files[0])}
                               />
                             </label>
                           )}
                           {!track.imageUrl && (
-                            <label 
-                              className="file-label" 
-                              style={{ 
-                                fontSize: '0.75rem', 
-                                padding: '0.5rem 1rem', 
-                                backgroundColor: '#7c3aed' 
+                            <label
+                              className="file-label"
+                              style={{
+                                fontSize: '0.7rem',
+                                padding: '0.4rem 0.8rem',
+                                backgroundColor: '#7c3aed'
                               }}
                             >
                               🖼️ Image
-                              <input 
-                                type="file" 
+                              <input
+                                type="file"
                                 accept="image/*"
                                 onChange={(e) => e.target.files[0] && handleImageForTrack(index, e.target.files[0])}
                               />
