@@ -76,20 +76,10 @@ export default function Master() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      if (currentUser && !sessionId) {
-        // Générer un ID de session unique à 6 caractères
-        const newSessionId = Math.random().toString(36).substring(2, 8).toUpperCase();
-        setSessionId(newSessionId);
-        // Stocker la session dans Firebase
-        set(ref(database, `sessions/${newSessionId}`), {
-          createdBy: currentUser.uid,
-          createdAt: Date.now(),
-          active: true
-        });
-      }
+      // Le code de session sera généré lors du clic sur "Nouvelle partie"
     });
     return () => unsubscribe();
-  }, [sessionId]);
+  }, []);
 
   // Vérifier connexion Spotify au chargement
   useEffect(() => {
@@ -700,9 +690,14 @@ const addPoint = async (team) => {
 
   // === GESTION DE PARTIE ===
   const resetScores = () => {
-    if (!confirm('⚠️ Créer une nouvelle partie ? Cela générera un nouveau code de session.')) return;
+    // Message différent selon si c'est la première partie ou non
+    const confirmMessage = sessionId
+      ? '⚠️ Créer une nouvelle partie ? Cela générera un nouveau code de session.'
+      : '🎮 Créer une nouvelle partie ?';
 
-    // Marquer l'ancienne session comme inactive
+    if (!confirm(confirmMessage)) return;
+
+    // Marquer l'ancienne session comme inactive (si elle existe)
     if (sessionId) {
       const oldSessionRef = ref(database, `sessions/${sessionId}`);
       set(oldSessionRef, {
@@ -857,7 +852,7 @@ const loadBuzzStats = (shouldShow = true) => {
           </div>
         </div>
 
-        {/* Code de session - toujours visible */}
+        {/* Code de session - visible uniquement après création d'une partie */}
         {sessionId && (
           <div style={{
             backgroundColor: 'rgba(124, 58, 237, 0.2)',
@@ -911,7 +906,7 @@ const loadBuzzStats = (shouldShow = true) => {
               </button>
               <button
                 onClick={() => {
-                  window.open(`/tv?session=${sessionId}`, '_blank');
+                  window.open('/tv', '_blank');
                 }}
                 style={{
                   padding: '0.75rem 1.5rem',
