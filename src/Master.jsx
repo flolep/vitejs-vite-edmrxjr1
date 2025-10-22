@@ -471,15 +471,15 @@ const togglePlay = async () => {
       } else if (audioRef.current) {
         audioRef.current.pause();
       }
-      
+
       const newTrackIndex = currentTrack + 1;
       setCurrentTrack(newTrackIndex);
       setIsPlaying(false);
       setBuzzedTeam(null);
-      
+
       const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
       remove(buzzRef);
-      
+
       setSpotifyPosition(0);
 
       // Réinitialiser le chrono (local + Firebase)
@@ -489,10 +489,10 @@ const togglePlay = async () => {
 
       const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
       set(playingRef, false);
-      
+
       const trackNumberRef = ref(database, `sessions/${sessionId}/currentTrackNumber`);
       set(trackNumberRef, newTrackIndex);
-      
+
       const songRef = ref(database, `sessions/${sessionId}/currentSong`);
       set(songRef, {
         title: '',
@@ -501,6 +501,12 @@ const togglePlay = async () => {
         revealed: false,
         number: newTrackIndex + 1
       });
+
+      // Charger l'audio en mode MP3
+      if (!isSpotifyMode && audioRef.current && playlist[newTrackIndex].audioUrl) {
+        audioRef.current.src = playlist[newTrackIndex].audioUrl;
+        audioRef.current.load();
+      }
     }
   };
 
@@ -511,15 +517,15 @@ const togglePlay = async () => {
       } else if (audioRef.current) {
         audioRef.current.pause();
       }
-      
+
       const newTrackIndex = currentTrack - 1;
       setCurrentTrack(newTrackIndex);
       setIsPlaying(false);
       setBuzzedTeam(null);
-      
+
       const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
       remove(buzzRef);
-      
+
       setSpotifyPosition(0);
 
       // Réinitialiser le chrono (local + Firebase)
@@ -529,9 +535,24 @@ const togglePlay = async () => {
 
       const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
       set(playingRef, false);
-      
+
       const trackNumberRef = ref(database, `sessions/${sessionId}/currentTrackNumber`);
       set(trackNumberRef, newTrackIndex);
+
+      const songRef = ref(database, `sessions/${sessionId}/currentSong`);
+      set(songRef, {
+        title: '',
+        artist: '',
+        imageUrl: null,
+        revealed: false,
+        number: newTrackIndex + 1
+      });
+
+      // Charger l'audio en mode MP3
+      if (!isSpotifyMode && audioRef.current && playlist[newTrackIndex].audioUrl) {
+        audioRef.current.src = playlist[newTrackIndex].audioUrl;
+        audioRef.current.load();
+      }
     }
   };
 
@@ -841,6 +862,12 @@ const loadBuzzStats = (shouldShow = true) => {
       revealed: false,
       number: index + 1
     });
+
+    // Charger l'audio en mode MP3
+    if (!isSpotifyMode && audioRef.current && playlist[index].audioUrl) {
+      audioRef.current.src = playlist[index].audioUrl;
+      audioRef.current.load();
+    }
 
     setDebugInfo(`🎵 Chanson #${index + 1} chargée`);
   };
@@ -1226,6 +1253,29 @@ const loadBuzzStats = (shouldShow = true) => {
                   onWrong={revealAnswer}
                 />
               )}
+
+              {/* Info chanson actuelle */}
+              <div style={{
+                backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '0.75rem',
+                padding: '1.5rem',
+                textAlign: 'center'
+              }}>
+                <div style={{
+                  fontSize: '1.2rem',
+                  fontWeight: '600',
+                  marginBottom: '0.5rem'
+                }}>
+                  🎵 Chanson #{currentTrack + 1} / {playlist.length}
+                </div>
+                {currentSong?.revealed && (
+                  <div style={{ fontSize: '0.9rem', opacity: 0.8, marginTop: '0.5rem' }}>
+                    <div style={{ fontWeight: '500' }}>{currentSong.title}</div>
+                    <div style={{ fontSize: '0.85rem', opacity: 0.7 }}>{currentSong.artist}</div>
+                  </div>
+                )}
+              </div>
 
               {/* Player Controls */}
               <PlayerControls
