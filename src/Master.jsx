@@ -234,16 +234,16 @@ useEffect(() => {
     }
   };
 
-  const importSpotifyPlaylist = async (playlistId) => {
+  const handleSelectPlaylist = async (playlistId) => {
     try {
       setDebugInfo('⏳ Import en cours...');
       const tracks = await spotifyService.getPlaylistTracks(spotifyToken, playlistId);
-      
+
       setPlaylist(tracks);
       setIsSpotifyMode(true);
       setShowPlaylistSelector(false);
       setDebugInfo(`✅ ${tracks.length} morceaux importés`);
-      
+
       if (!spotifyPlayer) {
         const player = await spotifyService.initPlayer(
           spotifyToken,
@@ -257,14 +257,14 @@ useEffect(() => {
         );
         setSpotifyPlayer(player);
       }
-      
+
       const scoresRef = ref(database, `sessions/${sessionId}/scores`);
       set(scoresRef, { team1: 0, team2: 0 });
       const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
       set(chronoRef, 0);
       setScores({ team1: 0, team2: 0 });
       setCurrentChrono(0);
-      
+
     } catch (error) {
       console.error('Error importing playlist:', error);
       setDebugInfo('❌ Erreur import playlist');
