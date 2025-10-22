@@ -39,12 +39,12 @@ export default function GameSettings({
           </button>
         )}
         
-        {/* Bouton Réinitialiser */}
-        <button 
-          onClick={onResetGame} 
+        {/* Bouton Nouvelle partie */}
+        <button
+          onClick={onResetGame}
           className="btn btn-gray"
         >
-          🔄 Réinitialiser tout
+          🔄 Nouvelle partie
         </button>
       </div>
 

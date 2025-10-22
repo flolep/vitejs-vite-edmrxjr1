@@ -671,42 +671,56 @@ const addPoint = async (team) => {
 
   // === GESTION DE PARTIE ===
   const resetScores = () => {
-    if (!confirm('⚠️ Réinitialiser toute la partie ?')) return;
-    
+    if (!confirm('⚠️ Créer une nouvelle partie ? Cela générera un nouveau code de session.')) return;
+
+    // Marquer l'ancienne session comme inactive
+    if (sessionId) {
+      const oldSessionRef = ref(database, `sessions/${sessionId}`);
+      set(oldSessionRef, {
+        active: false,
+        endedAt: Date.now()
+      });
+    }
+
+    // Générer un nouveau code de session
+    const newSessionId = Math.random().toString(36).substring(2, 8).toUpperCase();
+    setSessionId(newSessionId);
+
+    // Créer la nouvelle session dans Firebase
+    set(ref(database, `sessions/${newSessionId}`), {
+      createdBy: user.uid,
+      createdAt: Date.now(),
+      active: true
+    });
+
+    // Réinitialiser tous les états
     const newScores = { team1: 0, team2: 0 };
     setScores(newScores);
-    const scoresRef = ref(database, `sessions/${sessionId}/scores`);
+    const scoresRef = ref(database, `sessions/${newSessionId}/scores`);
     set(scoresRef, newScores);
-    
+
     setPlaylist([]);
     setCurrentTrack(0);
     setIsPlaying(false);
-    
-    const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
+
+    const chronoRef = ref(database, `sessions/${newSessionId}/chrono`);
     set(chronoRef, 0);
     setCurrentChrono(0);
-    
-    const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
-    set(playingRef, false);
-    
-    const songRef = ref(database, `sessions/${sessionId}/currentSong`);
-    set(songRef, null);
-    
-    const gameStatusRef = ref(database, `sessions/${sessionId}/game_status`);
-    set(gameStatusRef, { ended: false });
-    
-    const buzzTimesRef = ref(database, `sessions/${sessionId}/buzz_times`);
-    set(buzzTimesRef, null);
 
-    // ✅ NOUVEAU : Supprimer tous les joueurs de la session
-    const playersSessionRef = ref(database, `sessions/${sessionId}/players_session`);
-    set(playersSessionRef, null);
-    
-    // ✅ NOUVEAU : Supprimer le buzz en cours
-    const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
-    remove(buzzRef);
-    
-    setDebugInfo('🔄 Partie réinitialisée !');
+    const playingRef = ref(database, `sessions/${newSessionId}/isPlaying`);
+    set(playingRef, false);
+
+    const songRef = ref(database, `sessions/${newSessionId}/currentSong`);
+    set(songRef, null);
+
+    const gameStatusRef = ref(database, `sessions/${newSessionId}/game_status`);
+    set(gameStatusRef, { ended: false });
+
+    setShowQRCode(false);
+    const qrCodeRef = ref(database, `sessions/${newSessionId}/showQRCode`);
+    set(qrCodeRef, false);
+
+    setDebugInfo(`🔄 Nouvelle partie créée ! Code: ${newSessionId}`);
   };
 
 const loadBuzzStats = (shouldShow = true) => {
@@ -813,6 +827,86 @@ const loadBuzzStats = (shouldShow = true) => {
             </button>
           </div>
         </div>
+
+        {/* Code de session - toujours visible */}
+        {sessionId && (
+          <div style={{
+            backgroundColor: 'rgba(124, 58, 237, 0.2)',
+            border: '3px solid #7c3aed',
+            borderRadius: '1rem',
+            padding: '1.5rem',
+            marginBottom: '2rem',
+            textAlign: 'center'
+          }}>
+            <h3 style={{
+              fontSize: '1.2rem',
+              marginBottom: '1rem',
+              color: '#c4b5fd'
+            }}>
+              📺 Code de session pour l'écran TV
+            </h3>
+            <div style={{
+              fontSize: '3rem',
+              fontWeight: 'bold',
+              letterSpacing: '0.5rem',
+              fontFamily: 'monospace',
+              color: '#fbbf24',
+              marginBottom: '1rem',
+              textShadow: '0 0 10px rgba(251, 191, 36, 0.5)'
+            }}>
+              {sessionId}
+            </div>
+            <div style={{
+              display: 'flex',
+              gap: '1rem',
+              justifyContent: 'center',
+              flexWrap: 'wrap'
+            }}>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(sessionId);
+                  setDebugInfo('✅ Code copié !');
+                }}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  backgroundColor: '#7c3aed',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '0.5rem',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '0.9rem'
+                }}
+              >
+                📋 Copier le code
+              </button>
+              <button
+                onClick={() => {
+                  window.open(`/tv?session=${sessionId}`, '_blank');
+                }}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  backgroundColor: '#10b981',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '0.5rem',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '0.9rem'
+                }}
+              >
+                📺 Ouvrir TV dans un nouvel onglet
+              </button>
+            </div>
+            <p style={{
+              marginTop: '1rem',
+              fontSize: '0.9rem',
+              opacity: 0.8
+            }}>
+              Utilisez ce code pour connecter l'écran TV sur un autre appareil
+            </p>
+          </div>
+        )}
 
         {/* Connexion Spotify */}
         <SpotifyConnection
