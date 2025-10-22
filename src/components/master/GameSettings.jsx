@@ -168,14 +168,18 @@ export default function GameSettings({
               <p style={{ textAlign: 'center', opacity: 0.7 }}>
                 Aucun buzz enregistré pour le moment
               </p>
+            ) : buzzStats.filter(buzz => buzz.correct === true).length === 0 ? (
+              <p style={{ textAlign: 'center', opacity: 0.7 }}>
+                Aucun buzz gagnant pour le moment
+              </p>
             ) : (
               <>
                 <div style={{ marginBottom: '1.5rem' }}>
                   <h3 style={{ fontSize: '1.25rem', marginBottom: '0.75rem' }}>
-                    🏆 Top des buzz les plus rapides
+                    🏆 Top des buzz gagnants les plus rapides
                   </h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {buzzStats.slice(0, 10).map((buzz, index) => (
+                    {buzzStats.filter(buzz => buzz.correct === true).slice(0, 10).map((buzz, index) => (
                       <div 
                         key={index}
                         style={{
@@ -214,7 +218,7 @@ export default function GameSettings({
                     gap: '1rem' 
                   }}>
                     {['team1', 'team2'].map((team) => {
-                      const teamBuzzes = buzzStats.filter(b => b.team === team);
+                      const teamBuzzes = buzzStats.filter(b => b.team === team && b.correct === true);
                       const avgTime = teamBuzzes.length > 0
                         ? (teamBuzzes.reduce((sum, b) => sum + b.time, 0) / teamBuzzes.length)
                         : 0;

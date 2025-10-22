@@ -187,24 +187,27 @@ useEffect(() => {
       setIsPlaying(false);
       const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
       set(playingRef, false);
-      
-      // ✅ FIX : S'assurer que buzzTime est défini avant de sauvegarder
+
+      // ✅ Enregistrer TOUS les buzz (gagnants et perdants)
       const buzzTimesRef = ref(database, `sessions/${sessionId}/buzz_times/${currentTrack}`);
       const newBuzz = {
         team,
-        time: buzzTime, // ✅ Utilise le chrono actuel
+        teamName: team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2',
+        time: buzzTime,
         playerName: buzzData.playerName || 'Anonyme',
         songTitle: playlist[currentTrack]?.title || 'Inconnu',
         songArtist: playlist[currentTrack]?.artist || 'Inconnu',
         trackNumber: currentTrack + 1,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        correct: null, // Sera mis à jour à true ou false plus tard
+        points: 0
       };
-      
+
       onValue(buzzTimesRef, (snapshot) => {
         const existingBuzzes = snapshot.val() || [];
         set(buzzTimesRef, [...existingBuzzes, newBuzz]);
       }, { onlyOnce: true });
-      
+
       setDebugInfo(`🔔 ${team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2'} a buzzé à ${buzzTime.toFixed(1)}s !`);
     }
   });
@@ -344,16 +347,16 @@ useEffect(() => {
 
 const togglePlay = async () => {
   if (!isPlaying) {
-    // ✅ ACTIVER LES COOLDOWNS EN ATTENTE seulement au PLAY
+    // ✅ ACTIVER LES COOLDOWNS EN ATTENTE seulement au PLAY (en arrière-plan, sans bloquer)
     const activatePendingCooldowns = async () => {
       const teams = ['team1', 'team2'];
-      
+
       for (const teamKey of teams) {
         const playersRef = ref(database, `sessions/${sessionId}/players_session/${teamKey}`);
         const snapshot = await new Promise((resolve) => {
           onValue(playersRef, resolve, { onlyOnce: true });
         });
-        
+
         const players = snapshot.val();
         if (players) {
           for (const [playerKey, playerData] of Object.entries(players)) {
@@ -370,9 +373,10 @@ const togglePlay = async () => {
         }
       }
     };
-    
-    await activatePendingCooldowns();
-    
+
+    // Activer les cooldowns en arrière-plan sans bloquer le démarrage de la musique
+    activatePendingCooldowns().catch(err => console.error('Erreur activation cooldowns:', err));
+
     setBuzzedTeam(null);
     const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
     remove(buzzRef);
@@ -541,24 +545,37 @@ const togglePlay = async () => {
   };
 
 const revealAnswer = async () => {
+  // ✅ Marquer le dernier buzz de ce track comme incorrect
+  const buzzTimesRef = ref(database, `sessions/${sessionId}/buzz_times/${currentTrack}`);
+  onValue(buzzTimesRef, (snapshot) => {
+    const existingBuzzes = snapshot.val() || [];
+    if (existingBuzzes.length > 0) {
+      // Mettre à jour le dernier buzz (celui qui vient d'être invalidé)
+      const lastIndex = existingBuzzes.length - 1;
+      existingBuzzes[lastIndex].correct = false;
+      existingBuzzes[lastIndex].points = 0;
+      set(buzzTimesRef, existingBuzzes);
+    }
+  }, { onlyOnce: true });
+
   // Reset le streak du joueur qui s'est trompé
   const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
-  
+
   onValue(buzzRef, async (snapshot) => {
     const buzzData = snapshot.val();
     if (buzzData && buzzData.playerFirebaseKey) { // ✅ Vérifier la clé
       const playerFirebaseKey = buzzData.playerFirebaseKey;
       const teamKey = buzzData.team === 'team1' ? 'team1' : 'team2';
-      
+
       // ✅ Accès DIRECT avec la clé Firebase
       const playerRef = ref(database, `sessions/${sessionId}/players_session/${teamKey}/${playerFirebaseKey}`);
-      
+
       onValue(playerRef, async (playerSnapshot) => {
         const playerData = playerSnapshot.val();
-        
+
         if (playerData) {
-          await set(playerRef, { 
-            ...playerData, 
+          await set(playerRef, {
+            ...playerData,
             consecutiveCorrect: 0 // Reset le streak
           });
         }
@@ -603,15 +620,27 @@ const revealAnswer = async () => {
 
 const addPoint = async (team) => {
   const points = calculatePoints(currentChrono, songDuration);
-  
+
   const newScores = { ...scores, [team]: scores[team] + points };
   setScores(newScores);
-  
+
   const scoresRef = ref(database, `sessions/${sessionId}/scores`);
   set(scoresRef, newScores);
-  
+
+  // ✅ Marquer le dernier buzz de ce track comme correct et ajouter les points
+  const buzzTimesRef = ref(database, `sessions/${sessionId}/buzz_times/${currentTrack}`);
+  onValue(buzzTimesRef, (snapshot) => {
+    const existingBuzzes = snapshot.val() || [];
+    if (existingBuzzes.length > 0) {
+      // Mettre à jour le dernier buzz (celui qui vient d'être validé)
+      const lastIndex = existingBuzzes.length - 1;
+      existingBuzzes[lastIndex].correct = true;
+      existingBuzzes[lastIndex].points = points;
+      set(buzzTimesRef, existingBuzzes);
+    }
+  }, { onlyOnce: true });
+
   // ✅ Mettre à jour les stats du joueur en utilisant SA CLÉ FIREBASE
-  const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
   
   onValue(buzzRef, async (snapshot) => {
     const buzzData = snapshot.val();
