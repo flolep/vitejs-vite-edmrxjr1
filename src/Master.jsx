@@ -933,64 +933,72 @@ const loadBuzzStats = (shouldShow = true) => {
           ) : null}
 
           {/* Boutons d'actions */}
-          {playlist.length > 0 && (
-            <>
-              <button
-                onClick={resetScores}
-                className="btn"
-                style={{
-                  padding: '0.5rem 1rem',
-                  backgroundColor: 'rgba(156, 163, 175, 0.3)',
-                  border: '1px solid #9ca3af',
-                  fontSize: '0.85rem',
-                  borderRadius: '0.5rem',
-                  color: 'white',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-                onMouseOver={(e) => e.target.style.backgroundColor = 'rgba(156, 163, 175, 0.4)'}
-                onMouseOut={(e) => e.target.style.backgroundColor = 'rgba(156, 163, 175, 0.3)'}
-              >
-                🔄 Nouvelle partie
-              </button>
-              <button
-                onClick={() => loadBuzzStats(true)}
-                className="btn"
-                style={{
-                  padding: '0.5rem 1rem',
-                  backgroundColor: 'rgba(124, 58, 237, 0.3)',
-                  border: '1px solid #7c3aed',
-                  fontSize: '0.85rem',
-                  borderRadius: '0.5rem',
-                  color: 'white',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-                onMouseOver={(e) => e.target.style.backgroundColor = 'rgba(124, 58, 237, 0.4)'}
-                onMouseOut={(e) => e.target.style.backgroundColor = 'rgba(124, 58, 237, 0.3)'}
-              >
-                📊 Statistiques
-              </button>
-              <button
-                onClick={() => setShowEndGameConfirm(true)}
-                className="btn"
-                style={{
-                  padding: '0.5rem 1rem',
-                  backgroundColor: 'rgba(251, 191, 36, 0.3)',
-                  border: '1px solid #fbbf24',
-                  fontSize: '0.85rem',
-                  borderRadius: '0.5rem',
-                  color: 'white',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-                onMouseOver={(e) => e.target.style.backgroundColor = 'rgba(251, 191, 36, 0.4)'}
-                onMouseOut={(e) => e.target.style.backgroundColor = 'rgba(251, 191, 36, 0.3)'}
-              >
-                🏁 Terminer la partie
-              </button>
-            </>
-          )}
+          <button
+            onClick={resetScores}
+            className="btn"
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: 'rgba(156, 163, 175, 0.3)',
+              border: '1px solid #9ca3af',
+              fontSize: '0.85rem',
+              borderRadius: '0.5rem',
+              color: 'white',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            onMouseOver={(e) => e.target.style.backgroundColor = 'rgba(156, 163, 175, 0.4)'}
+            onMouseOut={(e) => e.target.style.backgroundColor = 'rgba(156, 163, 175, 0.3)'}
+          >
+            🔄 Nouvelle partie
+          </button>
+          <button
+            onClick={() => loadBuzzStats(true)}
+            disabled={playlist.length === 0}
+            className="btn"
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: 'rgba(124, 58, 237, 0.3)',
+              border: '1px solid #7c3aed',
+              fontSize: '0.85rem',
+              borderRadius: '0.5rem',
+              color: 'white',
+              cursor: playlist.length === 0 ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s',
+              opacity: playlist.length === 0 ? 0.5 : 1
+            }}
+            onMouseOver={(e) => {
+              if (playlist.length > 0) e.target.style.backgroundColor = 'rgba(124, 58, 237, 0.4)';
+            }}
+            onMouseOut={(e) => {
+              if (playlist.length > 0) e.target.style.backgroundColor = 'rgba(124, 58, 237, 0.3)';
+            }}
+          >
+            📊 Statistiques
+          </button>
+          <button
+            onClick={() => setShowEndGameConfirm(true)}
+            disabled={playlist.length === 0}
+            className="btn"
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: 'rgba(251, 191, 36, 0.3)',
+              border: '1px solid #fbbf24',
+              fontSize: '0.85rem',
+              borderRadius: '0.5rem',
+              color: 'white',
+              cursor: playlist.length === 0 ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s',
+              opacity: playlist.length === 0 ? 0.5 : 1
+            }}
+            onMouseOver={(e) => {
+              if (playlist.length > 0) e.target.style.backgroundColor = 'rgba(251, 191, 36, 0.4)';
+            }}
+            onMouseOut={(e) => {
+              if (playlist.length > 0) e.target.style.backgroundColor = 'rgba(251, 191, 36, 0.3)';
+            }}
+          >
+            🏁 Terminer la partie
+          </button>
 
           <button
             onClick={handleLogout}
