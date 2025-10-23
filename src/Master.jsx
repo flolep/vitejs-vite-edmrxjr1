@@ -250,6 +250,13 @@ useEffect(() => {
       setShowPlaylistSelector(false);
       setDebugInfo(`✅ ${tracks.length} morceaux importés`);
 
+      // Stocker l'ID de playlist dans Firebase
+      if (sessionId) {
+        const playlistIdRef = ref(database, `sessions/${sessionId}/playlistId`);
+        await set(playlistIdRef, playlistId);
+        console.log(`✅ Playlist ID ${playlistId} stocké dans Firebase`);
+      }
+
       if (!spotifyPlayer) {
         const player = await spotifyService.initPlayer(
           spotifyToken,

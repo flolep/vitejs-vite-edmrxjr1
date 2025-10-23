@@ -17,13 +17,19 @@ export default function Buzzer() {
   const [isPlaying, setIsPlaying] = useState(false);
 
   // NOUVEAUX états pour identification
-  const [step, setStep] = useState('session'); // 'session' | 'name' | 'search' | 'select' | 'photo' | 'team' | 'game'
+  const [step, setStep] = useState('session'); // 'session' | 'name' | 'search' | 'select' | 'photo' | 'preferences' | 'team' | 'game'
   const [playerName, setPlayerName] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
   const [photoData, setPhotoData] = useState(null);
   const [error, setError] = useState('');
+
+  // NOUVEAUX états pour préférences joueur
+  const [playerAge, setPlayerAge] = useState('');
+  const [selectedGenres, setSelectedGenres] = useState([]);
+  const [specialPhrase, setSpecialPhrase] = useState('');
+  const [playlistId, setPlaylistId] = useState(null);
 
   // Changement d'équipe - NOUVEAU
   const [playerFirebaseKey, setPlayerFirebaseKey] = useState(null);
