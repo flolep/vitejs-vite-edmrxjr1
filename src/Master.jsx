@@ -293,8 +293,8 @@ useEffect(() => {
       imageUrl: null,
       revealed: false
     };
-    
-    if (playlist.length === 0) {
+
+    if (playlist.length === 0 && sessionId) {
       const scoresRef = ref(database, `sessions/${sessionId}/scores`);
       set(scoresRef, { team1: 0, team2: 0 });
       const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
@@ -304,7 +304,7 @@ useEffect(() => {
       setScores({ team1: 0, team2: 0 });
       setCurrentChrono(0);
     }
-    
+
     setPlaylist([...playlist, newTrack]);
     setIsSpotifyMode(false);
   };
@@ -349,6 +349,11 @@ useEffect(() => {
   };
 
 const togglePlay = async () => {
+  if (!sessionId) {
+    setDebugInfo('❌ Aucune session active');
+    return;
+  }
+
   if (!isPlaying) {
     // ✅ ACTIVER LES COOLDOWNS EN ATTENTE avant de démarrer la chanson
     const activatePendingCooldowns = async () => {
@@ -490,6 +495,8 @@ const togglePlay = async () => {
       setIsPlaying(false);
       setBuzzedTeam(null);
 
+      if (!sessionId) return;
+
       const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
       remove(buzzRef);
 
@@ -535,6 +542,8 @@ const togglePlay = async () => {
       setCurrentTrack(newTrackIndex);
       setIsPlaying(false);
       setBuzzedTeam(null);
+
+      if (!sessionId) return;
 
       const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
       remove(buzzRef);
