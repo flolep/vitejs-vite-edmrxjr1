@@ -44,6 +44,11 @@ export default function Master() {
   const [showQRCode, setShowQRCode] = useState(false);
   const [showSessionModal, setShowSessionModal] = useState(false);
 
+  // États des paramètres de cooldown
+  const [cooldownThreshold, setCooldownThreshold] = useState(2); // Nombre de bonnes réponses d'affilée
+  const [cooldownDuration, setCooldownDuration] = useState(5000); // Durée du freeze en ms
+  const [showCooldownSettings, setShowCooldownSettings] = useState(false);
+
   // États principaux
   const [playlist, setPlaylist] = useState([]);
   const [currentTrack, setCurrentTrack] = useState(0);
@@ -355,10 +360,10 @@ const togglePlay = async () => {
               const playerRef = ref(database, `sessions/${sessionId}/players_session/${teamKey}/${playerKey}`);
               await set(playerRef, {
                 ...playerData,
-                cooldownEnd: Date.now() + 5000, // Le décompte commence MAINTENANT
+                cooldownEnd: Date.now() + cooldownDuration, // Le décompte commence MAINTENANT
                 hasCooldownPending: false
               });
-              console.log(`🔥 Cooldown de 5s activé pour ${playerData.name} au démarrage de la chanson`);
+              console.log(`🔥 Cooldown de ${cooldownDuration / 1000}s activé pour ${playerData.name} au démarrage de la chanson`);
             }
           }
         }
@@ -680,8 +685,8 @@ const addPoint = async (team) => {
             buzzCount: (playerData.buzzCount || 0) + 1
           };
 
-          // Si 2 bonnes réponses consécutives → COOLDOWN EN ATTENTE !
-          if (consecutiveCorrect >= 2) {
+          // Si seuil de bonnes réponses consécutives atteint → COOLDOWN EN ATTENTE !
+          if (consecutiveCorrect >= cooldownThreshold) {
             updates.hasCooldownPending = true; // Le cooldown sera activé au prochain play
             updates.consecutiveCorrect = 0;
             console.log(`🔥 ${playerData.name} aura un COOLDOWN à la prochaine chanson ! Total: ${correctCount} bonnes réponses`);
@@ -1021,6 +1026,25 @@ const loadBuzzStats = (shouldShow = true) => {
             }}
           >
             🏁 Terminer la partie
+          </button>
+
+          <button
+            onClick={() => setShowCooldownSettings(true)}
+            className="btn"
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: 'rgba(59, 130, 246, 0.3)',
+              border: '1px solid #3b82f6',
+              fontSize: '0.85rem',
+              borderRadius: '0.5rem',
+              color: 'white',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            onMouseOver={(e) => e.target.style.backgroundColor = 'rgba(59, 130, 246, 0.4)'}
+            onMouseOut={(e) => e.target.style.backgroundColor = 'rgba(59, 130, 246, 0.3)'}
+          >
+            ⚙️ Réglages
           </button>
 
           <button
@@ -1428,6 +1452,174 @@ const loadBuzzStats = (shouldShow = true) => {
                 }}
               >
                 Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modale Réglages Cooldown */}
+      {showCooldownSettings && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '2rem'
+          }}
+          onClick={() => setShowCooldownSettings(false)}
+        >
+          <div
+            style={{
+              backgroundColor: '#1f2937',
+              borderRadius: '1rem',
+              padding: '2rem',
+              maxWidth: '500px',
+              width: '100%'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ fontSize: '1.5rem', marginBottom: '1.5rem', textAlign: 'center' }}>
+              ⚙️ Réglages du Cooldown
+            </h2>
+
+            {/* Paramètres */}
+            <div style={{ marginBottom: '2rem' }}>
+              {/* Seuil de bonnes réponses */}
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '0.9rem',
+                  marginBottom: '0.5rem',
+                  opacity: 0.9
+                }}>
+                  🎯 Nombre de bonnes réponses d'affilée
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={cooldownThreshold}
+                  onChange={(e) => setCooldownThreshold(parseInt(e.target.value) || 1)}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    borderRadius: '0.5rem',
+                    color: 'white',
+                    fontSize: '1rem'
+                  }}
+                />
+                <div style={{
+                  fontSize: '0.75rem',
+                  opacity: 0.6,
+                  marginTop: '0.25rem'
+                }}>
+                  Après combien de bonnes réponses consécutives le joueur est freezé
+                </div>
+              </div>
+
+              {/* Durée du cooldown */}
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '0.9rem',
+                  marginBottom: '0.5rem',
+                  opacity: 0.9
+                }}>
+                  ⏱️ Durée du freeze (secondes)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="30"
+                  value={cooldownDuration / 1000}
+                  onChange={(e) => setCooldownDuration((parseInt(e.target.value) || 1) * 1000)}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    borderRadius: '0.5rem',
+                    color: 'white',
+                    fontSize: '1rem'
+                  }}
+                />
+                <div style={{
+                  fontSize: '0.75rem',
+                  opacity: 0.6,
+                  marginTop: '0.25rem'
+                }}>
+                  Durée pendant laquelle le joueur ne peut pas buzzer
+                </div>
+              </div>
+            </div>
+
+            {/* Aperçu */}
+            <div style={{
+              backgroundColor: 'rgba(59, 130, 246, 0.2)',
+              border: '1px solid rgba(59, 130, 246, 0.5)',
+              borderRadius: '0.75rem',
+              padding: '1rem',
+              marginBottom: '1.5rem',
+              textAlign: 'center'
+            }}>
+              <div style={{ fontSize: '0.875rem', opacity: 0.8, marginBottom: '0.5rem' }}>
+                📋 Aperçu
+              </div>
+              <div style={{ fontSize: '0.95rem' }}>
+                Après <strong>{cooldownThreshold}</strong> bonne{cooldownThreshold > 1 ? 's' : ''} réponse{cooldownThreshold > 1 ? 's' : ''} d'affilée,
+                le joueur sera freezé pendant <strong>{cooldownDuration / 1000}s</strong>
+              </div>
+            </div>
+
+            {/* Boutons */}
+            <div style={{
+              display: 'flex',
+              gap: '0.75rem'
+            }}>
+              <button
+                onClick={() => setShowCooldownSettings(false)}
+                className="btn"
+                style={{
+                  flex: 1,
+                  padding: '0.75rem',
+                  backgroundColor: 'rgba(156, 163, 175, 0.3)',
+                  border: '1px solid #9ca3af',
+                  fontSize: '0.9rem',
+                  borderRadius: '0.5rem',
+                  color: 'white',
+                  cursor: 'pointer'
+                }}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => {
+                  setShowCooldownSettings(false);
+                  setDebugInfo(`✅ Réglages sauvegardés : ${cooldownThreshold} réponses → ${cooldownDuration / 1000}s`);
+                }}
+                className="btn"
+                style={{
+                  flex: 1,
+                  padding: '0.75rem',
+                  backgroundColor: 'rgba(59, 130, 246, 0.3)',
+                  border: '1px solid #3b82f6',
+                  fontSize: '0.9rem',
+                  borderRadius: '0.5rem',
+                  color: 'white',
+                  cursor: 'pointer'
+                }}
+              >
+                Valider
               </button>
             </div>
           </div>
