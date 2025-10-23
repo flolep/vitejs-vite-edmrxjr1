@@ -162,7 +162,7 @@ useEffect(() => {
   });
 
   return () => unsubscribe();
-}, [isPlaying, isSpotifyMode, spotifyToken, currentChrono, currentTrack]);
+}, [isPlaying, isSpotifyMode, spotifyToken, currentChrono, currentTrack, playlist]);
 
   // === SPOTIFY ===
   const handleSpotifyLogin = () => {

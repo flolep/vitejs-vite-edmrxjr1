@@ -25,7 +25,7 @@ function calculatePoints(chrono, songDuration) {
   return Math.max(0, Math.round(availablePoints));
 }
 
-const PlayerAvatar = ({ player, buzzedPlayerKey, buzzedPlayerName }) => {
+const PlayerAvatar = ({ player, buzzedPlayerKey }) => {
   // ✅ CORRECTION : Comparer par firebaseKey au lieu du nom
   const isBuzzed = player.firebaseKey === buzzedPlayerKey;
   const isInCooldown = player.cooldownEnd && player.cooldownEnd > Date.now();
@@ -143,9 +143,7 @@ export default function TV() {
   const [scores, setScores] = useState({ team1: 0, team2: 0 });
   const [playersTeam1, setPlayersTeam1] = useState([]);
   const [playersTeam2, setPlayersTeam2] = useState([]);
-  const [buzzedPlayerName, setBuzzedPlayerName] = useState(null);
-  const [buzzedPlayerPhoto, setBuzzedPlayerPhoto] = useState(null);
-  const [buzzedPlayerKey, setBuzzedPlayerKey] = useState(null); // ✅ AJOUTÉ ICI (ligne 150)
+  const [buzzedPlayerKey, setBuzzedPlayerKey] = useState(null);
   const [buzzedTeam, setBuzzedTeam] = useState(null);
   const [currentSong, setCurrentSong] = useState(null);
   const [chrono, setChrono] = useState(0);
@@ -222,20 +220,14 @@ export default function TV() {
 
   // Écouter les buzz
   useEffect(() => {
-    // ✅ SUPPRIMÉ : const [buzzedPlayerKey, setBuzzedPlayerKey] = useState(null);
-
     const buzzRef = ref(database, 'buzz');
     const unsubscribe = onValue(buzzRef, (snapshot) => {
       const buzzData = snapshot.val();
       if (buzzData) {
         setBuzzedTeam(buzzData.team);
-        setBuzzedPlayerName(buzzData.playerName || null);
-        setBuzzedPlayerPhoto(buzzData.playerPhoto || null);
-        setBuzzedPlayerKey(buzzData.playerFirebaseKey || null); // ✅ Utilise le state du composant
+        setBuzzedPlayerKey(buzzData.playerFirebaseKey || null);
       } else {
         setBuzzedTeam(null);
-        setBuzzedPlayerName(null);
-        setBuzzedPlayerPhoto(null);
         setBuzzedPlayerKey(null);
       }
     });
@@ -595,11 +587,10 @@ return (
           gap: '1rem'
         }}>
           {playersTeam1.map((player, idx) => (
-            <PlayerAvatar 
-              key={idx} 
-              player={player} 
+            <PlayerAvatar
+              key={idx}
+              player={player}
               buzzedPlayerKey={buzzedPlayerKey}
-              buzzedPlayerName={buzzedPlayerName}
             />
           ))}
           
@@ -645,11 +636,10 @@ return (
           gap: '1rem'
         }}>
           {playersTeam2.map((player, idx) => (
-            <PlayerAvatar 
-              key={idx} 
+            <PlayerAvatar
+              key={idx}
               player={player}
               buzzedPlayerKey={buzzedPlayerKey}
-              buzzedPlayerName={buzzedPlayerName}
             />
           ))}
           
