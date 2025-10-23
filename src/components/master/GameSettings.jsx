@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function GameSettings({ 
+export default function GameSettings({
   playlist,
   scores,
   showStats,
@@ -13,41 +13,7 @@ export default function GameSettings({
   onCancelEndGame
 }) {
   return (
-    <div className="player-box">
-      <h3 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>
-        ⚙️ Paramètres de la partie
-      </h3>
-      
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        {/* Bouton Statistiques */}
-        {playlist.length > 0 && (
-          <button 
-            onClick={onShowStats} 
-            className="btn btn-purple"
-          >
-            📊 Voir les statistiques des buzz
-          </button>
-        )}
-        
-        {/* Bouton Terminer la partie */}
-        {playlist.length > 0 && (
-          <button 
-            onClick={onEndGame} 
-            className="btn btn-yellow"
-          >
-            🏁 Terminer la partie
-          </button>
-        )}
-        
-        {/* Bouton Nouvelle partie */}
-        <button
-          onClick={onResetGame}
-          className="btn btn-gray"
-        >
-          🔄 Nouvelle partie
-        </button>
-      </div>
-
+    <>
       {/* Modal de confirmation de fin de partie */}
       {showEndGameConfirm && (
         <div style={{
@@ -262,6 +228,6 @@ export default function GameSettings({
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
