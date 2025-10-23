@@ -108,6 +108,20 @@ export default function Buzzer() {
     return () => unsubscribe();
   }, [sessionValid, sessionId]);
 
+  // Récupérer l'ID de playlist depuis Firebase
+  useEffect(() => {
+    if (!sessionValid || !sessionId) return;
+    const playlistIdRef = ref(database, `sessions/${sessionId}/playlistId`);
+    const unsubscribe = onValue(playlistIdRef, (snapshot) => {
+      const id = snapshot.val();
+      if (id) {
+        setPlaylistId(id);
+        console.log('✅ Playlist ID récupéré:', id);
+      }
+    });
+    return () => unsubscribe();
+  }, [sessionValid, sessionId]);
+
   // Écouter si quelqu'un a buzzé
   useEffect(() => {
     if (!sessionValid || !sessionId) return;
@@ -207,7 +221,7 @@ useEffect(() => {
     } catch (err) {
       console.error('Erreur recherche:', err);
       setError('Erreur lors de la recherche. Continuons sans photo.');
-      setStep('team');
+      setStep('preferences');
     } finally {
       setIsSearching(false);
     }
@@ -230,7 +244,7 @@ useEffect(() => {
   // NOUVEAU : Sélectionner un joueur existant
   const handleSelectPlayer = (player) => {
     setSelectedPlayer(player);
-    setStep('team');
+    setStep('preferences');
   };
 
   // NOUVEAU : Créer un nouveau joueur
@@ -252,7 +266,7 @@ useEffect(() => {
     } catch (err) {
       console.error('Erreur caméra:', err);
       setError('Impossible d\'accéder à la caméra. Continuons sans photo.');
-      setTimeout(() => setStep('team'), 2000);
+      setTimeout(() => setStep('preferences'), 2000);
     }
   };
 
@@ -295,14 +309,14 @@ useEffect(() => {
         name: playerName,
         photo: photoData
       });
-      
-      setStep('team');
+
+      setStep('preferences');
     } catch (err) {
       console.error('Erreur création joueur:', err);
       setError('Erreur lors de la sauvegarde. Continuons quand même !');
       setTimeout(() => {
         setSelectedPlayer({ name: playerName });
-        setStep('team');
+        setStep('preferences');
       }, 2000);
     } finally {
       setIsSearching(false);
@@ -313,6 +327,60 @@ useEffect(() => {
   const retakeSelfie = () => {
     setPhotoData(null);
     startCamera();
+  };
+
+  // NOUVEAU : Envoyer les données au workflow n8n
+  const sendToN8nWorkflow = async () => {
+    if (!playlistId) {
+      console.warn('⚠️ Pas de playlistId disponible, skip n8n');
+      return;
+    }
+
+    try {
+      const payload = {
+        playlistId: playlistId,
+        age: parseInt(playerAge) || null,
+        genres: selectedGenres,
+        specialPhrase: specialPhrase
+      };
+
+      console.log('📤 Envoi au workflow n8n:', payload);
+
+      const response = await fetch('https://n8n.srv1038816.hstgr.cloud/webhook-test/blindtest-player-input', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Réponse n8n:', result);
+      } else {
+        console.error('❌ Erreur n8n:', response.status, response.statusText);
+      }
+    } catch (err) {
+      console.error('❌ Erreur appel n8n:', err);
+      // On continue quand même, ne pas bloquer le joueur
+    }
+  };
+
+  // NOUVEAU : Valider les préférences
+  const handleSubmitPreferences = async () => {
+    // Validation
+    if (!playerAge || selectedGenres.length === 0) {
+      setError('Veuillez remplir au moins l\'âge et choisir des genres');
+      return;
+    }
+
+    setIsSearching(true);
+
+    // Envoyer au workflow n8n
+    await sendToN8nWorkflow();
+
+    setIsSearching(false);
+    setStep('team');
   };
 
 const selectTeam = async (teamNumber) => {
@@ -691,12 +759,12 @@ if (step === 'photo') {
               📸 Prendre la photo
             </button>
             
-            <button 
+            <button
               onClick={() => {
                 if (streamRef.current) {
                   streamRef.current.getTracks().forEach(track => track.stop());
                 }
-                setStep('team');
+                setStep('preferences');
               }}
               className="btn btn-gray"
               style={{ width: '100%', padding: '1rem', marginTop: '1rem' }}
@@ -751,7 +819,7 @@ if (step === 'photo') {
           <h2 style={{ fontSize: '1.25rem', marginBottom: '2rem' }}>
             Valider cette photo ?
           </h2>
-          
+
           <img
             src={photoData}
             alt="Selfie"
@@ -764,20 +832,20 @@ if (step === 'photo') {
               border: '4px solid #fbbf24'
             }}
           />
-          
+
           {error && (
             <div style={{ color: '#ef4444', marginBottom: '1rem' }}>
               {error}
             </div>
           )}
-          
+
           <div className="space-y">
             <button
               onClick={confirmSelfie}
               disabled={isSearching}
               className="btn btn-green"
-              style={{ 
-                width: '100%', 
+              style={{
+                width: '100%',
                 padding: '1.5rem',
                 fontSize: '1.25rem',
                 opacity: isSearching ? 0.5 : 1
@@ -785,7 +853,7 @@ if (step === 'photo') {
             >
               {isSearching ? '💾 Sauvegarde...' : '✅ Valider'}
             </button>
-            
+
             <button
               onClick={retakeSelfie}
               disabled={isSearching}
@@ -800,7 +868,176 @@ if (step === 'photo') {
     );
   }
 
-  // ÉCRAN 5 : Sélection d'équipe
+  // ÉCRAN 5 : Préférences du joueur
+  if (step === 'preferences') {
+    const availableGenres = [
+      'Pop', 'Rock', 'Hip-Hop', 'Jazz', 'Électro',
+      'Rap français', 'R&B', 'Reggae', 'Métal', 'Indie',
+      'Soul', 'Funk', 'Disco', 'Blues', 'Country'
+    ];
+
+    const toggleGenre = (genre) => {
+      if (selectedGenres.includes(genre)) {
+        setSelectedGenres(selectedGenres.filter(g => g !== genre));
+      } else if (selectedGenres.length < 3) {
+        setSelectedGenres([...selectedGenres, genre]);
+      }
+    };
+
+    return (
+      <div className="bg-gradient flex-center">
+        <div className="text-center" style={{ maxWidth: '600px', width: '100%', padding: '2rem' }}>
+          <h1 className="title">🎵 Vos Préférences</h1>
+          <h2 style={{ fontSize: '1.25rem', marginBottom: '2rem' }}>
+            Parlez-nous de vous !
+          </h2>
+
+          {/* Âge */}
+          <div style={{ marginBottom: '2rem', textAlign: 'left' }}>
+            <label style={{
+              display: 'block',
+              fontSize: '1.1rem',
+              marginBottom: '0.5rem',
+              fontWeight: 'bold'
+            }}>
+              🎂 Votre âge
+            </label>
+            <input
+              type="number"
+              placeholder="Ex: 25"
+              value={playerAge}
+              onChange={(e) => setPlayerAge(e.target.value)}
+              min="1"
+              max="120"
+              style={{
+                width: '100%',
+                padding: '1rem',
+                fontSize: '1.2rem',
+                borderRadius: '0.75rem',
+                border: '2px solid rgba(255, 255, 255, 0.3)',
+                backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                textAlign: 'center'
+              }}
+            />
+          </div>
+
+          {/* Genres */}
+          <div style={{ marginBottom: '2rem', textAlign: 'left' }}>
+            <label style={{
+              display: 'block',
+              fontSize: '1.1rem',
+              marginBottom: '0.5rem',
+              fontWeight: 'bold'
+            }}>
+              🎸 Vos 3 genres préférés ({selectedGenres.length}/3)
+            </label>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+              gap: '0.75rem'
+            }}>
+              {availableGenres.map(genre => {
+                const isSelected = selectedGenres.includes(genre);
+                return (
+                  <button
+                    key={genre}
+                    onClick={() => toggleGenre(genre)}
+                    style={{
+                      padding: '0.75rem',
+                      fontSize: '0.9rem',
+                      borderRadius: '0.5rem',
+                      border: '2px solid',
+                      borderColor: isSelected ? '#10b981' : 'rgba(255, 255, 255, 0.3)',
+                      backgroundColor: isSelected ? '#10b981' : 'rgba(255, 255, 255, 0.1)',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontWeight: isSelected ? 'bold' : 'normal',
+                      transition: 'all 0.2s',
+                      opacity: !isSelected && selectedGenres.length >= 3 ? 0.4 : 1
+                    }}
+                    disabled={!isSelected && selectedGenres.length >= 3}
+                  >
+                    {isSelected ? '✓ ' : ''}{genre}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Phrase spéciale */}
+          <div style={{ marginBottom: '2rem', textAlign: 'left' }}>
+            <label style={{
+              display: 'block',
+              fontSize: '1.1rem',
+              marginBottom: '0.5rem',
+              fontWeight: 'bold'
+            }}>
+              💬 Votre phrase spéciale (optionnelle)
+            </label>
+            <textarea
+              placeholder="Ex: J'adore chanter sous la douche !"
+              value={specialPhrase}
+              onChange={(e) => setSpecialPhrase(e.target.value)}
+              maxLength={200}
+              style={{
+                width: '100%',
+                padding: '1rem',
+                fontSize: '1rem',
+                borderRadius: '0.75rem',
+                border: '2px solid rgba(255, 255, 255, 0.3)',
+                backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                minHeight: '80px',
+                resize: 'vertical',
+                fontFamily: 'inherit'
+              }}
+            />
+            <div style={{ fontSize: '0.75rem', opacity: 0.6, marginTop: '0.25rem' }}>
+              {specialPhrase.length}/200 caractères
+            </div>
+          </div>
+
+          {/* Message d'erreur */}
+          {error && (
+            <div style={{
+              color: '#ef4444',
+              marginBottom: '1rem',
+              fontSize: '0.875rem',
+              backgroundColor: '#fee2e2',
+              padding: '1rem',
+              borderRadius: '0.5rem'
+            }}>
+              {error}
+            </div>
+          )}
+
+          {/* Bouton de validation */}
+          <button
+            onClick={handleSubmitPreferences}
+            disabled={isSearching || !playerAge || selectedGenres.length === 0}
+            className="btn btn-green"
+            style={{
+              width: '100%',
+              padding: '1.5rem',
+              fontSize: '1.25rem',
+              opacity: (isSearching || !playerAge || selectedGenres.length === 0) ? 0.5 : 1
+            }}
+          >
+            {isSearching ? '⏳ Envoi en cours...' : '✅ Valider et continuer'}
+          </button>
+
+          <p style={{
+            marginTop: '1rem',
+            fontSize: '0.875rem',
+            opacity: 0.7
+          }}>
+            Ces informations nous aident à personnaliser votre expérience
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ÉCRAN 6 : Sélection d'équipe
   if (step === 'team') {
     return (
       <div className="bg-gradient flex-center">
@@ -860,7 +1097,7 @@ if (step === 'photo') {
     );
   }
 
-// ÉCRAN 6 : Jeu (buzzer)
+// ÉCRAN 7 : Jeu (buzzer)
 if (step === 'game') {
   const bgClass = team === 1 ? 'bg-gradient-red' : 'bg-gradient-blue';
   const buttonColor = team === 1 ? '#ef4444' : '#3b82f6';
