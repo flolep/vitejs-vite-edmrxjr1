@@ -42,6 +42,7 @@ export default function Master() {
   const [user, setUser] = useState(null);
   const [sessionId, setSessionId] = useState(null);
   const [showQRCode, setShowQRCode] = useState(false);
+  const [showSessionModal, setShowSessionModal] = useState(false);
 
   // États principaux
   const [playlist, setPlaylist] = useState([]);
@@ -932,6 +933,28 @@ const loadBuzzStats = (shouldShow = true) => {
             </div>
           ) : null}
 
+          {/* Bouton Session/QR Code */}
+          {sessionId && (
+            <button
+              onClick={() => setShowSessionModal(true)}
+              className="btn"
+              style={{
+                padding: '0.5rem 1rem',
+                backgroundColor: 'rgba(124, 58, 237, 0.3)',
+                border: '1px solid #7c3aed',
+                fontSize: '0.85rem',
+                borderRadius: '0.5rem',
+                color: 'white',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+              onMouseOver={(e) => e.target.style.backgroundColor = 'rgba(124, 58, 237, 0.4)'}
+              onMouseOut={(e) => e.target.style.backgroundColor = 'rgba(124, 58, 237, 0.3)'}
+            >
+              📱 Session
+            </button>
+          )}
+
           {/* Boutons d'actions */}
           <button
             onClick={resetScores}
@@ -1046,84 +1069,6 @@ const loadBuzzStats = (shouldShow = true) => {
             onAddManual={handleManualAdd}
             isSpotifyMode={isSpotifyMode}
           />
-
-          {/* Section Session */}
-          {sessionId && (
-            <div style={{
-              backgroundColor: 'rgba(124, 58, 237, 0.2)',
-              border: '1px solid rgba(124, 58, 237, 0.5)',
-              borderRadius: '0.75rem',
-              padding: '1.25rem'
-            }}>
-              <h3 style={{
-                fontSize: '0.875rem',
-                fontWeight: '600',
-                marginBottom: '0.75rem',
-                opacity: 0.8,
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em'
-              }}>
-                📺 Code de session
-              </h3>
-              <div style={{
-                fontSize: '2rem',
-                fontWeight: 'bold',
-                letterSpacing: '0.3rem',
-                fontFamily: 'monospace',
-                color: '#fbbf24',
-                marginBottom: '1rem',
-                textAlign: 'center',
-                textShadow: '0 0 10px rgba(251, 191, 36, 0.3)'
-              }}>
-                {sessionId}
-              </div>
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.5rem'
-              }}>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(sessionId);
-                    setDebugInfo('✅ Code copié !');
-                  }}
-                  className="btn"
-                  style={{
-                    padding: '0.6rem',
-                    backgroundColor: 'rgba(124, 58, 237, 0.3)',
-                    border: '1px solid #7c3aed',
-                    fontSize: '0.85rem'
-                  }}
-                >
-                  📋 Copier le code
-                </button>
-                <button
-                  onClick={() => window.open('/tv', '_blank')}
-                  className="btn"
-                  style={{
-                    padding: '0.6rem',
-                    backgroundColor: 'rgba(16, 185, 129, 0.3)',
-                    border: '1px solid #10b981',
-                    fontSize: '0.85rem'
-                  }}
-                >
-                  📺 Ouvrir TV
-                </button>
-                <button
-                  onClick={toggleQRCodeOnTV}
-                  className="btn"
-                  style={{
-                    padding: '0.6rem',
-                    backgroundColor: showQRCode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)',
-                    border: showQRCode ? '1px solid #ef4444' : '1px solid #10b981',
-                    fontSize: '0.85rem'
-                  }}
-                >
-                  {showQRCode ? '🔴 Masquer QR Code' : '📱 Afficher QR Code'}
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* Section Playlist */}
           {playlist.length > 0 && (
@@ -1335,6 +1280,159 @@ const loadBuzzStats = (shouldShow = true) => {
         onConfirmEndGame={endGame}
         onCancelEndGame={() => setShowEndGameConfirm(false)}
       />
+
+      {/* Modale Session/QR Code */}
+      {showSessionModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '2rem'
+          }}
+          onClick={() => setShowSessionModal(false)}
+        >
+          <div
+            style={{
+              backgroundColor: '#1f2937',
+              borderRadius: '1rem',
+              padding: '2rem',
+              maxWidth: '500px',
+              width: '100%'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ fontSize: '1.5rem', marginBottom: '1.5rem', textAlign: 'center' }}>
+              📱 Session de jeu
+            </h2>
+
+            {/* Code de session */}
+            <div style={{
+              backgroundColor: 'rgba(124, 58, 237, 0.2)',
+              border: '1px solid rgba(124, 58, 237, 0.5)',
+              borderRadius: '0.75rem',
+              padding: '1.5rem',
+              marginBottom: '1.5rem',
+              textAlign: 'center'
+            }}>
+              <div style={{
+                fontSize: '0.875rem',
+                opacity: 0.8,
+                marginBottom: '0.5rem',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em'
+              }}>
+                Code de session
+              </div>
+              <div style={{
+                fontSize: '2.5rem',
+                fontWeight: 'bold',
+                letterSpacing: '0.3rem',
+                fontFamily: 'monospace',
+                color: '#fbbf24',
+                textShadow: '0 0 10px rgba(251, 191, 36, 0.3)'
+              }}>
+                {sessionId}
+              </div>
+            </div>
+
+            {/* QR Code */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'center',
+              marginBottom: '1.5rem',
+              padding: '1rem',
+              backgroundColor: 'white',
+              borderRadius: '0.75rem'
+            }}>
+              <QRCodeSVG
+                value={`${window.location.origin}/buzzer?session=${sessionId}`}
+                size={200}
+                level="H"
+                includeMargin={true}
+              />
+            </div>
+
+            {/* Boutons d'actions */}
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.75rem'
+            }}>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(sessionId);
+                  setDebugInfo('✅ Code copié !');
+                }}
+                className="btn"
+                style={{
+                  padding: '0.75rem',
+                  backgroundColor: 'rgba(124, 58, 237, 0.3)',
+                  border: '1px solid #7c3aed',
+                  fontSize: '0.9rem',
+                  borderRadius: '0.5rem',
+                  color: 'white',
+                  cursor: 'pointer'
+                }}
+              >
+                📋 Copier le code
+              </button>
+              <button
+                onClick={() => window.open('/tv', '_blank')}
+                className="btn"
+                style={{
+                  padding: '0.75rem',
+                  backgroundColor: 'rgba(16, 185, 129, 0.3)',
+                  border: '1px solid #10b981',
+                  fontSize: '0.9rem',
+                  borderRadius: '0.5rem',
+                  color: 'white',
+                  cursor: 'pointer'
+                }}
+              >
+                📺 Ouvrir TV
+              </button>
+              <button
+                onClick={toggleQRCodeOnTV}
+                className="btn"
+                style={{
+                  padding: '0.75rem',
+                  backgroundColor: showQRCode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)',
+                  border: showQRCode ? '1px solid #ef4444' : '1px solid #10b981',
+                  fontSize: '0.9rem',
+                  borderRadius: '0.5rem',
+                  color: 'white',
+                  cursor: 'pointer'
+                }}
+              >
+                {showQRCode ? '🔴 Masquer QR Code sur TV' : '📱 Afficher QR Code sur TV'}
+              </button>
+              <button
+                onClick={() => setShowSessionModal(false)}
+                className="btn"
+                style={{
+                  padding: '0.75rem',
+                  backgroundColor: 'rgba(156, 163, 175, 0.3)',
+                  border: '1px solid #9ca3af',
+                  fontSize: '0.9rem',
+                  borderRadius: '0.5rem',
+                  color: 'white',
+                  cursor: 'pointer'
+                }}
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Audio caché */}
       <audio ref={audioRef} style={{ display: 'none' }} />
