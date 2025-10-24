@@ -37,10 +37,10 @@ function calculatePoints(chrono, songDuration) {
   return Math.max(0, Math.round(availablePoints));
 }
 
-export default function Master() {
+export default function Master({ initialSessionId = null }) {
   // États d'authentification et session
   const [user, setUser] = useState(null);
-  const [sessionId, setSessionId] = useState(null);
+  const [sessionId, setSessionId] = useState(initialSessionId);
   const [showQRCode, setShowQRCode] = useState(false);
   const [showSessionModal, setShowSessionModal] = useState(false);
 
@@ -86,6 +86,74 @@ export default function Master() {
     });
     return () => unsubscribe();
   }, []);
+
+  // Sauvegarder le sessionId dans localStorage quand il change
+  useEffect(() => {
+    if (sessionId) {
+      localStorage.setItem('lastSessionId', sessionId);
+      console.log(`✅ Session ${sessionId} sauvegardée dans localStorage`);
+    }
+  }, [sessionId]);
+
+  // Charger les données de la session si on reprend une session existante
+  // OU créer automatiquement une nouvelle session si c'est une nouvelle partie
+  useEffect(() => {
+    if (!user) return;
+
+    if (initialSessionId) {
+      // Reprendre une session existante
+      const sessionRef = ref(database, `sessions/${initialSessionId}`);
+      onValue(sessionRef, (snapshot) => {
+        const sessionData = snapshot.val();
+        if (sessionData && sessionData.active !== false) {
+          console.log(`✅ Session ${initialSessionId} récupérée depuis Firebase`);
+          // Charger les scores
+          if (sessionData.scores) {
+            setScores(sessionData.scores);
+          }
+          // Charger l'état de lecture
+          if (sessionData.isPlaying !== undefined) {
+            setIsPlaying(sessionData.isPlaying);
+          }
+          // Charger le chrono
+          if (sessionData.chrono !== undefined) {
+            setCurrentChrono(sessionData.chrono);
+          }
+          // Charger le numéro de piste actuel
+          if (sessionData.currentTrackNumber !== undefined) {
+            setCurrentTrack(sessionData.currentTrackNumber);
+          }
+          // Charger l'ID de playlist Spotify
+          if (sessionData.playlistId) {
+            const token = sessionStorage.getItem('spotify_access_token');
+            if (token) {
+              loadSpotifyPlaylistById(sessionData.playlistId, token);
+            }
+          }
+        } else {
+          console.warn(`⚠️ Session ${initialSessionId} n'existe plus ou est inactive`);
+          setDebugInfo(`⚠️ La session ${initialSessionId} n'existe plus`);
+        }
+      }, { onlyOnce: true });
+    } else if (!sessionId) {
+      // Créer automatiquement une nouvelle session si aucune n'existe
+      const newSessionId = Math.random().toString(36).substring(2, 8).toUpperCase();
+      setSessionId(newSessionId);
+
+      // Créer la nouvelle session dans Firebase
+      set(ref(database, `sessions/${newSessionId}`), {
+        active: true,
+        createdAt: Date.now(),
+        scores: { team1: 0, team2: 0 },
+        chrono: 0,
+        isPlaying: false,
+        showQRCode: false
+      });
+
+      setDebugInfo(`🎮 Nouvelle partie créée ! Code: ${newSessionId}`);
+      console.log(`✅ Nouvelle session ${newSessionId} créée automatiquement`);
+    }
+  }, [initialSessionId, user, sessionId]);
 
   // Vérifier connexion Spotify au chargement
   useEffect(() => {
@@ -237,6 +305,34 @@ useEffect(() => {
     } catch (error) {
       console.error('Error loading playlists:', error);
       setDebugInfo('❌ Erreur chargement playlists');
+    }
+  };
+
+  const loadSpotifyPlaylistById = async (playlistId, token) => {
+    try {
+      setDebugInfo('⏳ Chargement de la playlist...');
+      const tracks = await spotifyService.getPlaylistTracks(token, playlistId);
+
+      setPlaylist(tracks);
+      setIsSpotifyMode(true);
+      setDebugInfo(`✅ ${tracks.length} morceaux chargés depuis la session`);
+
+      if (!spotifyPlayer) {
+        const player = await spotifyService.initPlayer(
+          token,
+          (deviceId) => setSpotifyDeviceId(deviceId),
+          (state) => {
+            if (state) {
+              setSongDuration(state.duration / 1000);
+              setSpotifyPosition(state.position);
+            }
+          }
+        );
+        setSpotifyPlayer(player);
+      }
+    } catch (error) {
+      console.error('Error loading playlist by ID:', error);
+      setDebugInfo('❌ Erreur chargement playlist');
     }
   };
 
