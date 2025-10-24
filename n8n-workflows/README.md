@@ -7,7 +7,9 @@ Ce dossier contient les workflows n8n pour l'intégration avec Spotify.
 **Fichier:** `create-playlist.json`
 
 ### Description
-Crée une playlist vide sur Spotify via webhook.
+Crée une playlist vide sur Spotify via webhook avec un nom généré automatiquement au format **`BlindTest-YYYY-MM-DD-XXX`** où :
+- **YYYY-MM-DD** : Date du jour
+- **XXX** : Numéro d'ordre à 3 chiffres (basé sur le timestamp)
 
 ### Installation
 
@@ -53,15 +55,15 @@ POST https://your-n8n-instance.com/webhook/create-playlist
 ```json
 {
   "userId": "spotify_user_id",
-  "playlistName": "Ma Super Playlist",
+  "playlistName": "Ma Super Playlist (optionnel)",
   "description": "Description de la playlist (optionnel)"
 }
 ```
 
 **Paramètres :**
 - `userId` (requis) : L'ID utilisateur Spotify (ex: "john.doe")
-- `playlistName` (optionnel) : Nom de la playlist. Si non fourni, génère "Blind Test - YYYY-MM-DD"
-- `description` (optionnel) : Description de la playlist. Par défaut : "Playlist créée pour Blind Test"
+- `playlistName` (optionnel) : Nom personnalisé de la playlist. Si non fourni, génère automatiquement **`BlindTest-YYYY-MM-DD-XXX`** (ex: "BlindTest-2024-10-24-742")
+- `description` (optionnel) : Description de la playlist. Par défaut : "Playlist créée automatiquement pour Blind Test le YYYY-MM-DD"
 
 #### Réponse
 
@@ -69,7 +71,7 @@ POST https://your-n8n-instance.com/webhook/create-playlist
 {
   "success": true,
   "playlistId": "37i9dQZF1DXcBWIGoYBM5M",
-  "playlistName": "Ma Super Playlist",
+  "playlistName": "BlindTest-2024-10-24-742",
   "playlistUrl": "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M"
 }
 ```
@@ -78,7 +80,7 @@ POST https://your-n8n-instance.com/webhook/create-playlist
 
 ```javascript
 // Appel depuis l'application Blind Test
-const createSpotifyPlaylist = async (userId, playlistName, description) => {
+const createSpotifyPlaylist = async (userId, playlistName = null, description = null) => {
   try {
     const response = await fetch('https://your-n8n-instance.com/webhook/create-playlist', {
       method: 'POST',
@@ -87,8 +89,9 @@ const createSpotifyPlaylist = async (userId, playlistName, description) => {
       },
       body: JSON.stringify({
         userId: userId,
-        playlistName: playlistName || `Blind Test - ${new Date().toLocaleDateString()}`,
-        description: description || 'Playlist générée pour Blind Test'
+        // playlistName est optionnel - si non fourni, générera "BlindTest-2024-10-24-742"
+        ...(playlistName && { playlistName }),
+        ...(description && { description })
       })
     });
 
@@ -103,14 +106,17 @@ const createSpotifyPlaylist = async (userId, playlistName, description) => {
   }
 };
 
-// Utilisation
-const result = await createSpotifyPlaylist(
+// Utilisation 1 : Nom automatique (BlindTest-2024-10-24-XXX)
+const result1 = await createSpotifyPlaylist('john.doe');
+console.log('Playlist créée:', result1.playlistName); // "BlindTest-2024-10-24-742"
+
+// Utilisation 2 : Nom personnalisé
+const result2 = await createSpotifyPlaylist(
   'john.doe',
   'Blind Test Années 80',
   'Playlist pour le blind test de ce soir'
 );
-
-console.log('Playlist ID:', result.playlistId);
+console.log('Playlist ID:', result2.playlistId);
 ```
 
 ### Notes

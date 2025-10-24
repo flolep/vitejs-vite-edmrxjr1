@@ -17,12 +17,44 @@
     },
     {
       "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "date",
+              "name": "date",
+              "value": "={{ new Date().toISOString().split('T')[0] }}",
+              "type": "string"
+            },
+            {
+              "id": "orderKey",
+              "name": "orderKey",
+              "value": "={{ String(Math.floor(Date.now() / 1000) % 1000).padStart(3, '0') }}",
+              "type": "string"
+            },
+            {
+              "id": "playlistName",
+              "name": "playlistName",
+              "value": "={{ $json.playlistName || 'BlindTest-' + $('Edit Fields').item.json.date + '-' + $('Edit Fields').item.json.orderKey }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "edit-fields-generate-name",
+      "name": "Edit Fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [350, 300]
+    },
+    {
+      "parameters": {
         "resource": "playlist",
         "operation": "create",
         "userId": "={{ $json.userId }}",
-        "name": "={{ $json.playlistName || 'Blind Test - ' + new Date().toISOString().split('T')[0] }}",
+        "name": "={{ $json.playlistName }}",
         "additionalFields": {
-          "description": "={{ $json.description || 'Playlist créée pour Blind Test' }}",
+          "description": "={{ $json.description || 'Playlist créée automatiquement pour Blind Test le ' + $json.date }}",
           "public": false
         }
       },
@@ -30,7 +62,7 @@
       "name": "Spotify: Create Playlist",
       "type": "n8n-nodes-base.spotify",
       "typeVersion": 1,
-      "position": [450, 300],
+      "position": [550, 300],
       "credentials": {
         "spotifyOAuth2Api": {
           "id": "1",
@@ -47,11 +79,22 @@
       "name": "Respond to Webhook",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [650, 300]
+      "position": [750, 300]
     }
   ],
   "connections": {
     "Webhook: Create Playlist": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
       "main": [
         [
           {

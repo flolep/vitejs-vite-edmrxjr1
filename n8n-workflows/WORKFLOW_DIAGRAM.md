@@ -44,14 +44,30 @@
 │  │  Input:                                                 │    │
 │  │  {                                                      │    │
 │  │    "userId": "john.doe",                               │    │
-│  │    "playlistName": "Blind Test 2024",                  │    │
-│  │    "description": "Ma playlist"                        │    │
+│  │    "playlistName": "Blind Test 2024" (optionnel)       │    │
+│  │    "description": "Ma playlist" (optionnel)            │    │
 │  │  }                                                      │    │
 │  └─────────────────────┬──────────────────────────────────┘    │
 │                        │                                         │
 │                        ▼                                         │
 │  ┌────────────────────────────────────────────────────────┐    │
-│  │  NODE 2: Spotify Create Playlist                       │    │
+│  │  NODE 2: Edit Fields (Génération du nom)               │    │
+│  │  Type: n8n-nodes-base.set                              │    │
+│  │                                                         │    │
+│  │  Génère automatiquement:                                │    │
+│  │  - date: "2024-10-24" (YYYY-MM-DD)                     │    │
+│  │  - orderKey: "742" (numéro à 3 chiffres)               │    │
+│  │  - playlistName: "BlindTest-2024-10-24-742"            │    │
+│  │    (si non fourni dans l'input)                        │    │
+│  │                                                         │    │
+│  │  Formule du numéro d'ordre:                            │    │
+│  │  Math.floor(Date.now() / 1000) % 1000                  │    │
+│  │  (timestamp secondes modulo 1000, sur 3 chiffres)      │    │
+│  └─────────────────────┬──────────────────────────────────┘    │
+│                        │                                         │
+│                        ▼                                         │
+│  ┌────────────────────────────────────────────────────────┐    │
+│  │  NODE 3: Spotify Create Playlist                       │    │
 │  │  Type: n8n-nodes-base.spotify                          │    │
 │  │                                                         │    │
 │  │  Resource: playlist                                     │    │
@@ -60,7 +76,9 @@
 │  │  Parameters:                                            │    │
 │  │  - userId: {{ $json.userId }}                          │    │
 │  │  - name: {{ $json.playlistName }}                      │    │
+│  │    (ex: "BlindTest-2024-10-24-742")                    │    │
 │  │  - description: {{ $json.description }}                │    │
+│  │    (ex: "Playlist créée automatiquement...")           │    │
 │  │  - public: false                                        │    │
 │  │                                                         │    │
 │  │  Credentials: Spotify OAuth2 (configuré)               │    │
@@ -68,7 +86,7 @@
 │                        │                                         │
 │                        ▼                                         │
 │  ┌────────────────────────────────────────────────────────┐    │
-│  │  NODE 3: Respond to Webhook                            │    │
+│  │  NODE 4: Respond to Webhook                            │    │
 │  │  Type: n8n-nodes-base.respondToWebhook                 │    │
 │  │                                                         │    │
 │  │  Response Body:                                         │    │
@@ -76,6 +94,7 @@
 │  │    "success": true,                                     │    │
 │  │    "playlistId": "{{ $json.id }}",                     │    │
 │  │    "playlistName": "{{ $json.name }}",                 │    │
+│  │      → "BlindTest-2024-10-24-742"                      │    │
 │  │    "playlistUrl": "{{ $json.external_urls.spotify }}"  │    │
 │  │  }                                                      │    │
 │  └─────────────────────┬──────────────────────────────────┘    │
@@ -126,23 +145,44 @@ const userId = await n8nService.getSpotifyUserId(spotifyToken);
 
 ### Étape 3 : Appel webhook n8n
 ```javascript
-const result = await n8nService.createSpotifyPlaylist(
-  userId,           // "john.doe"
-  playlistName,     // "Blind Test 2024"
-  description       // "Playlist pour blind test"
-);
+// Option 1 : Nom automatique (recommandé)
+const result = await n8nService.createSpotifyPlaylist(userId);
+
+// Option 2 : Nom personnalisé
+// const result = await n8nService.createSpotifyPlaylist(
+//   userId,           // "john.doe"
+//   playlistName,     // "Blind Test 2024"
+//   description       // "Playlist pour blind test"
+// );
 
 // → API Call: POST https://n8n.example.com/webhook/create-playlist
-// → Body: { userId, playlistName, description }
+// → Body: { userId }  OU  { userId, playlistName, description }
 ```
 
 ### Étape 4 : n8n reçoit la requête
 ```
 Webhook Node reçoit:
 {
+  "userId": "john.doe"
+  // playlistName et description sont optionnels
+}
+```
+
+### Étape 4b : n8n génère le nom automatiquement (Edit Fields)
+```
+Edit Fields Node calcule:
+- date: "2024-10-24"
+- orderKey: "742" (basé sur timestamp)
+- playlistName: "BlindTest-2024-10-24-742"
+  (seulement si non fourni dans l'input)
+
+Output:
+{
   "userId": "john.doe",
-  "playlistName": "Blind Test 2024",
-  "description": "Playlist pour blind test"
+  "date": "2024-10-24",
+  "orderKey": "742",
+  "playlistName": "BlindTest-2024-10-24-742",
+  "description": "Playlist créée automatiquement pour Blind Test le 2024-10-24"
 }
 ```
 
@@ -156,8 +196,8 @@ Headers:
 
 Body:
 {
-  "name": "Blind Test 2024",
-  "description": "Playlist pour blind test",
+  "name": "BlindTest-2024-10-24-742",
+  "description": "Playlist créée automatiquement pour Blind Test le 2024-10-24",
   "public": false
 }
 ```
@@ -167,8 +207,8 @@ Body:
 Spotify répond:
 {
   "id": "37i9dQZF1DXcBWIGoYBM5M",
-  "name": "Blind Test 2024",
-  "description": "Playlist pour blind test",
+  "name": "BlindTest-2024-10-24-742",
+  "description": "Playlist créée automatiquement pour Blind Test le 2024-10-24",
   "external_urls": {
     "spotify": "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M"
   },
@@ -185,7 +225,7 @@ Respond Node transforme:
 {
   "success": true,
   "playlistId": "37i9dQZF1DXcBWIGoYBM5M",
-  "playlistName": "Blind Test 2024",
+  "playlistName": "BlindTest-2024-10-24-742",
   "playlistUrl": "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M"
 }
 ```

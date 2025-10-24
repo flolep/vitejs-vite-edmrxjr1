@@ -5,17 +5,25 @@ export const n8nService = {
   /**
    * Crée une playlist vide sur Spotify via n8n
    * @param {string} userId - L'ID utilisateur Spotify
-   * @param {string} playlistName - Le nom de la playlist (optionnel)
+   * @param {string} playlistName - Le nom de la playlist (optionnel). Si non fourni, génère "BlindTest-YYYY-MM-DD-XXX"
    * @param {string} description - La description de la playlist (optionnel)
    * @returns {Promise<{success: boolean, playlistId: string, playlistName: string, playlistUrl: string}>}
    */
   async createSpotifyPlaylist(userId, playlistName = null, description = null) {
     try {
       const payload = {
-        userId: userId,
-        playlistName: playlistName || `Blind Test - ${new Date().toLocaleDateString('fr-FR')}`,
-        description: description || 'Playlist créée pour Blind Test'
+        userId: userId
       };
+
+      // Ajouter le nom seulement s'il est fourni (sinon n8n le génère automatiquement)
+      if (playlistName) {
+        payload.playlistName = playlistName;
+      }
+
+      // Ajouter la description seulement si elle est fournie
+      if (description) {
+        payload.description = description;
+      }
 
       console.log('📤 Création playlist Spotify via n8n:', payload);
 

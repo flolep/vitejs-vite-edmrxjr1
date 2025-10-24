@@ -86,12 +86,15 @@ const handleCreatePlaylistAI = async () => {
   try {
     setDebugInfo('⏳ Création de la playlist...');
 
-    // Créer une playlist vide via n8n
-    const result = await n8nService.createPlaylistWithToken(
-      spotifyToken,
-      'Blind Test Spécial Années 80',
-      'Playlist générée pour le blind test'
-    );
+    // Option 1 : Créer avec nom automatique (BlindTest-2024-10-24-XXX)
+    const result = await n8nService.createPlaylistWithToken(spotifyToken);
+
+    // Option 2 : Créer avec nom personnalisé
+    // const result = await n8nService.createPlaylistWithToken(
+    //   spotifyToken,
+    //   'Blind Test Spécial Années 80',
+    //   'Playlist générée pour le blind test'
+    // );
 
     console.log('✅ Playlist créée:', result);
     setDebugInfo(`✅ Playlist créée: ${result.playlistName}`);
