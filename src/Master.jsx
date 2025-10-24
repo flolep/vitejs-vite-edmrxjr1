@@ -49,6 +49,11 @@ export default function Master() {
   const [cooldownDuration, setCooldownDuration] = useState(5000); // Durée du freeze en ms
   const [showCooldownSettings, setShowCooldownSettings] = useState(false);
 
+  // État du mode de jeu
+  const [gameMode, setGameMode] = useState(null); // 'mp3' | 'spotify-import' | 'spotify-ai'
+  const [showModeSelector, setShowModeSelector] = useState(false);
+  const [isCreatingAIPlaylist, setIsCreatingAIPlaylist] = useState(false);
+
   // États principaux
   const [playlist, setPlaylist] = useState([]);
   const [currentTrack, setCurrentTrack] = useState(0);
@@ -744,6 +749,76 @@ const addPoint = async (team) => {
 
     if (!confirm(confirmMessage)) return;
 
+    // Afficher la modale de sélection de mode
+    setShowModeSelector(true);
+  };
+
+  // Fonction pour créer une playlist avec l'IA via n8n
+  const createAIPlaylist = async (newSessionId) => {
+    try {
+      setIsCreatingAIPlaylist(true);
+      setDebugInfo('🤖 Génération de la playlist par l\'IA...');
+
+      const response = await fetch('https://n8n.srv1038816.hstgr.cloud/webhook-test/create-playlist', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          sessionId: newSessionId
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Erreur lors de la création de la playlist IA');
+      }
+
+      const data = await response.json();
+      const playlistId = data.playlistId;
+
+      if (!playlistId) {
+        throw new Error('Aucun playlistId retourné par le webhook');
+      }
+
+      // Stocker le playlistId dans Firebase
+      const playlistIdRef = ref(database, `sessions/${newSessionId}/playlistId`);
+      await set(playlistIdRef, playlistId);
+      console.log(`✅ Playlist IA créée avec ID ${playlistId} stocké dans Firebase`);
+
+      // Charger les tracks de la playlist créée
+      const tracks = await spotifyService.getPlaylistTracks(spotifyToken, playlistId);
+      setPlaylist(tracks);
+      setIsSpotifyMode(true);
+      setDebugInfo(`✅ Playlist IA créée : ${tracks.length} morceaux importés`);
+
+      // Initialiser le player Spotify si nécessaire
+      if (!spotifyPlayer) {
+        const player = await spotifyService.initPlayer(
+          spotifyToken,
+          (deviceId) => setSpotifyDeviceId(deviceId),
+          (state) => {
+            if (state) {
+              setSongDuration(state.duration / 1000);
+              setSpotifyPosition(state.position);
+            }
+          }
+        );
+        setSpotifyPlayer(player);
+      }
+
+      setIsCreatingAIPlaylist(false);
+    } catch (error) {
+      console.error('❌ Erreur création playlist IA:', error);
+      setDebugInfo('❌ Erreur lors de la création de la playlist IA');
+      setIsCreatingAIPlaylist(false);
+    }
+  };
+
+  // Créer une nouvelle partie avec le mode sélectionné
+  const createNewGameWithMode = async (selectedMode) => {
+    setGameMode(selectedMode);
+    setShowModeSelector(false);
+
     // Marquer l'ancienne session comme inactive (si elle existe)
     if (sessionId) {
       const oldSessionRef = ref(database, `sessions/${sessionId}`);
@@ -761,7 +836,8 @@ const addPoint = async (team) => {
     set(ref(database, `sessions/${newSessionId}`), {
       createdBy: user.uid,
       createdAt: Date.now(),
-      active: true
+      active: true,
+      gameMode: selectedMode
     });
 
     // Réinitialiser tous les états
@@ -792,6 +868,11 @@ const addPoint = async (team) => {
     set(qrCodeRef, false);
 
     setDebugInfo(`🔄 Nouvelle partie créée ! Code: ${newSessionId}`);
+
+    // Si mode IA, créer automatiquement la playlist
+    if (selectedMode === 'spotify-ai') {
+      await createAIPlaylist(newSessionId);
+    }
   };
 
 const loadBuzzStats = (shouldShow = true) => {
@@ -1107,6 +1188,9 @@ const loadBuzzStats = (shouldShow = true) => {
             onConnect={handleSpotifyLogin}
             onShowPlaylists={() => setShowPlaylistSelector(true)}
             onAddManual={handleManualAdd}
+            onCreateAIPlaylist={() => createAIPlaylist(sessionId)}
+            gameMode={gameMode}
+            isCreatingAI={isCreatingAIPlaylist}
             isSpotifyMode={isSpotifyMode}
           />
 
@@ -1470,6 +1554,152 @@ const loadBuzzStats = (shouldShow = true) => {
                 Fermer
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modale Sélection Mode de Jeu */}
+      {showModeSelector && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '2rem'
+          }}
+          onClick={() => setShowModeSelector(false)}
+        >
+          <div
+            style={{
+              backgroundColor: '#1f2937',
+              borderRadius: '1rem',
+              padding: '2rem',
+              maxWidth: '600px',
+              width: '100%'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ fontSize: '1.8rem', marginBottom: '1rem', textAlign: 'center' }}>
+              🎮 Choisissez le mode de jeu
+            </h2>
+            <p style={{ fontSize: '0.9rem', opacity: 0.7, textAlign: 'center', marginBottom: '2rem' }}>
+              Sélectionnez comment vous souhaitez créer votre playlist
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {/* Mode MP3 */}
+              <button
+                onClick={() => createNewGameWithMode('mp3')}
+                style={{
+                  padding: '1.5rem',
+                  backgroundColor: 'rgba(124, 58, 237, 0.3)',
+                  border: '2px solid rgba(124, 58, 237, 0.5)',
+                  borderRadius: '0.75rem',
+                  color: 'white',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(124, 58, 237, 0.5)';
+                  e.currentTarget.style.borderColor = 'rgba(124, 58, 237, 0.8)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(124, 58, 237, 0.3)';
+                  e.currentTarget.style.borderColor = 'rgba(124, 58, 237, 0.5)';
+                }}
+              >
+                <div style={{ fontSize: '1.3rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                  📁 Mode MP3
+                </div>
+                <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>
+                  Ajoutez manuellement vos fichiers MP3
+                </div>
+              </button>
+
+              {/* Mode Spotify Import */}
+              <button
+                onClick={() => createNewGameWithMode('spotify-import')}
+                style={{
+                  padding: '1.5rem',
+                  backgroundColor: 'rgba(34, 197, 94, 0.3)',
+                  border: '2px solid rgba(34, 197, 94, 0.5)',
+                  borderRadius: '0.75rem',
+                  color: 'white',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(34, 197, 94, 0.5)';
+                  e.currentTarget.style.borderColor = 'rgba(34, 197, 94, 0.8)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(34, 197, 94, 0.3)';
+                  e.currentTarget.style.borderColor = 'rgba(34, 197, 94, 0.5)';
+                }}
+              >
+                <div style={{ fontSize: '1.3rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                  🎵 Import Spotify
+                </div>
+                <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>
+                  Importez une de vos playlists Spotify existantes
+                </div>
+              </button>
+
+              {/* Mode Spotify IA */}
+              <button
+                onClick={() => createNewGameWithMode('spotify-ai')}
+                style={{
+                  padding: '1.5rem',
+                  backgroundColor: 'rgba(59, 130, 246, 0.3)',
+                  border: '2px solid rgba(59, 130, 246, 0.5)',
+                  borderRadius: '0.75rem',
+                  color: 'white',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.5)';
+                  e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.8)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.3)';
+                  e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.5)';
+                }}
+              >
+                <div style={{ fontSize: '1.3rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                  🤖 Génération IA
+                </div>
+                <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>
+                  Laissez l'IA créer une playlist personnalisée pour vos joueurs
+                </div>
+              </button>
+            </div>
+
+            <button
+              onClick={() => setShowModeSelector(false)}
+              style={{
+                marginTop: '1.5rem',
+                padding: '0.75rem',
+                width: '100%',
+                backgroundColor: 'rgba(107, 114, 128, 0.3)',
+                border: '1px solid rgba(107, 114, 128, 0.5)',
+                borderRadius: '0.5rem',
+                color: 'white',
+                cursor: 'pointer'
+              }}
+            >
+              Annuler
+            </button>
           </div>
         </div>
       )}
