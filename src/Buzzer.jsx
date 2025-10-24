@@ -4,6 +4,10 @@ import { ref, set, onValue, remove } from 'firebase/database';
 import { airtableService } from './airtableService';
 
 export default function Buzzer() {
+  // États de session
+  const [sessionId, setSessionId] = useState('');
+  const [sessionValid, setSessionValid] = useState(false);
+
   // États existants
   const [team, setTeam] = useState(null);
   const [buzzed, setBuzzed] = useState(false);
@@ -11,15 +15,21 @@ export default function Buzzer() {
   const [scores, setScores] = useState({ team1: 0, team2: 0 });
   const [someoneBuzzed, setSomeoneBuzzed] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  
+
   // NOUVEAUX états pour identification
-  const [step, setStep] = useState('name'); // 'name' | 'search' | 'select' | 'photo' | 'team' | 'game'
+  const [step, setStep] = useState('session'); // 'session' | 'name' | 'search' | 'select' | 'photo' | 'preferences' | 'team' | 'game'
   const [playerName, setPlayerName] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
   const [photoData, setPhotoData] = useState(null);
   const [error, setError] = useState('');
+
+  // NOUVEAUX états pour préférences joueur
+  const [playerAge, setPlayerAge] = useState('');
+  const [selectedGenres, setSelectedGenres] = useState([]);
+  const [specialPhrase, setSpecialPhrase] = useState('');
+  const [playlistId, setPlaylistId] = useState(null);
 
   // Changement d'équipe - NOUVEAU
   const [playerFirebaseKey, setPlayerFirebaseKey] = useState(null);
@@ -28,13 +38,56 @@ export default function Buzzer() {
   const [cooldownEnd, setCooldownEnd] = useState(null);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
 
+  // Stats personnelles
+  const [showStats, setShowStats] = useState(false);
+  const [personalStats, setPersonalStats] = useState({
+    totalBuzzes: 0,
+    winningBuzzes: 0,
+    totalPoints: 0,
+    recognizedSongs: []
+  });
+
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
 
+  // Vérifier le code de session depuis l'URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionParam = urlParams.get('session');
+    if (sessionParam) {
+      setSessionId(sessionParam);
+      verifySession(sessionParam);
+    }
+  }, []);
+
+  // Fonction pour vérifier si la session existe
+  const verifySession = async (id) => {
+    const sessionRef = ref(database, `sessions/${id}`);
+    onValue(sessionRef, (snapshot) => {
+      if (snapshot.exists() && snapshot.val().active) {
+        setSessionValid(true);
+        setStep('name');
+      } else {
+        setSessionValid(false);
+        setError('Code de session invalide ou expiré');
+      }
+    }, { onlyOnce: true });
+  };
+
+  // Fonction pour valider le code de session entré manuellement
+  const handleJoinSession = () => {
+    if (!sessionId || sessionId.trim().length !== 6) {
+      setError('Le code doit contenir 6 caractères');
+      return;
+    }
+    verifySession(sessionId.toUpperCase());
+  };
+
   // Écouter les scores Firebase
   useEffect(() => {
-    const scoresRef = ref(database, 'scores');
+    if (!sessionValid || !sessionId) return;
+    const scoresRef = ref(database, `sessions/${sessionId}/scores`);
     const unsubscribe = onValue(scoresRef, (snapshot) => {
       const scoresData = snapshot.val();
       if (scoresData) {
@@ -42,21 +95,37 @@ export default function Buzzer() {
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [sessionValid, sessionId]);
   
   // Écouter si une chanson est en cours de lecture
   useEffect(() => {
-    const playingRef = ref(database, 'isPlaying');
+    if (!sessionValid || !sessionId) return;
+    const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
     const unsubscribe = onValue(playingRef, (snapshot) => {
       const playingData = snapshot.val();
       setIsPlaying(playingData === true);
     });
     return () => unsubscribe();
-  }, []);
-  
+  }, [sessionValid, sessionId]);
+
+  // Récupérer l'ID de playlist depuis Firebase
+  useEffect(() => {
+    if (!sessionValid || !sessionId) return;
+    const playlistIdRef = ref(database, `sessions/${sessionId}/playlistId`);
+    const unsubscribe = onValue(playlistIdRef, (snapshot) => {
+      const id = snapshot.val();
+      if (id) {
+        setPlaylistId(id);
+        console.log('✅ Playlist ID récupéré:', id);
+      }
+    });
+    return () => unsubscribe();
+  }, [sessionValid, sessionId]);
+
   // Écouter si quelqu'un a buzzé
   useEffect(() => {
-    const buzzRef = ref(database, 'buzz');
+    if (!sessionValid || !sessionId) return;
+    const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
     const unsubscribe = onValue(buzzRef, (snapshot) => {
       const buzzData = snapshot.val();
       if (buzzData) {
@@ -69,15 +138,15 @@ export default function Buzzer() {
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [sessionValid, sessionId]);
 
   // Ajoutez cet useEffect pour écouter le cooldown du joueur
   useEffect(() => {
-    if (!team || !selectedPlayer) return;
-    
+    if (!team || !selectedPlayer || !sessionValid || !sessionId) return;
+
     const teamKey = `team${team}`;
-    const playersRef = ref(database, `players_session/${teamKey}`);
-    
+    const playersRef = ref(database, `sessions/${sessionId}/players_session/${teamKey}`);
+
     const unsubscribe = onValue(playersRef, (snapshot) => {
       const players = snapshot.val();
       if (players) {
@@ -93,9 +162,9 @@ export default function Buzzer() {
         });
       }
     });
-    
+
     return () => unsubscribe();
-  }, [team, selectedPlayer, playerName]);
+  }, [team, selectedPlayer, playerName, sessionValid, sessionId]);
 
   // Compte à rebours du cooldown
   useEffect(() => {
@@ -152,7 +221,7 @@ useEffect(() => {
     } catch (err) {
       console.error('Erreur recherche:', err);
       setError('Erreur lors de la recherche. Continuons sans photo.');
-      setStep('team');
+      setStep('preferences');
     } finally {
       setIsSearching(false);
     }
@@ -175,7 +244,7 @@ useEffect(() => {
   // NOUVEAU : Sélectionner un joueur existant
   const handleSelectPlayer = (player) => {
     setSelectedPlayer(player);
-    setStep('team');
+    setStep('preferences');
   };
 
   // NOUVEAU : Créer un nouveau joueur
@@ -197,7 +266,7 @@ useEffect(() => {
     } catch (err) {
       console.error('Erreur caméra:', err);
       setError('Impossible d\'accéder à la caméra. Continuons sans photo.');
-      setTimeout(() => setStep('team'), 2000);
+      setTimeout(() => setStep('preferences'), 2000);
     }
   };
 
@@ -240,14 +309,14 @@ useEffect(() => {
         name: playerName,
         photo: photoData
       });
-      
-      setStep('team');
+
+      setStep('preferences');
     } catch (err) {
       console.error('Erreur création joueur:', err);
       setError('Erreur lors de la sauvegarde. Continuons quand même !');
       setTimeout(() => {
         setSelectedPlayer({ name: playerName });
-        setStep('team');
+        setStep('preferences');
       }, 2000);
     } finally {
       setIsSearching(false);
@@ -260,14 +329,68 @@ useEffect(() => {
     startCamera();
   };
 
+  // NOUVEAU : Envoyer les données au workflow n8n
+  const sendToN8nWorkflow = async () => {
+    if (!playlistId) {
+      console.warn('⚠️ Pas de playlistId disponible, skip n8n');
+      return;
+    }
+
+    try {
+      const payload = {
+        playlistId: playlistId,
+        age: parseInt(playerAge) || null,
+        genres: selectedGenres,
+        specialPhrase: specialPhrase
+      };
+
+      console.log('📤 Envoi au workflow n8n:', payload);
+
+      const response = await fetch('https://n8n.srv1038816.hstgr.cloud/webhook-test/blindtest-player-input', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Réponse n8n:', result);
+      } else {
+        console.error('❌ Erreur n8n:', response.status, response.statusText);
+      }
+    } catch (err) {
+      console.error('❌ Erreur appel n8n:', err);
+      // On continue quand même, ne pas bloquer le joueur
+    }
+  };
+
+  // NOUVEAU : Valider les préférences
+  const handleSubmitPreferences = async () => {
+    // Validation
+    if (!playerAge || selectedGenres.length === 0) {
+      setError('Veuillez remplir au moins l\'âge et choisir des genres');
+      return;
+    }
+
+    setIsSearching(true);
+
+    // Envoyer au workflow n8n
+    await sendToN8nWorkflow();
+
+    setIsSearching(false);
+    setStep('team');
+  };
+
 const selectTeam = async (teamNumber) => {
   setTeam(teamNumber);
   setStep('game');
-  
+
   const teamKey = `team${teamNumber}`;
   const newPlayerKey = `player_${Date.now()}`; // ✅ Clé unique
-  const playerRef = ref(database, `players_session/${teamKey}/${newPlayerKey}`);
-  
+  const playerRef = ref(database, `sessions/${sessionId}/players_session/${teamKey}/${newPlayerKey}`);
+
   try {
     const playerData = {
       id: selectedPlayer?.id || `temp_${Date.now()}`,
@@ -281,7 +404,7 @@ const selectTeam = async (teamNumber) => {
       consecutiveCorrect: 0,
       joinedAt: Date.now()
     };
-    
+
     await set(playerRef, playerData);
     setPlayerFirebaseKey(newPlayerKey); // ✅ Stocker la clé
     console.log('✅ Joueur enregistré:', playerData.name, 'dans', teamKey, 'clé:', newPlayerKey);
@@ -292,11 +415,11 @@ const selectTeam = async (teamNumber) => {
 
 const handleBuzz = async () => {
   if (!buzzerEnabled || someoneBuzzed || !isPlaying) return;
-  
+
   setBuzzed(true);
   setBuzzerEnabled(false);
-  
-  const buzzRef = ref(database, 'buzz');
+
+  const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
   await set(buzzRef, {
     type: 'BUZZ',
     team: `team${team}`,
@@ -307,7 +430,7 @@ const handleBuzz = async () => {
     playerFirebaseKey: playerFirebaseKey, // ✅ AJOUTEZ CECI
     timestamp: Date.now()
   });
-  
+
   if (navigator.vibrate) {
     navigator.vibrate(200);
   }
@@ -317,8 +440,8 @@ const changeTeam = async () => {
   // ✅ SUPPRIMER le joueur avec sa clé Firebase
   if (team && playerFirebaseKey) {
     const currentTeamKey = `team${team}`;
-    const playerRef = ref(database, `players_session/${currentTeamKey}/${playerFirebaseKey}`);
-    
+    const playerRef = ref(database, `sessions/${sessionId}/players_session/${currentTeamKey}/${playerFirebaseKey}`);
+
     try {
       await remove(playerRef);
       console.log(`✅ Joueur retiré de l'équipe ${team} (clé: ${playerFirebaseKey})`);
@@ -326,7 +449,7 @@ const changeTeam = async () => {
       console.error('❌ Erreur suppression joueur:', error);
     }
   }
-  
+
   setTeam(null);
   setBuzzed(false);
   setBuzzerEnabled(true);
@@ -335,7 +458,138 @@ const changeTeam = async () => {
   setStep('team');
 };
 
+// Charger les statistiques personnelles du joueur
+const loadPersonalStats = () => {
+  if (!sessionId || !selectedPlayer) return;
+
+  const buzzTimesRef = ref(database, `sessions/${sessionId}/buzz_times`);
+  onValue(buzzTimesRef, (snapshot) => {
+    const data = snapshot.val();
+    if (data) {
+      const allBuzzes = [];
+
+      // Collecter tous les buzz de toutes les chansons
+      Object.keys(data).forEach(trackIndex => {
+        const trackBuzzes = data[trackIndex];
+        if (Array.isArray(trackBuzzes)) {
+          trackBuzzes.forEach(buzz => {
+            allBuzzes.push(buzz);
+          });
+        }
+      });
+
+      // Filtrer les buzz du joueur actuel
+      const myBuzzes = allBuzzes.filter(buzz =>
+        buzz.playerName === (selectedPlayer?.name || playerName)
+      );
+
+      // Calculer les statistiques
+      const winningBuzzes = myBuzzes.filter(buzz => buzz.correct === true);
+      const totalPoints = winningBuzzes.reduce((sum, buzz) => sum + (buzz.points || 0), 0);
+
+      // Récupérer les chansons reconnues
+      const recognizedSongs = winningBuzzes.map(buzz => ({
+        title: buzz.songTitle,
+        artist: buzz.songArtist,
+        time: buzz.time,
+        points: buzz.points,
+        trackNumber: buzz.trackNumber
+      }));
+
+      // Calculer le pourcentage de contribution aux points de l'équipe
+      const teamKey = team === 1 ? 'team1' : 'team2';
+      const teamScore = scores[teamKey] || 0;
+      const percentageContribution = teamScore > 0 ? ((totalPoints / teamScore) * 100).toFixed(1) : '0';
+
+      setPersonalStats({
+        totalBuzzes: myBuzzes.length,
+        winningBuzzes: winningBuzzes.length,
+        totalPoints: totalPoints,
+        recognizedSongs: recognizedSongs,
+        percentageContribution: percentageContribution
+      });
+
+      setShowStats(true);
+    }
+  }, { onlyOnce: true });
+};
+
   // ========== ÉCRANS ==========
+
+  // ÉCRAN 0 : Saisie du code de session
+  if (step === 'session') {
+    return (
+      <div className="bg-gradient flex-center">
+        <div className="text-center" style={{ maxWidth: '500px', width: '100%', padding: '2rem' }}>
+          <h1 className="title">🎵 BLIND TEST 🎵</h1>
+          <h2 style={{ fontSize: '1.5rem', marginBottom: '2rem' }}>
+            Entrez le code de session
+          </h2>
+
+          <input
+            type="text"
+            placeholder="CODE"
+            value={sessionId}
+            onChange={(e) => setSessionId(e.target.value.toUpperCase())}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                handleJoinSession();
+              }
+            }}
+            maxLength={6}
+            autoFocus
+            style={{
+              width: '100%',
+              padding: '1.5rem',
+              fontSize: '2rem',
+              fontWeight: 'bold',
+              letterSpacing: '0.5rem',
+              borderRadius: '0.75rem',
+              border: 'none',
+              marginBottom: '1rem',
+              textAlign: 'center',
+              textTransform: 'uppercase'
+            }}
+          />
+
+          {error && (
+            <div style={{
+              color: '#ef4444',
+              marginBottom: '1rem',
+              fontSize: '0.875rem',
+              backgroundColor: '#fee2e2',
+              padding: '1rem',
+              borderRadius: '0.5rem'
+            }}>
+              {error}
+            </div>
+          )}
+
+          <button
+            onClick={handleJoinSession}
+            disabled={!sessionId || sessionId.length !== 6}
+            className="btn btn-green"
+            style={{
+              width: '100%',
+              padding: '1.5rem',
+              fontSize: '1.25rem',
+              opacity: (!sessionId || sessionId.length !== 6) ? 0.5 : 1
+            }}
+          >
+            ✅ Rejoindre la partie
+          </button>
+
+          <p style={{
+            marginTop: '2rem',
+            fontSize: '0.9rem',
+            opacity: 0.7
+          }}>
+            Scannez le QR Code affiché par l'animateur ou entrez le code à 6 caractères
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // ÉCRAN 1 : Saisie du prénom
   if (step === 'name') {
@@ -505,12 +759,12 @@ if (step === 'photo') {
               📸 Prendre la photo
             </button>
             
-            <button 
+            <button
               onClick={() => {
                 if (streamRef.current) {
                   streamRef.current.getTracks().forEach(track => track.stop());
                 }
-                setStep('team');
+                setStep('preferences');
               }}
               className="btn btn-gray"
               style={{ width: '100%', padding: '1rem', marginTop: '1rem' }}
@@ -565,7 +819,7 @@ if (step === 'photo') {
           <h2 style={{ fontSize: '1.25rem', marginBottom: '2rem' }}>
             Valider cette photo ?
           </h2>
-          
+
           <img
             src={photoData}
             alt="Selfie"
@@ -578,20 +832,20 @@ if (step === 'photo') {
               border: '4px solid #fbbf24'
             }}
           />
-          
+
           {error && (
             <div style={{ color: '#ef4444', marginBottom: '1rem' }}>
               {error}
             </div>
           )}
-          
+
           <div className="space-y">
             <button
               onClick={confirmSelfie}
               disabled={isSearching}
               className="btn btn-green"
-              style={{ 
-                width: '100%', 
+              style={{
+                width: '100%',
                 padding: '1.5rem',
                 fontSize: '1.25rem',
                 opacity: isSearching ? 0.5 : 1
@@ -599,7 +853,7 @@ if (step === 'photo') {
             >
               {isSearching ? '💾 Sauvegarde...' : '✅ Valider'}
             </button>
-            
+
             <button
               onClick={retakeSelfie}
               disabled={isSearching}
@@ -614,7 +868,176 @@ if (step === 'photo') {
     );
   }
 
-  // ÉCRAN 5 : Sélection d'équipe
+  // ÉCRAN 5 : Préférences du joueur
+  if (step === 'preferences') {
+    const availableGenres = [
+      'Pop', 'Rock', 'Hip-Hop', 'Jazz', 'Électro',
+      'Rap français', 'R&B', 'Reggae', 'Métal', 'Indie',
+      'Soul', 'Funk', 'Disco', 'Blues', 'Country'
+    ];
+
+    const toggleGenre = (genre) => {
+      if (selectedGenres.includes(genre)) {
+        setSelectedGenres(selectedGenres.filter(g => g !== genre));
+      } else if (selectedGenres.length < 3) {
+        setSelectedGenres([...selectedGenres, genre]);
+      }
+    };
+
+    return (
+      <div className="bg-gradient flex-center">
+        <div className="text-center" style={{ maxWidth: '600px', width: '100%', padding: '2rem' }}>
+          <h1 className="title">🎵 Vos Préférences</h1>
+          <h2 style={{ fontSize: '1.25rem', marginBottom: '2rem' }}>
+            Parlez-nous de vous !
+          </h2>
+
+          {/* Âge */}
+          <div style={{ marginBottom: '2rem', textAlign: 'left' }}>
+            <label style={{
+              display: 'block',
+              fontSize: '1.1rem',
+              marginBottom: '0.5rem',
+              fontWeight: 'bold'
+            }}>
+              🎂 Votre âge
+            </label>
+            <input
+              type="number"
+              placeholder="Ex: 25"
+              value={playerAge}
+              onChange={(e) => setPlayerAge(e.target.value)}
+              min="1"
+              max="120"
+              style={{
+                width: '100%',
+                padding: '1rem',
+                fontSize: '1.2rem',
+                borderRadius: '0.75rem',
+                border: '2px solid rgba(255, 255, 255, 0.3)',
+                backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                textAlign: 'center'
+              }}
+            />
+          </div>
+
+          {/* Genres */}
+          <div style={{ marginBottom: '2rem', textAlign: 'left' }}>
+            <label style={{
+              display: 'block',
+              fontSize: '1.1rem',
+              marginBottom: '0.5rem',
+              fontWeight: 'bold'
+            }}>
+              🎸 Vos 3 genres préférés ({selectedGenres.length}/3)
+            </label>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+              gap: '0.75rem'
+            }}>
+              {availableGenres.map(genre => {
+                const isSelected = selectedGenres.includes(genre);
+                return (
+                  <button
+                    key={genre}
+                    onClick={() => toggleGenre(genre)}
+                    style={{
+                      padding: '0.75rem',
+                      fontSize: '0.9rem',
+                      borderRadius: '0.5rem',
+                      border: '2px solid',
+                      borderColor: isSelected ? '#10b981' : 'rgba(255, 255, 255, 0.3)',
+                      backgroundColor: isSelected ? '#10b981' : 'rgba(255, 255, 255, 0.1)',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontWeight: isSelected ? 'bold' : 'normal',
+                      transition: 'all 0.2s',
+                      opacity: !isSelected && selectedGenres.length >= 3 ? 0.4 : 1
+                    }}
+                    disabled={!isSelected && selectedGenres.length >= 3}
+                  >
+                    {isSelected ? '✓ ' : ''}{genre}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Phrase spéciale */}
+          <div style={{ marginBottom: '2rem', textAlign: 'left' }}>
+            <label style={{
+              display: 'block',
+              fontSize: '1.1rem',
+              marginBottom: '0.5rem',
+              fontWeight: 'bold'
+            }}>
+              💬 Votre phrase spéciale (optionnelle)
+            </label>
+            <textarea
+              placeholder="Ex: J'adore chanter sous la douche !"
+              value={specialPhrase}
+              onChange={(e) => setSpecialPhrase(e.target.value)}
+              maxLength={200}
+              style={{
+                width: '100%',
+                padding: '1rem',
+                fontSize: '1rem',
+                borderRadius: '0.75rem',
+                border: '2px solid rgba(255, 255, 255, 0.3)',
+                backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                minHeight: '80px',
+                resize: 'vertical',
+                fontFamily: 'inherit'
+              }}
+            />
+            <div style={{ fontSize: '0.75rem', opacity: 0.6, marginTop: '0.25rem' }}>
+              {specialPhrase.length}/200 caractères
+            </div>
+          </div>
+
+          {/* Message d'erreur */}
+          {error && (
+            <div style={{
+              color: '#ef4444',
+              marginBottom: '1rem',
+              fontSize: '0.875rem',
+              backgroundColor: '#fee2e2',
+              padding: '1rem',
+              borderRadius: '0.5rem'
+            }}>
+              {error}
+            </div>
+          )}
+
+          {/* Bouton de validation */}
+          <button
+            onClick={handleSubmitPreferences}
+            disabled={isSearching || !playerAge || selectedGenres.length === 0}
+            className="btn btn-green"
+            style={{
+              width: '100%',
+              padding: '1.5rem',
+              fontSize: '1.25rem',
+              opacity: (isSearching || !playerAge || selectedGenres.length === 0) ? 0.5 : 1
+            }}
+          >
+            {isSearching ? '⏳ Envoi en cours...' : '✅ Valider et continuer'}
+          </button>
+
+          <p style={{
+            marginTop: '1rem',
+            fontSize: '0.875rem',
+            opacity: 0.7
+          }}>
+            Ces informations nous aident à personnaliser votre expérience
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ÉCRAN 6 : Sélection d'équipe
   if (step === 'team') {
     return (
       <div className="bg-gradient flex-center">
@@ -674,7 +1097,7 @@ if (step === 'photo') {
     );
   }
 
-// ÉCRAN 6 : Jeu (buzzer)
+// ÉCRAN 7 : Jeu (buzzer)
 if (step === 'game') {
   const bgClass = team === 1 ? 'bg-gradient-red' : 'bg-gradient-blue';
   const buttonColor = team === 1 ? '#ef4444' : '#3b82f6';
@@ -683,6 +1106,30 @@ if (step === 'game') {
 
   return (
     <div className={`${bgClass} flex-center`}>
+      {/* Bouton de statistiques personnelles */}
+      <button
+        onClick={loadPersonalStats}
+        style={{
+          position: 'fixed',
+          top: '1rem',
+          right: '1rem',
+          backgroundColor: 'rgba(0, 0, 0, 0.3)',
+          border: '2px solid rgba(255, 255, 255, 0.3)',
+          borderRadius: '50%',
+          width: '50px',
+          height: '50px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          fontSize: '1.5rem',
+          zIndex: 100
+        }}
+        title="Mes statistiques"
+      >
+        📊
+      </button>
+
       <div className="score-display">
         <div className={`score-mini ${team === 1 ? 'highlighted' : ''}`} style={{ backgroundColor: 'rgba(220, 38, 38, 0.5)' }}>
           <div className="label">ÉQUIPE 1</div>
@@ -774,6 +1221,171 @@ if (step === 'game') {
       {!isPlaying && !someoneBuzzed && !isInCooldown && (
         <div className="mt-8" style={{ fontSize: '0.875rem', opacity: 0.7 }}>
           ⏸️ Attendez que l'animateur lance la musique...
+        </div>
+      )}
+
+      {/* Modale des statistiques personnelles */}
+      {showStats && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '2rem'
+          }}
+          onClick={() => setShowStats(false)}
+        >
+          <div
+            style={{
+              backgroundColor: '#1f2937',
+              borderRadius: '1.5rem',
+              padding: '2rem',
+              maxWidth: '500px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              color: 'white'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{
+              fontSize: '2rem',
+              marginBottom: '1.5rem',
+              textAlign: 'center'
+            }}>
+              📊 Mes Statistiques
+            </h2>
+
+            {/* Résumé des stats */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '1rem',
+              marginBottom: '2rem'
+            }}>
+              <div style={{
+                backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                padding: '1rem',
+                borderRadius: '0.75rem',
+                textAlign: 'center'
+              }}>
+                <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#60a5fa' }}>
+                  {personalStats.totalBuzzes}
+                </div>
+                <div style={{ fontSize: '0.875rem', opacity: 0.8, marginTop: '0.5rem' }}>
+                  Buzz totaux
+                </div>
+              </div>
+
+              <div style={{
+                backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                padding: '1rem',
+                borderRadius: '0.75rem',
+                textAlign: 'center'
+              }}>
+                <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#10b981' }}>
+                  {personalStats.winningBuzzes}
+                </div>
+                <div style={{ fontSize: '0.875rem', opacity: 0.8, marginTop: '0.5rem' }}>
+                  Buzz gagnants
+                </div>
+              </div>
+
+              <div style={{
+                backgroundColor: 'rgba(251, 191, 36, 0.2)',
+                padding: '1rem',
+                borderRadius: '0.75rem',
+                textAlign: 'center',
+                gridColumn: '1 / -1'
+              }}>
+                <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#fbbf24' }}>
+                  {personalStats.totalPoints}
+                </div>
+                <div style={{ fontSize: '0.875rem', opacity: 0.8, marginTop: '0.5rem' }}>
+                  Points gagnés ({personalStats.percentageContribution}% de l'équipe)
+                </div>
+              </div>
+            </div>
+
+            {/* Liste des chansons reconnues */}
+            {personalStats.recognizedSongs.length > 0 ? (
+              <>
+                <h3 style={{
+                  fontSize: '1.25rem',
+                  marginBottom: '1rem',
+                  color: '#10b981'
+                }}>
+                  🎵 Chansons reconnues
+                </h3>
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem',
+                  marginBottom: '1.5rem'
+                }}>
+                  {personalStats.recognizedSongs.map((song, index) => (
+                    <div
+                      key={index}
+                      style={{
+                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                        padding: '1rem',
+                        borderRadius: '0.75rem',
+                        borderLeft: '4px solid #10b981'
+                      }}
+                    >
+                      <div style={{ fontWeight: 'bold', fontSize: '1.1rem', marginBottom: '0.25rem' }}>
+                        {song.title}
+                      </div>
+                      {song.artist && (
+                        <div style={{ fontSize: '0.9rem', opacity: 0.7, marginBottom: '0.5rem' }}>
+                          {song.artist}
+                        </div>
+                      )}
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        fontSize: '0.875rem',
+                        opacity: 0.8
+                      }}>
+                        <span>⏱️ {song.time.toFixed(1)}s</span>
+                        <span>💰 {song.points} pts</span>
+                        <span>#{song.trackNumber}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div style={{
+                textAlign: 'center',
+                padding: '2rem',
+                opacity: 0.6,
+                marginBottom: '1.5rem'
+              }}>
+                Aucune chanson reconnue pour le moment. Continuez à buzzer ! 🎵
+              </div>
+            )}
+
+            <button
+              onClick={() => setShowStats(false)}
+              className="btn"
+              style={{
+                width: '100%',
+                padding: '1rem',
+                fontSize: '1.1rem',
+                backgroundColor: '#6b7280'
+              }}
+            >
+              Fermer
+            </button>
+          </div>
         </div>
       )}
     </div>

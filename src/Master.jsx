@@ -1,9 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { database } from './firebase';
+import { database, auth } from './firebase';
 import { ref, onValue, remove, set } from 'firebase/database';
 import { spotifyService } from './spotifyService';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { QRCodeSVG } from 'qrcode.react';
 
 // Import des composants
+import Login from './components/Login';
 import SpotifyConnection from './components/master/SpotifyConnection';
 import PlaylistSelector from './components/master/PlaylistSelector';
 import PlayerControls from './components/master/PlayerControls';
@@ -35,6 +38,22 @@ function calculatePoints(chrono, songDuration) {
 }
 
 export default function Master() {
+  // États d'authentification et session
+  const [user, setUser] = useState(null);
+  const [sessionId, setSessionId] = useState(null);
+  const [showQRCode, setShowQRCode] = useState(false);
+  const [showSessionModal, setShowSessionModal] = useState(false);
+
+  // États des paramètres de cooldown
+  const [cooldownThreshold, setCooldownThreshold] = useState(2); // Nombre de bonnes réponses d'affilée
+  const [cooldownDuration, setCooldownDuration] = useState(5000); // Durée du freeze en ms
+  const [showCooldownSettings, setShowCooldownSettings] = useState(false);
+
+  // État du mode de jeu
+  const [gameMode, setGameMode] = useState(null); // 'mp3' | 'spotify-import' | 'spotify-ai'
+  const [showModeSelector, setShowModeSelector] = useState(false);
+  const [isCreatingAIPlaylist, setIsCreatingAIPlaylist] = useState(false);
+
   // États principaux
   const [playlist, setPlaylist] = useState([]);
   const [currentTrack, setCurrentTrack] = useState(0);
@@ -63,6 +82,15 @@ export default function Master() {
   
   const audioRef = useRef(null);
   const buzzerSoundRef = useRef(null);
+
+  // Gestion de l'authentification
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      // Le code de session sera généré lors du clic sur "Nouvelle partie"
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Vérifier connexion Spotify au chargement
   useEffect(() => {
@@ -102,7 +130,8 @@ export default function Master() {
 
   // Synchroniser chrono avec Firebase
   useEffect(() => {
-    const chronoRef = ref(database, 'chrono');
+    if (!sessionId) return;
+    const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
     const unsubscribe = onValue(chronoRef, (snapshot) => {
       const value = snapshot.val();
       if (value !== null) {
@@ -110,11 +139,31 @@ export default function Master() {
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [sessionId]);
+
+  // Mettre à jour le chrono toutes les 100ms quand la musique joue
+  useEffect(() => {
+    if (!sessionId) return;
+    let interval;
+    if (isPlaying) {
+      interval = setInterval(() => {
+        setCurrentChrono(prev => {
+          const newChrono = parseFloat((prev + 0.1).toFixed(1));
+          // Écrire dans Firebase
+          const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
+          set(chronoRef, newChrono);
+          return newChrono;
+        });
+      }, 100);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isPlaying, sessionId]);
 
 // Écouter les buzz
 useEffect(() => {
-  const buzzRef = ref(database, 'buzz');
+  const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
   const unsubscribe = onValue(buzzRef, (snapshot) => {
     const buzzData = snapshot.val();
     
@@ -137,26 +186,29 @@ useEffect(() => {
       }
       
       setIsPlaying(false);
-      const playingRef = ref(database, 'isPlaying');
+      const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
       set(playingRef, false);
-      
-      // ✅ FIX : S'assurer que buzzTime est défini avant de sauvegarder
-      const buzzTimesRef = ref(database, `buzz_times/${currentTrack}`);
+
+      // ✅ Enregistrer TOUS les buzz (gagnants et perdants)
+      const buzzTimesRef = ref(database, `sessions/${sessionId}/buzz_times/${currentTrack}`);
       const newBuzz = {
         team,
-        time: buzzTime, // ✅ Utilise le chrono actuel
+        teamName: team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2',
+        time: buzzTime,
         playerName: buzzData.playerName || 'Anonyme',
         songTitle: playlist[currentTrack]?.title || 'Inconnu',
         songArtist: playlist[currentTrack]?.artist || 'Inconnu',
         trackNumber: currentTrack + 1,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        correct: null, // Sera mis à jour à true ou false plus tard
+        points: 0
       };
-      
+
       onValue(buzzTimesRef, (snapshot) => {
         const existingBuzzes = snapshot.val() || [];
         set(buzzTimesRef, [...existingBuzzes, newBuzz]);
       }, { onlyOnce: true });
-      
+
       setDebugInfo(`🔔 ${team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2'} a buzzé à ${buzzTime.toFixed(1)}s !`);
     }
   });
@@ -172,33 +224,44 @@ useEffect(() => {
   const loadSpotifyPlaylists = async (token) => {
     try {
       const allPlaylists = await spotifyService.getUserPlaylists(token);
-      const filteredPlaylists = allPlaylists.filter(playlist => 
-        playlist.description && playlist.description.includes('#BT')
-      );
-      
-      setSpotifyPlaylists(filteredPlaylists);
-      
-      if (filteredPlaylists.length === 0) {
-        setDebugInfo('⚠️ Aucune playlist avec le tag #BT trouvée');
-      } else {
-        setDebugInfo(`✅ ${filteredPlaylists.length} playlist(s) avec tag #BT`);
-      }
+
+      // OPTION 1 : Afficher TOUTES les playlists (filtre désactivé)
+      setSpotifyPlaylists(allPlaylists);
+      setDebugInfo(`✅ ${allPlaylists.length} playlist(s) chargées`);
+
+      // OPTION 2 : Filtrer uniquement celles avec #BT (décommentez pour activer)
+      // const filteredPlaylists = allPlaylists.filter(playlist =>
+      //   playlist.description && playlist.description.includes('#BT')
+      // );
+      // setSpotifyPlaylists(filteredPlaylists);
+      // if (filteredPlaylists.length === 0) {
+      //   setDebugInfo('⚠️ Aucune playlist avec le tag #BT trouvée');
+      // } else {
+      //   setDebugInfo(`✅ ${filteredPlaylists.length} playlist(s) avec tag #BT`);
+      // }
     } catch (error) {
       console.error('Error loading playlists:', error);
       setDebugInfo('❌ Erreur chargement playlists');
     }
   };
 
-  const importSpotifyPlaylist = async (playlistId) => {
+  const handleSelectPlaylist = async (playlistId) => {
     try {
       setDebugInfo('⏳ Import en cours...');
       const tracks = await spotifyService.getPlaylistTracks(spotifyToken, playlistId);
-      
+
       setPlaylist(tracks);
       setIsSpotifyMode(true);
       setShowPlaylistSelector(false);
       setDebugInfo(`✅ ${tracks.length} morceaux importés`);
-      
+
+      // Stocker l'ID de playlist dans Firebase
+      if (sessionId) {
+        const playlistIdRef = ref(database, `sessions/${sessionId}/playlistId`);
+        await set(playlistIdRef, playlistId);
+        console.log(`✅ Playlist ID ${playlistId} stocké dans Firebase`);
+      }
+
       if (!spotifyPlayer) {
         const player = await spotifyService.initPlayer(
           spotifyToken,
@@ -212,14 +275,14 @@ useEffect(() => {
         );
         setSpotifyPlayer(player);
       }
-      
-      const scoresRef = ref(database, 'scores');
+
+      const scoresRef = ref(database, `sessions/${sessionId}/scores`);
       set(scoresRef, { team1: 0, team2: 0 });
-      const chronoRef = ref(database, 'chrono');
+      const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
       set(chronoRef, 0);
       setScores({ team1: 0, team2: 0 });
       setCurrentChrono(0);
-      
+
     } catch (error) {
       console.error('Error importing playlist:', error);
       setDebugInfo('❌ Erreur import playlist');
@@ -235,18 +298,18 @@ useEffect(() => {
       imageUrl: null,
       revealed: false
     };
-    
-    if (playlist.length === 0) {
-      const scoresRef = ref(database, 'scores');
+
+    if (playlist.length === 0 && sessionId) {
+      const scoresRef = ref(database, `sessions/${sessionId}/scores`);
       set(scoresRef, { team1: 0, team2: 0 });
-      const chronoRef = ref(database, 'chrono');
+      const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
       set(chronoRef, 0);
-      const playingRef = ref(database, 'isPlaying');
+      const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
       set(playingRef, false);
       setScores({ team1: 0, team2: 0 });
       setCurrentChrono(0);
     }
-    
+
     setPlaylist([...playlist, newTrack]);
     setIsSpotifyMode(false);
   };
@@ -291,38 +354,45 @@ useEffect(() => {
   };
 
 const togglePlay = async () => {
+  if (!sessionId) {
+    setDebugInfo('❌ Aucune session active');
+    return;
+  }
+
   if (!isPlaying) {
-    // ✅ ACTIVER LES COOLDOWNS EN ATTENTE seulement au PLAY
+    // ✅ ACTIVER LES COOLDOWNS EN ATTENTE avant de démarrer la chanson
     const activatePendingCooldowns = async () => {
       const teams = ['team1', 'team2'];
-      
+
       for (const teamKey of teams) {
-        const playersRef = ref(database, `players_session/${teamKey}`);
+        const playersRef = ref(database, `sessions/${sessionId}/players_session/${teamKey}`);
         const snapshot = await new Promise((resolve) => {
           onValue(playersRef, resolve, { onlyOnce: true });
         });
-        
+
         const players = snapshot.val();
         if (players) {
           for (const [playerKey, playerData] of Object.entries(players)) {
             if (playerData.hasCooldownPending) {
-              const playerRef = ref(database, `players_session/${teamKey}/${playerKey}`);
+              const playerRef = ref(database, `sessions/${sessionId}/players_session/${teamKey}/${playerKey}`);
               await set(playerRef, {
                 ...playerData,
-                cooldownEnd: Date.now() + 5000,
+                cooldownEnd: Date.now() + cooldownDuration, // Le décompte commence MAINTENANT
                 hasCooldownPending: false
               });
-              console.log(`🔥 Cooldown activé pour ${playerData.name}`);
+              console.log(`🔥 Cooldown de ${cooldownDuration / 1000}s activé pour ${playerData.name} au démarrage de la chanson`);
             }
           }
         }
       }
     };
-    
+
+    // IMPORTANT : Attendre l'activation des cooldowns AVANT de continuer
     await activatePendingCooldowns();
-    
+
+    // Réinitialiser l'état du buzz quand on démarre une nouvelle chanson
     setBuzzedTeam(null);
-    const buzzRef = ref(database, 'buzz');
+    const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
     remove(buzzRef);
   }
   
@@ -347,7 +417,7 @@ const togglePlay = async () => {
         setIsPlaying(false);
         setDebugInfo('⏸️ Pause');
         
-        const playingRef = ref(database, 'isPlaying');
+        const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
         set(playingRef, false);
       } else {
         const isNewTrack = lastPlayedTrack !== currentTrack;
@@ -363,11 +433,11 @@ const togglePlay = async () => {
         setIsPlaying(true);
         setLastPlayedTrack(currentTrack);
         setDebugInfo('▶️ Lecture');
-        
-        const playingRef = ref(database, 'isPlaying');
+
+        const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
         set(playingRef, true);
-        
-        const songRef = ref(database, 'currentSong');
+
+        const songRef = ref(database, `sessions/${sessionId}/currentSong`);
         set(songRef, {
           title: playlist[currentTrack].title,
           artist: playlist[currentTrack].artist,
@@ -375,6 +445,12 @@ const togglePlay = async () => {
           revealed: false,
           number: currentTrack + 1
         });
+
+        // Écrire la durée de la chanson dans Firebase
+        const duration = playlist[currentTrack].duration || 30;
+        setSongDuration(duration);
+        const durationRef = ref(database, `sessions/${sessionId}/songDuration`);
+        set(durationRef, duration);
       }
     } catch (error) {
       console.error('Erreur Spotify:', error);
@@ -389,17 +465,17 @@ const togglePlay = async () => {
       setIsPlaying(false);
       setDebugInfo('⏸️ Pause');
       
-      const playingRef = ref(database, 'isPlaying');
+      const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
       set(playingRef, false);
     } else {
       audioRef.current.play();
       setIsPlaying(true);
       setDebugInfo('▶️ Lecture');
       
-      const playingRef = ref(database, 'isPlaying');
+      const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
       set(playingRef, true);
       
-      const songRef = ref(database, 'currentSong');
+      const songRef = ref(database, `sessions/${sessionId}/currentSong`);
       set(songRef, {
         title: playlist[currentTrack].title,
         artist: playlist[currentTrack].artist,
@@ -418,27 +494,31 @@ const togglePlay = async () => {
       } else if (audioRef.current) {
         audioRef.current.pause();
       }
-      
+
       const newTrackIndex = currentTrack + 1;
       setCurrentTrack(newTrackIndex);
       setIsPlaying(false);
       setBuzzedTeam(null);
-      
-      const buzzRef = ref(database, 'buzz');
+
+      if (!sessionId) return;
+
+      const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
       remove(buzzRef);
-      
+
       setSpotifyPosition(0);
-      
-      const chronoRef = ref(database, 'chrono');
+
+      // Réinitialiser le chrono (local + Firebase)
+      setCurrentChrono(0);
+      const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
       set(chronoRef, 0);
-      
-      const playingRef = ref(database, 'isPlaying');
+
+      const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
       set(playingRef, false);
-      
-      const trackNumberRef = ref(database, 'currentTrackNumber');
+
+      const trackNumberRef = ref(database, `sessions/${sessionId}/currentTrackNumber`);
       set(trackNumberRef, newTrackIndex);
-      
-      const songRef = ref(database, 'currentSong');
+
+      const songRef = ref(database, `sessions/${sessionId}/currentSong`);
       set(songRef, {
         title: '',
         artist: '',
@@ -446,6 +526,12 @@ const togglePlay = async () => {
         revealed: false,
         number: newTrackIndex + 1
       });
+
+      // Charger l'audio en mode MP3
+      if (!isSpotifyMode && audioRef.current && playlist[newTrackIndex].audioUrl) {
+        audioRef.current.src = playlist[newTrackIndex].audioUrl;
+        audioRef.current.load();
+      }
     }
   };
 
@@ -456,47 +542,79 @@ const togglePlay = async () => {
       } else if (audioRef.current) {
         audioRef.current.pause();
       }
-      
+
       const newTrackIndex = currentTrack - 1;
       setCurrentTrack(newTrackIndex);
       setIsPlaying(false);
       setBuzzedTeam(null);
-      
-      const buzzRef = ref(database, 'buzz');
+
+      if (!sessionId) return;
+
+      const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
       remove(buzzRef);
-      
+
       setSpotifyPosition(0);
-      
-      const chronoRef = ref(database, 'chrono');
+
+      // Réinitialiser le chrono (local + Firebase)
+      setCurrentChrono(0);
+      const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
       set(chronoRef, 0);
-      
-      const playingRef = ref(database, 'isPlaying');
+
+      const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
       set(playingRef, false);
-      
-      const trackNumberRef = ref(database, 'currentTrackNumber');
+
+      const trackNumberRef = ref(database, `sessions/${sessionId}/currentTrackNumber`);
       set(trackNumberRef, newTrackIndex);
+
+      const songRef = ref(database, `sessions/${sessionId}/currentSong`);
+      set(songRef, {
+        title: '',
+        artist: '',
+        imageUrl: null,
+        revealed: false,
+        number: newTrackIndex + 1
+      });
+
+      // Charger l'audio en mode MP3
+      if (!isSpotifyMode && audioRef.current && playlist[newTrackIndex].audioUrl) {
+        audioRef.current.src = playlist[newTrackIndex].audioUrl;
+        audioRef.current.load();
+      }
     }
   };
 
 const revealAnswer = async () => {
+  // ✅ Marquer le dernier buzz de ce track comme incorrect
+  const buzzTimesRef = ref(database, `sessions/${sessionId}/buzz_times/${currentTrack}`);
+  onValue(buzzTimesRef, (snapshot) => {
+    const existingBuzzes = snapshot.val() || [];
+    if (existingBuzzes.length > 0) {
+      // Mettre à jour le dernier buzz (celui qui vient d'être invalidé)
+      const lastIndex = existingBuzzes.length - 1;
+      existingBuzzes[lastIndex].correct = false;
+      existingBuzzes[lastIndex].points = 0;
+      set(buzzTimesRef, existingBuzzes);
+    }
+  }, { onlyOnce: true });
+
   // Reset le streak du joueur qui s'est trompé
-  const buzzRef = ref(database, 'buzz');
-  
+  const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
+
   onValue(buzzRef, async (snapshot) => {
     const buzzData = snapshot.val();
     if (buzzData && buzzData.playerFirebaseKey) { // ✅ Vérifier la clé
       const playerFirebaseKey = buzzData.playerFirebaseKey;
       const teamKey = buzzData.team === 'team1' ? 'team1' : 'team2';
-      
+
       // ✅ Accès DIRECT avec la clé Firebase
-      const playerRef = ref(database, `players_session/${teamKey}/${playerFirebaseKey}`);
-      
+      const playerRef = ref(database, `sessions/${sessionId}/players_session/${teamKey}/${playerFirebaseKey}`);
+
       onValue(playerRef, async (playerSnapshot) => {
         const playerData = playerSnapshot.val();
-        
+
         if (playerData) {
-          await set(playerRef, { 
-            ...playerData, 
+          await set(playerRef, {
+            ...playerData,
             consecutiveCorrect: 0 // Reset le streak
           });
         }
@@ -507,31 +625,27 @@ const revealAnswer = async () => {
   const updatedPlaylist = [...playlist];
   updatedPlaylist[currentTrack].revealed = true;
   setPlaylist(updatedPlaylist);
-  
+
   setBuzzedTeam(null);
   remove(buzzRef);
-  
-  // Relancer la lecture
-  const playingRef = ref(database, 'isPlaying');
-  set(playingRef, true);
-  setIsPlaying(true);
-  
-  if (isSpotifyMode && spotifyToken && spotifyDeviceId) {
+
+  // ARRÊTER la lecture et figer le chrono (personne n'a trouvé)
+  const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
+  set(playingRef, false);
+  setIsPlaying(false);
+
+  // Arrêter la musique
+  if (isSpotifyMode && spotifyToken) {
     try {
-      await spotifyService.playTrack(
-        spotifyToken,
-        spotifyDeviceId,
-        playlist[currentTrack].spotifyUri,
-        spotifyPosition || 0
-      );
+      await spotifyService.pausePlayback(spotifyToken);
     } catch (error) {
-      console.error('Erreur relance Spotify:', error);
+      console.error('Erreur pause Spotify:', error);
     }
   } else if (audioRef.current) {
-    audioRef.current.play();
+    audioRef.current.pause();
   }
-  
-  const songRef = ref(database, 'currentSong');
+
+  const songRef = ref(database, `sessions/${sessionId}/currentSong`);
   set(songRef, {
     title: updatedPlaylist[currentTrack].title,
     artist: updatedPlaylist[currentTrack].artist,
@@ -539,21 +653,36 @@ const revealAnswer = async () => {
     revealed: true,
     number: currentTrack + 1
   });
-  
-  setDebugInfo(`✅ Réponse révélée - Lecture reprise`);
+
+  setDebugInfo(`✅ Réponse révélée - Chrono figé à ${currentChrono.toFixed(1)}s`);
 };
 
 const addPoint = async (team) => {
   const points = calculatePoints(currentChrono, songDuration);
-  
+
   const newScores = { ...scores, [team]: scores[team] + points };
   setScores(newScores);
-  
-  const scoresRef = ref(database, 'scores');
+
+  const scoresRef = ref(database, `sessions/${sessionId}/scores`);
   set(scoresRef, newScores);
-  
+
+  // Référence au buzz actuel
+  const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
+
+  // ✅ Marquer le dernier buzz de ce track comme correct et ajouter les points
+  const buzzTimesRef = ref(database, `sessions/${sessionId}/buzz_times/${currentTrack}`);
+  onValue(buzzTimesRef, (snapshot) => {
+    const existingBuzzes = snapshot.val() || [];
+    if (existingBuzzes.length > 0) {
+      // Mettre à jour le dernier buzz (celui qui vient d'être validé)
+      const lastIndex = existingBuzzes.length - 1;
+      existingBuzzes[lastIndex].correct = true;
+      existingBuzzes[lastIndex].points = points;
+      set(buzzTimesRef, existingBuzzes);
+    }
+  }, { onlyOnce: true });
+
   // ✅ Mettre à jour les stats du joueur en utilisant SA CLÉ FIREBASE
-  const buzzRef = ref(database, 'buzz');
   
   onValue(buzzRef, async (snapshot) => {
     const buzzData = snapshot.val();
@@ -562,7 +691,7 @@ const addPoint = async (team) => {
       const teamKey = team === 'team1' ? 'team1' : 'team2';
       
       // ✅ Accès DIRECT avec la clé Firebase
-      const playerRef = ref(database, `players_session/${teamKey}/${playerFirebaseKey}`);
+      const playerRef = ref(database, `sessions/${sessionId}/players_session/${teamKey}/${playerFirebaseKey}`);
       
       onValue(playerRef, async (playerSnapshot) => {
         const playerData = playerSnapshot.val();
@@ -576,16 +705,16 @@ const addPoint = async (team) => {
             correctCount: correctCount,
             buzzCount: (playerData.buzzCount || 0) + 1
           };
-          
-          // Si 2 bonnes réponses consécutives → COOLDOWN !
-          if (consecutiveCorrect >= 2) {
-            updates.hasCooldownPending = true;
+
+          // Si seuil de bonnes réponses consécutives atteint → COOLDOWN EN ATTENTE !
+          if (consecutiveCorrect >= cooldownThreshold) {
+            updates.hasCooldownPending = true; // Le cooldown sera activé au prochain play
             updates.consecutiveCorrect = 0;
             console.log(`🔥 ${playerData.name} aura un COOLDOWN à la prochaine chanson ! Total: ${correctCount} bonnes réponses`);
           } else {
             console.log(`✅ ${playerData.name} : ${correctCount} bonne(s) réponse(s)`);
           }
-          
+
           await set(playerRef, { ...playerData, ...updates });
         }
       }, { onlyOnce: true });
@@ -599,7 +728,7 @@ const addPoint = async (team) => {
   updatedPlaylist[currentTrack].revealed = true;
   setPlaylist(updatedPlaylist);
   
-  const songRef = ref(database, 'currentSong');
+  const songRef = ref(database, `sessions/${sessionId}/currentSong`);
   set(songRef, {
     title: updatedPlaylist[currentTrack].title,
     artist: updatedPlaylist[currentTrack].artist,
@@ -613,42 +742,137 @@ const addPoint = async (team) => {
 
   // === GESTION DE PARTIE ===
   const resetScores = () => {
-    if (!confirm('⚠️ Réinitialiser toute la partie ?')) return;
-    
+    // Message différent selon si c'est la première partie ou non
+    const confirmMessage = sessionId
+      ? '⚠️ Créer une nouvelle partie ? Cela générera un nouveau code de session.'
+      : '🎮 Créer une nouvelle partie ?';
+
+    if (!confirm(confirmMessage)) return;
+
+    // Afficher la modale de sélection de mode
+    setShowModeSelector(true);
+  };
+
+  // Fonction pour créer une playlist avec l'IA via n8n
+  const createAIPlaylist = async (newSessionId) => {
+    try {
+      setIsCreatingAIPlaylist(true);
+      setDebugInfo('🤖 Génération de la playlist par l\'IA...');
+
+      const response = await fetch('https://n8n.srv1038816.hstgr.cloud/webhook-test/create-playlist', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          sessionId: newSessionId
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Erreur lors de la création de la playlist IA');
+      }
+
+      const data = await response.json();
+      const playlistId = data.playlistId;
+
+      if (!playlistId) {
+        throw new Error('Aucun playlistId retourné par le webhook');
+      }
+
+      // Stocker le playlistId dans Firebase
+      const playlistIdRef = ref(database, `sessions/${newSessionId}/playlistId`);
+      await set(playlistIdRef, playlistId);
+      console.log(`✅ Playlist IA créée avec ID ${playlistId} stocké dans Firebase`);
+
+      // Charger les tracks de la playlist créée
+      const tracks = await spotifyService.getPlaylistTracks(spotifyToken, playlistId);
+      setPlaylist(tracks);
+      setIsSpotifyMode(true);
+      setDebugInfo(`✅ Playlist IA créée : ${tracks.length} morceaux importés`);
+
+      // Initialiser le player Spotify si nécessaire
+      if (!spotifyPlayer) {
+        const player = await spotifyService.initPlayer(
+          spotifyToken,
+          (deviceId) => setSpotifyDeviceId(deviceId),
+          (state) => {
+            if (state) {
+              setSongDuration(state.duration / 1000);
+              setSpotifyPosition(state.position);
+            }
+          }
+        );
+        setSpotifyPlayer(player);
+      }
+
+      setIsCreatingAIPlaylist(false);
+    } catch (error) {
+      console.error('❌ Erreur création playlist IA:', error);
+      setDebugInfo('❌ Erreur lors de la création de la playlist IA');
+      setIsCreatingAIPlaylist(false);
+    }
+  };
+
+  // Créer une nouvelle partie avec le mode sélectionné
+  const createNewGameWithMode = async (selectedMode) => {
+    setGameMode(selectedMode);
+    setShowModeSelector(false);
+
+    // Marquer l'ancienne session comme inactive (si elle existe)
+    if (sessionId) {
+      const oldSessionRef = ref(database, `sessions/${sessionId}`);
+      set(oldSessionRef, {
+        active: false,
+        endedAt: Date.now()
+      });
+    }
+
+    // Générer un nouveau code de session
+    const newSessionId = Math.random().toString(36).substring(2, 8).toUpperCase();
+    setSessionId(newSessionId);
+
+    // Créer la nouvelle session dans Firebase
+    set(ref(database, `sessions/${newSessionId}`), {
+      createdBy: user.uid,
+      createdAt: Date.now(),
+      active: true,
+      gameMode: selectedMode
+    });
+
+    // Réinitialiser tous les états
     const newScores = { team1: 0, team2: 0 };
     setScores(newScores);
-    const scoresRef = ref(database, 'scores');
+    const scoresRef = ref(database, `sessions/${newSessionId}/scores`);
     set(scoresRef, newScores);
-    
+
     setPlaylist([]);
     setCurrentTrack(0);
     setIsPlaying(false);
-    
-    const chronoRef = ref(database, 'chrono');
+
+    const chronoRef = ref(database, `sessions/${newSessionId}/chrono`);
     set(chronoRef, 0);
     setCurrentChrono(0);
-    
-    const playingRef = ref(database, 'isPlaying');
-    set(playingRef, false);
-    
-    const songRef = ref(database, 'currentSong');
-    set(songRef, null);
-    
-    const gameStatusRef = ref(database, 'game_status');
-    set(gameStatusRef, { ended: false });
-    
-    const buzzTimesRef = ref(database, 'buzz_times');
-    set(buzzTimesRef, null);
 
-    // ✅ NOUVEAU : Supprimer tous les joueurs de la session
-    const playersSessionRef = ref(database, 'players_session');
-    set(playersSessionRef, null);
-    
-    // ✅ NOUVEAU : Supprimer le buzz en cours
-    const buzzRef = ref(database, 'buzz');
-    remove(buzzRef);
-    
-    setDebugInfo('🔄 Partie réinitialisée !');
+    const playingRef = ref(database, `sessions/${newSessionId}/isPlaying`);
+    set(playingRef, false);
+
+    const songRef = ref(database, `sessions/${newSessionId}/currentSong`);
+    set(songRef, null);
+
+    const gameStatusRef = ref(database, `sessions/${newSessionId}/game_status`);
+    set(gameStatusRef, { ended: false });
+
+    setShowQRCode(false);
+    const qrCodeRef = ref(database, `sessions/${newSessionId}/showQRCode`);
+    set(qrCodeRef, false);
+
+    setDebugInfo(`🔄 Nouvelle partie créée ! Code: ${newSessionId}`);
+
+    // Si mode IA, créer automatiquement la playlist
+    if (selectedMode === 'spotify-ai') {
+      await createAIPlaylist(newSessionId);
+    }
   };
 
 const loadBuzzStats = (shouldShow = true) => {
@@ -659,7 +883,7 @@ const loadBuzzStats = (shouldShow = true) => {
   }
   
   // Ouvrir la modale et charger les données
-  const buzzTimesRef = ref(database, 'buzz_times');
+  const buzzTimesRef = ref(database, `sessions/${sessionId}/buzz_times`);
   onValue(buzzTimesRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
@@ -681,15 +905,15 @@ const loadBuzzStats = (shouldShow = true) => {
     setShowEndGameConfirm(true);
   };
 
-  const confirmEndGame = () => {
-    const gameStatusRef = ref(database, 'game_status');
+  const endGame = () => {
+    const gameStatusRef = ref(database, `sessions/${sessionId}/game_status`);
     set(gameStatusRef, {
       ended: true,
       winner: scores.team1 > scores.team2 ? 'team1' : scores.team2 > scores.team1 ? 'team2' : 'draw',
       final_scores: scores,
       timestamp: Date.now()
     });
-    
+
     setShowEndGameConfirm(false);
     setDebugInfo('🎉 Partie terminée !');
   };
@@ -697,254 +921,960 @@ const loadBuzzStats = (shouldShow = true) => {
   const currentSong = playlist[currentTrack];
   const availablePoints = calculatePoints(currentChrono, songDuration);
 
+  // Gestion de la déconnexion
+  const handleLogout = async () => {
+    await signOut(auth);
+    setSessionId(null);
+  };
+
+  // Charger une chanson depuis la playlist
+  const loadTrack = (index) => {
+    // Ne pas charger si la chanson a déjà été révélée
+    if (playlist[index].revealed) return;
+
+    // Arrêter la musique en cours
+    if (isSpotifyMode && spotifyToken) {
+      spotifyService.pausePlayback(spotifyToken);
+    } else if (audioRef.current) {
+      audioRef.current.pause();
+    }
+
+    setCurrentTrack(index);
+    setIsPlaying(false);
+    setBuzzedTeam(null);
+
+    const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
+    remove(buzzRef);
+
+    setSpotifyPosition(0);
+    setCurrentChrono(0);
+    const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
+    set(chronoRef, 0);
+
+    const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
+    set(playingRef, false);
+
+    const trackNumberRef = ref(database, `sessions/${sessionId}/currentTrackNumber`);
+    set(trackNumberRef, index);
+
+    const songRef = ref(database, `sessions/${sessionId}/currentSong`);
+    set(songRef, {
+      title: '',
+      artist: '',
+      imageUrl: null,
+      revealed: false,
+      number: index + 1
+    });
+
+    // Charger l'audio en mode MP3
+    if (!isSpotifyMode && audioRef.current && playlist[index].audioUrl) {
+      audioRef.current.src = playlist[index].audioUrl;
+      audioRef.current.load();
+    }
+
+    setDebugInfo(`🎵 Chanson #${index + 1} chargée`);
+  };
+
+  // Afficher/masquer le QR Code sur TV
+  const toggleQRCodeOnTV = () => {
+    const qrCodeRef = ref(database, `sessions/${sessionId}/showQRCode`);
+    set(qrCodeRef, !showQRCode);
+    setShowQRCode(!showQRCode);
+  };
+
+  // Si l'utilisateur n'est pas connecté, afficher le Login
+  if (!user) {
+    return <Login onLoginSuccess={() => {}} />;
+  }
+
   return (
-    <div className="bg-gradient">
-      <div className="container">
-        <h1 className="title">🎵 BLIND TEST 🎵</h1>
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      color: 'white'
+    }}>
+      {/* HEADER */}
+      <header style={{
+        background: 'rgba(0, 0, 0, 0.3)',
+        backdropFilter: 'blur(10px)',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+        padding: '1rem 2rem',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        position: 'sticky',
+        top: 0,
+        zIndex: 100
+      }}>
+        <h1 style={{
+          fontSize: '1.75rem',
+          fontWeight: 'bold',
+          margin: 0,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem'
+        }}>
+          🎵 BLIND TEST
+        </h1>
 
-        {/* Connexion Spotify */}
-        <SpotifyConnection
-          spotifyToken={spotifyToken}
-          onConnect={handleSpotifyLogin}
-          onShowPlaylists={() => setShowPlaylistSelector(true)}
-          onAddManual={handleManualAdd}
-        />
-
-        {/* Sélecteur de playlist */}
-        <PlaylistSelector
-          show={showPlaylistSelector}
-          playlists={spotifyPlaylists}
-          onSelect={importSpotifyPlaylist}
-          onClose={() => setShowPlaylistSelector(false)}
-        />
-
-        {/* Scores */}
-        <ScoreDisplay scores={scores} buzzedTeam={buzzedTeam} />
-
-        {/* Modal de buzz */}
-        {buzzedTeam && (
-          <BuzzAlert
-            buzzedTeam={buzzedTeam}
-            buzzedPlayerKey={buzzedPlayerKey}
-            currentChrono={currentChrono}
-            availablePoints={availablePoints}
-            onCorrect={() => addPoint(buzzedTeam)}
-            onWrong={revealAnswer}
-          />
-        )}
-
-        {/* Paramètres */}
-        <GameSettings
-          playlist={playlist}
-          scores={scores}
-          showStats={showStats}
-          buzzStats={buzzStats}
-          showEndGameConfirm={showEndGameConfirm}
-          onResetGame={resetScores}
-          onShowStats={loadBuzzStats}
-          onEndGame={handleEndGame}
-          onConfirmEndGame={confirmEndGame}
-          onCancelEndGame={() => setShowEndGameConfirm(false)}
-        />
-
-        {/* Lecteur */}
-        {playlist.length === 0 ? (
-          <div className="player-box text-center">
-            <h3 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>
-              Aucune playlist chargée
-            </h3>
-            <p>Connectez-vous à Spotify ou ajoutez des morceaux</p>
-          </div>
-        ) : (
-          <>
-            <div className="player-box">
-              <h3 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>
-                Morceau {currentTrack + 1} / {playlist.length}
-              </h3>
-              
-              {currentSong && (
-                <>
-                  {currentSong.revealed ? (
-                    <div className="revealed mb-4">
-                      <div style={{ fontWeight: 'bold', fontSize: '1.5rem' }}>
-                        {currentSong.title}
-                      </div>
-                      {currentSong.artist && (
-                        <div style={{ opacity: 0.8, marginTop: '0.5rem' }}>
-                          {currentSong.artist}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-mystery mb-4">🎵 Mystère...</div>
-                  )}
-
-                  {currentSong.imageUrl && (
-                    <div className="mb-4">
-                      <img 
-                        src={currentSong.imageUrl} 
-                        alt="Album cover" 
-                        style={{ 
-                          width: '150px', 
-                          height: '150px', 
-                          objectFit: 'cover', 
-                          borderRadius: '0.5rem',
-                          margin: '0 auto',
-                          display: 'block'
-                        }} 
-                      />
-                    </div>
-                  )}
-                </>
-              )}
-
-              {!isSpotifyMode && (
-                <audio 
-                  ref={audioRef}
-                  src={currentSong?.audioUrl || ''}
-                  onEnded={() => setIsPlaying(false)}
-                  onLoadedMetadata={(e) => {
-                    const duration = e.target.duration;
-                    setSongDuration(duration);
-                    const durationRef = ref(database, 'songDuration');
-                    set(durationRef, duration);
-                  }}
-                />
-              )}
-
-              {debugInfo && (
-                <div className="debug-info mb-4">{debugInfo}</div>
-              )}
-
-              <PlayerControls
-                isPlaying={isPlaying}
-                currentTrack={currentTrack}
-                playlistLength={playlist.length}
-                currentSong={currentSong}
-                isSpotifyMode={isSpotifyMode}
-                onPlay={togglePlay}
-                onPrev={prevTrack}
-                onNext={nextTrack}
-                onReveal={revealAnswer}
-              />
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          {/* Statut Spotify */}
+          {spotifyToken ? (
+            <div style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: 'rgba(16, 185, 129, 0.2)',
+              border: '1px solid #10b981',
+              borderRadius: '0.5rem',
+              fontSize: '0.9rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <span style={{ color: '#10b981' }}>●</span>
+              Spotify connecté
             </div>
+          ) : null}
 
-            {/* Playlist */}
-            <div className="player-box">
-              <div style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center', 
-                marginBottom: '1rem' 
+          {/* Bouton Session/QR Code */}
+          {sessionId && (
+            <button
+              onClick={() => setShowSessionModal(true)}
+              className="btn"
+              style={{
+                padding: '0.5rem 1rem',
+                backgroundColor: 'rgba(124, 58, 237, 0.3)',
+                border: '1px solid #7c3aed',
+                fontSize: '0.85rem',
+                borderRadius: '0.5rem',
+                color: 'white',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+              onMouseOver={(e) => e.target.style.backgroundColor = 'rgba(124, 58, 237, 0.4)'}
+              onMouseOut={(e) => e.target.style.backgroundColor = 'rgba(124, 58, 237, 0.3)'}
+            >
+              📱 Session
+            </button>
+          )}
+
+          {/* Boutons d'actions */}
+          <button
+            onClick={resetScores}
+            className="btn"
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: 'rgba(156, 163, 175, 0.3)',
+              border: '1px solid #9ca3af',
+              fontSize: '0.85rem',
+              borderRadius: '0.5rem',
+              color: 'white',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            onMouseOver={(e) => e.target.style.backgroundColor = 'rgba(156, 163, 175, 0.4)'}
+            onMouseOut={(e) => e.target.style.backgroundColor = 'rgba(156, 163, 175, 0.3)'}
+          >
+            🔄 Nouvelle partie
+          </button>
+          <button
+            onClick={() => loadBuzzStats(true)}
+            disabled={playlist.length === 0}
+            className="btn"
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: 'rgba(124, 58, 237, 0.3)',
+              border: '1px solid #7c3aed',
+              fontSize: '0.85rem',
+              borderRadius: '0.5rem',
+              color: 'white',
+              cursor: playlist.length === 0 ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s',
+              opacity: playlist.length === 0 ? 0.5 : 1
+            }}
+            onMouseOver={(e) => {
+              if (playlist.length > 0) e.target.style.backgroundColor = 'rgba(124, 58, 237, 0.4)';
+            }}
+            onMouseOut={(e) => {
+              if (playlist.length > 0) e.target.style.backgroundColor = 'rgba(124, 58, 237, 0.3)';
+            }}
+          >
+            📊 Statistiques
+          </button>
+          <button
+            onClick={() => setShowEndGameConfirm(true)}
+            disabled={playlist.length === 0}
+            className="btn"
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: 'rgba(251, 191, 36, 0.3)',
+              border: '1px solid #fbbf24',
+              fontSize: '0.85rem',
+              borderRadius: '0.5rem',
+              color: 'white',
+              cursor: playlist.length === 0 ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s',
+              opacity: playlist.length === 0 ? 0.5 : 1
+            }}
+            onMouseOver={(e) => {
+              if (playlist.length > 0) e.target.style.backgroundColor = 'rgba(251, 191, 36, 0.4)';
+            }}
+            onMouseOut={(e) => {
+              if (playlist.length > 0) e.target.style.backgroundColor = 'rgba(251, 191, 36, 0.3)';
+            }}
+          >
+            🏁 Terminer la partie
+          </button>
+
+          <button
+            onClick={() => setShowCooldownSettings(true)}
+            className="btn"
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: 'rgba(59, 130, 246, 0.3)',
+              border: '1px solid #3b82f6',
+              fontSize: '0.85rem',
+              borderRadius: '0.5rem',
+              color: 'white',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            onMouseOver={(e) => e.target.style.backgroundColor = 'rgba(59, 130, 246, 0.4)'}
+            onMouseOut={(e) => e.target.style.backgroundColor = 'rgba(59, 130, 246, 0.3)'}
+          >
+            ⚙️ Réglages
+          </button>
+
+          <button
+            onClick={handleLogout}
+            style={{
+              padding: '0.5rem 1.5rem',
+              backgroundColor: 'rgba(239, 68, 68, 0.2)',
+              border: '1px solid #ef4444',
+              borderRadius: '0.5rem',
+              color: 'white',
+              cursor: 'pointer',
+              fontWeight: '500',
+              fontSize: '0.9rem',
+              transition: 'all 0.2s'
+            }}
+            onMouseOver={(e) => e.target.style.backgroundColor = 'rgba(239, 68, 68, 0.3)'}
+            onMouseOut={(e) => e.target.style.backgroundColor = 'rgba(239, 68, 68, 0.2)'}
+          >
+            🚪 Déconnexion
+          </button>
+        </div>
+      </header>
+
+      {/* MAIN LAYOUT */}
+      <div style={{
+        display: 'flex',
+        height: 'calc(100vh - 73px)', // 73px = header height
+        overflow: 'hidden'
+      }}>
+        {/* SIDEBAR */}
+        <aside style={{
+          width: '320px',
+          backgroundColor: 'rgba(0, 0, 0, 0.2)',
+          borderRight: '1px solid rgba(255, 255, 255, 0.1)',
+          overflowY: 'auto',
+          padding: '1.5rem',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1.5rem'
+        }}>
+          {/* Section Connexion Spotify */}
+          <SpotifyConnection
+            spotifyToken={spotifyToken}
+            onConnect={handleSpotifyLogin}
+            onShowPlaylists={() => setShowPlaylistSelector(true)}
+            onAddManual={handleManualAdd}
+            onCreateAIPlaylist={() => createAIPlaylist(sessionId)}
+            gameMode={gameMode}
+            isCreatingAI={isCreatingAIPlaylist}
+            isSpotifyMode={isSpotifyMode}
+          />
+
+          {/* Section Playlist */}
+          {playlist.length > 0 && (
+            <div style={{
+              backgroundColor: 'rgba(0, 0, 0, 0.2)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '0.75rem',
+              padding: '1.25rem',
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: 0
+            }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '0.75rem'
               }}>
-                <h3 style={{ fontSize: '1.5rem' }}>
-                  Playlist ({playlist.length})
+                <h3 style={{
+                  fontSize: '0.875rem',
+                  fontWeight: '600',
+                  opacity: 0.8,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  margin: 0
+                }}>
+                  📚 Playlist ({playlist.length})
                 </h3>
                 {!isSpotifyMode && (
-                  <button onClick={handleManualAdd} className="btn btn-purple">
+                  <button
+                    onClick={handleManualAdd}
+                    style={{
+                      padding: '0.4rem 0.8rem',
+                      backgroundColor: 'rgba(124, 58, 237, 0.3)',
+                      border: '1px solid #7c3aed',
+                      borderRadius: '0.5rem',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontSize: '0.75rem'
+                    }}
+                  >
                     + Ajouter
                   </button>
                 )}
               </div>
-              
-              <div className="space-y">
+
+              <div style={{
+                flex: 1,
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.4rem'
+              }}>
                 {playlist.map((track, index) => (
-                  <div 
+                  <div
                     key={index}
-                    className={`playlist-item ${index === currentTrack ? 'current' : ''}`}
+                    onClick={() => loadTrack(index)}
+                    style={{
+                      padding: '0.6rem',
+                      cursor: track.revealed ? 'not-allowed' : 'pointer',
+                      opacity: track.revealed ? 0.4 : 1,
+                      backgroundColor: index === currentTrack
+                        ? 'rgba(124, 58, 237, 0.4)'
+                        : 'rgba(255, 255, 255, 0.05)',
+                      border: index === currentTrack ? '1px solid #7c3aed' : '1px solid transparent',
+                      borderRadius: '0.5rem',
+                      transition: 'all 0.2s',
+                      fontSize: '0.85rem'
+                    }}
+                    onMouseOver={(e) => {
+                      if (!track.revealed) {
+                        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                      }
+                    }}
+                    onMouseOut={(e) => {
+                      if (index !== currentTrack && !track.revealed) {
+                        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                      }
+                    }}
                   >
-                    <div style={{ 
-                      display: 'flex', 
-                      justifyContent: 'space-between', 
-                      alignItems: 'flex-start', 
-                      gap: '1rem' 
-                    }}>
-                      <div style={{ flex: 1 }}>
-                        {/* Numéro et statut */}
-                        <div style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>
-                          {index + 1}. {track.revealed ? (
-                            <span style={{ color: '#10b981' }}>
-                              ✅ {track.title} {track.artist && `- ${track.artist}`}
-                            </span>
-                          ) : (
-                            <span style={{ opacity: 0.7 }}>
-                              {track.title} {track.artist && `- ${track.artist}`}
-                            </span>
-                          )}
-                        </div>
-                        
-                        {/* Indicateurs de fichiers (mode MP3 uniquement) */}
-                        {!isSpotifyMode && (
-                          <div style={{ 
-                            display: 'flex', 
-                            gap: '1rem', 
-                            fontSize: '0.875rem', 
-                            marginTop: '0.5rem' 
-                          }}>
-                            <span style={{ 
-                              color: track.audioUrl ? '#10b981' : '#ef4444' 
-                            }}>
-                              {track.audioUrl ? '✓ Audio' : '⚠️ Pas d\'audio'}
-                            </span>
-                            <span style={{ 
-                              color: track.imageUrl ? '#10b981' : '#ef4444' 
-                            }}>
-                              {track.imageUrl ? '✓ Image' : '⚠️ Pas d\'image'}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* Boutons d'upload (mode MP3 uniquement) */}
-                      {!isSpotifyMode && (
-                        <div style={{ 
-                          display: 'flex', 
-                          flexDirection: 'column', 
-                          gap: '0.5rem' 
-                        }}>
-                          {!track.audioUrl && (
-                            <label 
-                              className="file-label" 
-                              style={{ 
-                                fontSize: '0.75rem', 
-                                padding: '0.5rem 1rem' 
-                              }}
-                            >
-                              📁 MP3
-                              <input 
-                                type="file" 
-                                accept="audio/*"
-                                onChange={(e) => e.target.files[0] && handleAudioForTrack(index, e.target.files[0])}
-                              />
-                            </label>
-                          )}
-                          {!track.imageUrl && (
-                            <label 
-                              className="file-label" 
-                              style={{ 
-                                fontSize: '0.75rem', 
-                                padding: '0.5rem 1rem', 
-                                backgroundColor: '#7c3aed' 
-                              }}
-                            >
-                              🖼️ Image
-                              <input 
-                                type="file" 
-                                accept="image/*"
-                                onChange={(e) => e.target.files[0] && handleImageForTrack(index, e.target.files[0])}
-                              />
-                            </label>
-                          )}
-                        </div>
-                      )}
+                    <div style={{ fontWeight: '500' }}>
+                      {index + 1}. {track.revealed && '✅ '}
+                      {track.title}
                     </div>
+                    {track.artist && (
+                      <div style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '0.2rem' }}>
+                        {track.artist}
+                      </div>
+                    )}
+                    {!isSpotifyMode && (
+                      <div style={{
+                        display: 'flex',
+                        gap: '0.5rem',
+                        fontSize: '0.7rem',
+                        marginTop: '0.3rem'
+                      }}>
+                        <span style={{ color: track.audioUrl ? '#10b981' : '#ef4444' }}>
+                          {track.audioUrl ? '✓' : '⚠️'} Audio
+                        </span>
+                        <span style={{ color: track.imageUrl ? '#10b981' : '#ef4444' }}>
+                          {track.imageUrl ? '✓' : '⚠️'} Image
+                        </span>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             </div>
-          </>
-        )}
+          )}
+        </aside>
+
+        {/* ZONE PRINCIPALE */}
+        <main style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '2rem',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1.5rem'
+        }}>
+          {playlist.length > 0 ? (
+            <>
+              {/* Scores */}
+              <ScoreDisplay scores={scores} />
+
+              {/* Buzz Alert */}
+              {buzzedTeam && (
+                <BuzzAlert
+                  buzzedTeam={buzzedTeam}
+                  buzzedPlayerKey={buzzedPlayerKey}
+                  currentChrono={currentChrono}
+                  availablePoints={availablePoints}
+                  onCorrect={() => addPoint(buzzedTeam)}
+                  onWrong={revealAnswer}
+                />
+              )}
+
+              {/* Player Controls */}
+              <PlayerControls
+                currentTrack={currentTrack}
+                playlistLength={playlist.length}
+                isPlaying={isPlaying}
+                currentSong={currentSong}
+                currentTrackData={playlist[currentTrack]}
+                currentChrono={currentChrono}
+                availablePoints={availablePoints}
+                songDuration={songDuration}
+                isSpotifyMode={isSpotifyMode}
+                onPrev={prevTrack}
+                onTogglePlay={togglePlay}
+                onNext={nextTrack}
+                onReveal={revealAnswer}
+              />
+
+              {/* Debug info */}
+              {debugInfo && (
+                <div style={{
+                  padding: '1rem',
+                  backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                  borderRadius: '0.5rem',
+                  textAlign: 'center',
+                  fontSize: '0.9rem'
+                }}>
+                  {debugInfo}
+                </div>
+              )}
+            </>
+          ) : (
+            <div style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              textAlign: 'center'
+            }}>
+              <div>
+                <h2 style={{ fontSize: '2rem', marginBottom: '1rem' }}>
+                  👋 Bienvenue !
+                </h2>
+                <p style={{ fontSize: '1.1rem', opacity: 0.8 }}>
+                  {!sessionId
+                    ? 'Cliquez sur "🔄 Nouvelle partie" pour commencer'
+                    : 'Connectez-vous à Spotify ou ajoutez des morceaux manuellement'}
+                </p>
+              </div>
+            </div>
+          )}
+        </main>
       </div>
+
+      {/* Modales */}
+      <PlaylistSelector
+        show={showPlaylistSelector}
+        playlists={spotifyPlaylists}
+        onClose={() => setShowPlaylistSelector(false)}
+        onSelect={handleSelectPlaylist}
+      />
+
+      <GameSettings
+        playlist={playlist}
+        scores={scores}
+        showStats={showStats}
+        buzzStats={buzzStats}
+        showEndGameConfirm={showEndGameConfirm}
+        onResetGame={resetScores}
+        onShowStats={loadBuzzStats}
+        onEndGame={() => setShowEndGameConfirm(true)}
+        onConfirmEndGame={endGame}
+        onCancelEndGame={() => setShowEndGameConfirm(false)}
+      />
+
+      {/* Modale Session/QR Code */}
+      {showSessionModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '2rem'
+          }}
+          onClick={() => setShowSessionModal(false)}
+        >
+          <div
+            style={{
+              backgroundColor: '#1f2937',
+              borderRadius: '1rem',
+              padding: '2rem',
+              maxWidth: '500px',
+              width: '100%'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ fontSize: '1.5rem', marginBottom: '1.5rem', textAlign: 'center' }}>
+              📱 Session de jeu
+            </h2>
+
+            {/* Code de session */}
+            <div style={{
+              backgroundColor: 'rgba(124, 58, 237, 0.2)',
+              border: '1px solid rgba(124, 58, 237, 0.5)',
+              borderRadius: '0.75rem',
+              padding: '1.5rem',
+              marginBottom: '1.5rem',
+              textAlign: 'center'
+            }}>
+              <div style={{
+                fontSize: '0.875rem',
+                opacity: 0.8,
+                marginBottom: '0.5rem',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em'
+              }}>
+                Code de session
+              </div>
+              <div style={{
+                fontSize: '2.5rem',
+                fontWeight: 'bold',
+                letterSpacing: '0.3rem',
+                fontFamily: 'monospace',
+                color: '#fbbf24',
+                textShadow: '0 0 10px rgba(251, 191, 36, 0.3)'
+              }}>
+                {sessionId}
+              </div>
+            </div>
+
+            {/* QR Code */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'center',
+              marginBottom: '1.5rem',
+              padding: '1rem',
+              backgroundColor: 'white',
+              borderRadius: '0.75rem'
+            }}>
+              <QRCodeSVG
+                value={`${window.location.origin}/buzzer?session=${sessionId}`}
+                size={200}
+                level="H"
+                includeMargin={true}
+              />
+            </div>
+
+            {/* Boutons d'actions */}
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.75rem'
+            }}>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(sessionId);
+                  setDebugInfo('✅ Code copié !');
+                }}
+                className="btn"
+                style={{
+                  padding: '0.75rem',
+                  backgroundColor: 'rgba(124, 58, 237, 0.3)',
+                  border: '1px solid #7c3aed',
+                  fontSize: '0.9rem',
+                  borderRadius: '0.5rem',
+                  color: 'white',
+                  cursor: 'pointer'
+                }}
+              >
+                📋 Copier le code
+              </button>
+              <button
+                onClick={() => window.open('/tv', '_blank')}
+                className="btn"
+                style={{
+                  padding: '0.75rem',
+                  backgroundColor: 'rgba(16, 185, 129, 0.3)',
+                  border: '1px solid #10b981',
+                  fontSize: '0.9rem',
+                  borderRadius: '0.5rem',
+                  color: 'white',
+                  cursor: 'pointer'
+                }}
+              >
+                📺 Ouvrir TV
+              </button>
+              <button
+                onClick={toggleQRCodeOnTV}
+                className="btn"
+                style={{
+                  padding: '0.75rem',
+                  backgroundColor: showQRCode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)',
+                  border: showQRCode ? '1px solid #ef4444' : '1px solid #10b981',
+                  fontSize: '0.9rem',
+                  borderRadius: '0.5rem',
+                  color: 'white',
+                  cursor: 'pointer'
+                }}
+              >
+                {showQRCode ? '🔴 Masquer QR Code sur TV' : '📱 Afficher QR Code sur TV'}
+              </button>
+              <button
+                onClick={() => setShowSessionModal(false)}
+                className="btn"
+                style={{
+                  padding: '0.75rem',
+                  backgroundColor: 'rgba(156, 163, 175, 0.3)',
+                  border: '1px solid #9ca3af',
+                  fontSize: '0.9rem',
+                  borderRadius: '0.5rem',
+                  color: 'white',
+                  cursor: 'pointer'
+                }}
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modale Sélection Mode de Jeu */}
+      {showModeSelector && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '2rem'
+          }}
+          onClick={() => setShowModeSelector(false)}
+        >
+          <div
+            style={{
+              backgroundColor: '#1f2937',
+              borderRadius: '1rem',
+              padding: '2rem',
+              maxWidth: '600px',
+              width: '100%'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ fontSize: '1.8rem', marginBottom: '1rem', textAlign: 'center' }}>
+              🎮 Choisissez le mode de jeu
+            </h2>
+            <p style={{ fontSize: '0.9rem', opacity: 0.7, textAlign: 'center', marginBottom: '2rem' }}>
+              Sélectionnez comment vous souhaitez créer votre playlist
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {/* Mode MP3 */}
+              <button
+                onClick={() => createNewGameWithMode('mp3')}
+                style={{
+                  padding: '1.5rem',
+                  backgroundColor: 'rgba(124, 58, 237, 0.3)',
+                  border: '2px solid rgba(124, 58, 237, 0.5)',
+                  borderRadius: '0.75rem',
+                  color: 'white',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(124, 58, 237, 0.5)';
+                  e.currentTarget.style.borderColor = 'rgba(124, 58, 237, 0.8)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(124, 58, 237, 0.3)';
+                  e.currentTarget.style.borderColor = 'rgba(124, 58, 237, 0.5)';
+                }}
+              >
+                <div style={{ fontSize: '1.3rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                  📁 Mode MP3
+                </div>
+                <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>
+                  Ajoutez manuellement vos fichiers MP3
+                </div>
+              </button>
+
+              {/* Mode Spotify Import */}
+              <button
+                onClick={() => createNewGameWithMode('spotify-import')}
+                style={{
+                  padding: '1.5rem',
+                  backgroundColor: 'rgba(34, 197, 94, 0.3)',
+                  border: '2px solid rgba(34, 197, 94, 0.5)',
+                  borderRadius: '0.75rem',
+                  color: 'white',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(34, 197, 94, 0.5)';
+                  e.currentTarget.style.borderColor = 'rgba(34, 197, 94, 0.8)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(34, 197, 94, 0.3)';
+                  e.currentTarget.style.borderColor = 'rgba(34, 197, 94, 0.5)';
+                }}
+              >
+                <div style={{ fontSize: '1.3rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                  🎵 Import Spotify
+                </div>
+                <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>
+                  Importez une de vos playlists Spotify existantes
+                </div>
+              </button>
+
+              {/* Mode Spotify IA */}
+              <button
+                onClick={() => createNewGameWithMode('spotify-ai')}
+                style={{
+                  padding: '1.5rem',
+                  backgroundColor: 'rgba(59, 130, 246, 0.3)',
+                  border: '2px solid rgba(59, 130, 246, 0.5)',
+                  borderRadius: '0.75rem',
+                  color: 'white',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.5)';
+                  e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.8)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.3)';
+                  e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.5)';
+                }}
+              >
+                <div style={{ fontSize: '1.3rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                  🤖 Génération IA
+                </div>
+                <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>
+                  Laissez l'IA créer une playlist personnalisée pour vos joueurs
+                </div>
+              </button>
+            </div>
+
+            <button
+              onClick={() => setShowModeSelector(false)}
+              style={{
+                marginTop: '1.5rem',
+                padding: '0.75rem',
+                width: '100%',
+                backgroundColor: 'rgba(107, 114, 128, 0.3)',
+                border: '1px solid rgba(107, 114, 128, 0.5)',
+                borderRadius: '0.5rem',
+                color: 'white',
+                cursor: 'pointer'
+              }}
+            >
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modale Réglages Cooldown */}
+      {showCooldownSettings && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '2rem'
+          }}
+          onClick={() => setShowCooldownSettings(false)}
+        >
+          <div
+            style={{
+              backgroundColor: '#1f2937',
+              borderRadius: '1rem',
+              padding: '2rem',
+              maxWidth: '500px',
+              width: '100%'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ fontSize: '1.5rem', marginBottom: '1.5rem', textAlign: 'center' }}>
+              ⚙️ Réglages du Cooldown
+            </h2>
+
+            {/* Paramètres */}
+            <div style={{ marginBottom: '2rem' }}>
+              {/* Seuil de bonnes réponses */}
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '0.9rem',
+                  marginBottom: '0.5rem',
+                  opacity: 0.9
+                }}>
+                  🎯 Nombre de bonnes réponses d'affilée
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={cooldownThreshold}
+                  onChange={(e) => setCooldownThreshold(parseInt(e.target.value) || 1)}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    borderRadius: '0.5rem',
+                    color: 'white',
+                    fontSize: '1rem'
+                  }}
+                />
+                <div style={{
+                  fontSize: '0.75rem',
+                  opacity: 0.6,
+                  marginTop: '0.25rem'
+                }}>
+                  Après combien de bonnes réponses consécutives le joueur est freezé
+                </div>
+              </div>
+
+              {/* Durée du cooldown */}
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '0.9rem',
+                  marginBottom: '0.5rem',
+                  opacity: 0.9
+                }}>
+                  ⏱️ Durée du freeze (secondes)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="30"
+                  value={cooldownDuration / 1000}
+                  onChange={(e) => setCooldownDuration((parseInt(e.target.value) || 1) * 1000)}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    borderRadius: '0.5rem',
+                    color: 'white',
+                    fontSize: '1rem'
+                  }}
+                />
+                <div style={{
+                  fontSize: '0.75rem',
+                  opacity: 0.6,
+                  marginTop: '0.25rem'
+                }}>
+                  Durée pendant laquelle le joueur ne peut pas buzzer
+                </div>
+              </div>
+            </div>
+
+            {/* Aperçu */}
+            <div style={{
+              backgroundColor: 'rgba(59, 130, 246, 0.2)',
+              border: '1px solid rgba(59, 130, 246, 0.5)',
+              borderRadius: '0.75rem',
+              padding: '1rem',
+              marginBottom: '1.5rem',
+              textAlign: 'center'
+            }}>
+              <div style={{ fontSize: '0.875rem', opacity: 0.8, marginBottom: '0.5rem' }}>
+                📋 Aperçu
+              </div>
+              <div style={{ fontSize: '0.95rem' }}>
+                Après <strong>{cooldownThreshold}</strong> bonne{cooldownThreshold > 1 ? 's' : ''} réponse{cooldownThreshold > 1 ? 's' : ''} d'affilée,
+                le joueur sera freezé pendant <strong>{cooldownDuration / 1000}s</strong>
+              </div>
+            </div>
+
+            {/* Boutons */}
+            <div style={{
+              display: 'flex',
+              gap: '0.75rem'
+            }}>
+              <button
+                onClick={() => setShowCooldownSettings(false)}
+                className="btn"
+                style={{
+                  flex: 1,
+                  padding: '0.75rem',
+                  backgroundColor: 'rgba(156, 163, 175, 0.3)',
+                  border: '1px solid #9ca3af',
+                  fontSize: '0.9rem',
+                  borderRadius: '0.5rem',
+                  color: 'white',
+                  cursor: 'pointer'
+                }}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => {
+                  setShowCooldownSettings(false);
+                  setDebugInfo(`✅ Réglages sauvegardés : ${cooldownThreshold} réponses → ${cooldownDuration / 1000}s`);
+                }}
+                className="btn"
+                style={{
+                  flex: 1,
+                  padding: '0.75rem',
+                  backgroundColor: 'rgba(59, 130, 246, 0.3)',
+                  border: '1px solid #3b82f6',
+                  fontSize: '0.9rem',
+                  borderRadius: '0.5rem',
+                  color: 'white',
+                  cursor: 'pointer'
+                }}
+              >
+                Valider
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Audio caché */}
+      <audio ref={audioRef} style={{ display: 'none' }} />
+      <audio ref={buzzerSoundRef} src="/buzzer.mp3" preload="auto" style={{ display: 'none' }} />
     </div>
   );
 }

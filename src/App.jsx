@@ -5,7 +5,25 @@ import TV from './TV';
 import SpotifyCallback from './SpotifyCallback';
 
 export default function App() {
-  const [page, setPage] = useState('home');
+  // Initialiser la page depuis l'URL uniquement
+  const getInitialPage = () => {
+    const path = window.location.pathname;
+    if (path === '/callback') return 'callback';
+    if (path === '/master') return 'master';
+    if (path === '/buzzer') return 'buzzer';
+    if (path === '/tv') return 'tv';
+    // Si on est sur '/', toujours retourner 'home' (page d'accueil)
+    return 'home';
+  };
+
+  const [page, setPage] = useState(getInitialPage);
+
+  // Mettre à jour l'URL quand on change de page
+  useEffect(() => {
+    if (page !== 'home' && page !== 'callback') {
+      window.history.pushState({}, '', `/${page}`);
+    }
+  }, [page]);
 
   // Détecter si on est sur la page callback
   useEffect(() => {
