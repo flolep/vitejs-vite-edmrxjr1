@@ -1,0 +1,87 @@
+{
+  "name": "Create Spotify Playlist",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "create-playlist",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-create-playlist",
+      "name": "Webhook: Create Playlist",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [250, 300],
+      "webhookId": "create-playlist"
+    },
+    {
+      "parameters": {
+        "resource": "playlist",
+        "operation": "create",
+        "userId": "={{ $json.userId }}",
+        "name": "={{ $json.playlistName || 'Blind Test - ' + new Date().toISOString().split('T')[0] }}",
+        "additionalFields": {
+          "description": "={{ $json.description || 'Playlist créée pour Blind Test' }}",
+          "public": false
+        }
+      },
+      "id": "spotify-create-playlist",
+      "name": "Spotify: Create Playlist",
+      "type": "n8n-nodes-base.spotify",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "credentials": {
+        "spotifyOAuth2Api": {
+          "id": "1",
+          "name": "Spotify account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"playlistId\": $json.id, \"playlistName\": $json.name, \"playlistUrl\": $json.external_urls.spotify } }}"
+      },
+      "id": "respond-to-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [650, 300]
+    }
+  ],
+  "connections": {
+    "Webhook: Create Playlist": {
+      "main": [
+        [
+          {
+            "node": "Spotify: Create Playlist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Spotify: Create Playlist": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "id": "create-spotify-playlist",
+  "meta": {
+    "instanceId": "your-instance-id"
+  },
+  "tags": []
+}
