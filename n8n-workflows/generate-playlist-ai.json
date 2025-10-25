@@ -1,0 +1,348 @@
+{
+  "name": "Blindtest Game - AI Playlist Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "blindtest-player-input",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "3ae1a525-fe65-432d-aca4-6a7109878cac",
+      "name": "Player Input Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        -80
+      ],
+      "webhookId": "dc9059b5-0953-419e-8361-9386dd93563c"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "prompt-1",
+              "name": "prompt",
+              "type": "string",
+              "value": "=You are a music expert. Based on the following player information, recommend exactly 10 songs that would be perfect for a blindtest game.\n\n  Player Age: {{ $json.body.age }}\n  Favorite Genres: {{ $json.body.genres.join(\", \") }}\n  Genre 1 Preferences: {{ $json.body.genre1Preferences }}\n  Genre 2 Preferences: {{ $json.body.genre2Preferences }}\n  Genre 3 Preferences: {{ $json.body.genre3Preferences }}\n\n  RESPOND WITH ONLY VALID JSON in this exact format, with no markdown code blocks or explanations:\n  [\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"}\n  ]\n\n  Make sure songs are popular and on Spotify. No markdown formatting."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "39d95849-7345-4ebf-b675-a914eee342c2",
+      "name": "Format Player Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        224,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "  // The AI Agent output is already in the correct format\n  const response = $input.item.json;\n\n  console.log('Received data:', JSON.stringify(response, null, 2));\n\n  // If the response is directly an array, use it\n  let songs = Array.isArray(response) ? response : response.output || response.text;\n\n  // If still not an array, try parsing as string\n  if (typeof songs === 'string') {\n    songs = JSON.parse(songs);\n  }\n\n  // Final validation\n  if (!Array.isArray(songs)) {\n    throw new Error(`Expected array but got: ${typeof songs}`);\n  }\n\n  console.log(`Processing ${songs.length} songs`);\n\n  // Return each song for parallel Spotify search\n  return songs.map((song, index) => ({\n    json: {\n      artist: song.artist,\n      song: song.song,\n      searchQuery: `${song.song} ${song.artist}`,\n      index: index\n    }\n  }));"
+      },
+      "id": "2cc4bdb1-b4d7-4efc-a330-d1f7c5c251d0",
+      "name": "Parse Song List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "track",
+        "operation": "search",
+        "query": "={{ $json.searchQuery }}",
+        "limit": 1,
+        "filters": {}
+      },
+      "id": "79e2366e-bb33-4b42-86ff-dddaafdbb1c8",
+      "name": "Search Song on Spotify",
+      "type": "n8n-nodes-base.spotify",
+      "typeVersion": 1,
+      "position": [
+        1024,
+        -80
+      ],
+      "credentials": {
+        "spotifyOAuth2Api": {
+          "id": "XFtc8avtF5O4GuHO",
+          "name": "Spotify account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": " // Aggregate all Spotify track URIs\n  const allItems = $input.all();\n  const trackUris = [];\n  const foundSongs = [];\n\n  console.log('Processing', allItems.length, 'items from Spotify');\n\n  for (const item of allItems) {\n    const track = item.json;\n\n    // The Spotify node returns the track object directly\n    if (track && track.uri && track.id && track.name) {\n      trackUris.push(track.uri);\n      foundSongs.push({\n        name: track.name,\n        artist: track.artists?.[0]?.name || 'Unknown',\n        uri: track.uri,\n        id: track.id\n      });\n\n      console.log('Found:', track.name, 'by', track.artists?.[0]?.name);\n    }\n  }\n\n  console.log('Total tracks found:', trackUris.length);\n\n  if (trackUris.length === 0) {\n    throw new Error(`No valid tracks found`);\n  }\n\n  // Create comma-separated string of URIs for Spotify node\n  const trackUrisString = trackUris.join(',');\n\n  console.log('Track URIs string:', trackUrisString);\n\n  return [{\n    json: {\n      trackUris: trackUris,\n      trackUrisString: trackUrisString,\n      trackIds: trackUris.map(uri => uri.split(':')[2]),\n      foundSongs: foundSongs,\n      totalFound: trackUris.length\n    }\n  }];"
+      },
+      "id": "4af7ce40-03af-49c9-8a9b-52ad5e1a5bca",
+      "name": "Extract Track URIs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "playlist",
+        "id": "={{ $json.id }}",
+        "trackID": "={{ $('Extract Track URIs').item.json.trackUrisString }}",
+        "additionalFields": {}
+      },
+      "id": "261d2ba9-d514-4b10-8935-bf15ee7f10d0",
+      "name": "Add Songs to Playlist",
+      "type": "n8n-nodes-base.spotify",
+      "typeVersion": 1,
+      "position": [
+        1472,
+        -80
+      ],
+      "credentials": {
+        "spotifyOAuth2Api": {
+          "id": "XFtc8avtF5O4GuHO",
+          "name": "Spotify account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "success-1",
+              "name": "success",
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "id": "message-1",
+              "name": "message",
+              "type": "string",
+              "value": "Blindtest playlist created successfully!"
+            },
+            {
+              "id": "playlistUrl-1",
+              "name": "playlistUrl",
+              "type": "string",
+              "value": "={{ $node[\"Create Spotify Playlist\"].json.external_urls.spotify }}"
+            },
+            {
+              "id": "playlistId-1",
+              "name": "playlistId",
+              "type": "string",
+              "value": "={{ $node[\"Create Spotify Playlist\"].json.id }}"
+            },
+            {
+              "id": "totalSongs-1",
+              "name": "totalSongs",
+              "type": "number",
+              "value": "={{ $node[\"Extract Track URIs\"].json.totalFound }}"
+            },
+            {
+              "id": "songs-1",
+              "name": "songs",
+              "type": "array",
+              "value": "={{ $node[\"Extract Track URIs\"].json.foundSongs }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8b95dd0d-7ba5-4d5c-adf5-ee6555088c64",
+      "name": "Format Success Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        1696,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "ae5c43f8-e5ff-44e4-ab5e-7c581a4c4616",
+      "name": "Send Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1920,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        448,
+        -80
+      ],
+      "id": "bf491a81-8b65-429c-b163-83d003828835",
+      "name": "AI Agent",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "gpt-4o"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        352,
+        176
+      ],
+      "id": "6022a8ec-3e9f-4457-9491-d1202bf6e08c",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "ytGgzcq7Rtx4z7WA",
+          "name": "OpenAi account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Player Input Webhook": {
+      "main": [
+        [
+          {
+            "node": "Format Player Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Player Data": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Song List": {
+      "main": [
+        [
+          {
+            "node": "Search Song on Spotify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Song on Spotify": {
+      "main": [
+        [
+          {
+            "node": "Extract Track URIs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Track URIs": {
+      "main": [
+        [
+          {
+            "node": "Add Songs to Playlist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Songs to Playlist": {
+      "main": [
+        [
+          {
+            "node": "Format Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Success Response": {
+      "main": [
+        [
+          {
+            "node": "Send Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse Song List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "f81398e4-c2d4-44fd-9be7-9aa3205bc86b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "94b9168551008d33a984c826b7246a9b011ffc20d1040c638e77929747a45f99"
+  },
+  "id": "LukBPNyNFi7YesIP",
+  "tags": [
+    {
+      "createdAt": "2025-10-12T08:27:32.015Z",
+      "updatedAt": "2025-10-12T08:27:32.015Z",
+      "id": "pestZUqJUXuCf3nU",
+      "name": "BlindTest"
+    }
+  ]
+}
