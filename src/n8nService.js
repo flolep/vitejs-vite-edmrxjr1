@@ -1,5 +1,5 @@
 // Configuration n8n
-const N8N_WEBHOOK_BASE_URL = import.meta.env.VITE_N8N_WEBHOOK_URL || 'https://your-n8n-instance.com/webhook';
+const N8N_WEBHOOK_BASE_URL = 'https://n8n.srv1038816.hstgr.cloud/webhook-test';
 
 export const n8nService = {
   /**
