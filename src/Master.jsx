@@ -1403,31 +1403,68 @@ const loadBuzzStats = (shouldShow = true) => {
 
               {gameMode === 'spotify-ai' && (
                 <div>
-                  <button
-                    disabled
-                    style={{
-                      width: '100%',
-                      padding: '0.75rem 1rem',
-                      backgroundColor: 'rgba(236, 72, 153, 0.2)',
-                      border: '1px solid rgba(236, 72, 153, 0.5)',
-                      fontSize: '0.9rem',
-                      borderRadius: '0.5rem',
-                      color: 'rgba(255, 255, 255, 0.5)',
-                      cursor: 'not-allowed',
-                      transition: 'all 0.2s'
-                    }}
-                  >
-                    🤖 Chargement Auto
-                  </button>
-                  <p style={{
-                    textAlign: 'center',
-                    marginTop: '0.75rem',
-                    opacity: 0.7,
-                    fontSize: '0.85rem',
-                    marginBottom: playlistUpdates.length > 0 ? '1rem' : 0
-                  }}>
-                    La playlist se remplit automatiquement avec les préférences des joueurs
-                  </p>
+                  {/* Si pas connecté à Spotify, afficher le bouton de connexion */}
+                  {!spotifyToken ? (
+                    <>
+                      <button
+                        onClick={handleSpotifyLogin}
+                        className="btn"
+                        style={{
+                          width: '100%',
+                          padding: '0.75rem 1rem',
+                          backgroundColor: 'rgba(16, 185, 129, 0.3)',
+                          border: '1px solid #10b981',
+                          fontSize: '0.9rem',
+                          borderRadius: '0.5rem',
+                          color: 'white',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          marginBottom: '0.75rem'
+                        }}
+                      >
+                        🎵 Se connecter à Spotify
+                      </button>
+                      <p style={{
+                        textAlign: 'center',
+                        opacity: 0.7,
+                        fontSize: '0.85rem',
+                        backgroundColor: 'rgba(251, 191, 36, 0.2)',
+                        padding: '0.75rem',
+                        borderRadius: '0.5rem',
+                        border: '1px solid rgba(251, 191, 36, 0.3)'
+                      }}>
+                        ⚠️ Connectez-vous à Spotify pour voir les chansons ajoutées par les joueurs
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        disabled
+                        style={{
+                          width: '100%',
+                          padding: '0.75rem 1rem',
+                          backgroundColor: 'rgba(236, 72, 153, 0.2)',
+                          border: '1px solid rgba(236, 72, 153, 0.5)',
+                          fontSize: '0.9rem',
+                          borderRadius: '0.5rem',
+                          color: 'rgba(255, 255, 255, 0.5)',
+                          cursor: 'not-allowed',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        🤖 Chargement Auto
+                      </button>
+                      <p style={{
+                        textAlign: 'center',
+                        marginTop: '0.75rem',
+                        opacity: 0.7,
+                        fontSize: '0.85rem',
+                        marginBottom: playlistUpdates.length > 0 ? '1rem' : 0
+                      }}>
+                        La playlist se remplit automatiquement avec les préférences des joueurs
+                      </p>
+                    </>
+                  )}
 
                   {/* Feed des mises à jour */}
                   {playlistUpdates.length > 0 && (
