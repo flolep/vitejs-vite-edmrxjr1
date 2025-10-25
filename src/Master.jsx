@@ -163,9 +163,13 @@ export default function Master({ initialSessionId = null }) {
   // Vérifier connexion Spotify au chargement
   useEffect(() => {
     const token = sessionStorage.getItem('spotify_access_token');
+    console.log('🔍 Vérification token Spotify au chargement:', token ? `Token présent (${token.substring(0, 20)}...)` : 'Aucun token');
     if (token) {
+      console.log('✅ Token Spotify chargé depuis sessionStorage');
       setSpotifyToken(token);
       loadSpotifyPlaylists(token);
+    } else {
+      console.log('❌ Pas de token Spotify dans sessionStorage');
     }
   }, []);
 
@@ -1021,9 +1025,24 @@ const addPoint = async (team) => {
         );
 
         if (result.success && result.playlistId) {
+          // Extraire l'ID pur de la playlist (au cas où n8n renvoie un URI ou URL)
+          let playlistId = result.playlistId;
+
+          // Si c'est un URI Spotify (spotify:playlist:ID)
+          if (playlistId.startsWith('spotify:playlist:')) {
+            playlistId = playlistId.replace('spotify:playlist:', '');
+          }
+
+          // Si c'est une URL Spotify (https://open.spotify.com/playlist/ID)
+          if (playlistId.includes('open.spotify.com/playlist/')) {
+            playlistId = playlistId.split('/playlist/')[1].split('?')[0];
+          }
+
+          console.log('🆔 Playlist ID extrait:', playlistId, '(original:', result.playlistId, ')');
+
           // Stocker l'ID de la playlist dans Firebase
           const playlistIdRef = ref(database, `sessions/${newSessionId}/playlistId`);
-          await set(playlistIdRef, result.playlistId);
+          await set(playlistIdRef, playlistId);
 
           console.log(`✅ Playlist Spotify IA créée: ${result.playlistId}`);
           setDebugInfo(`🤖 Playlist IA créée ! En attente des contributions des joueurs...`);
