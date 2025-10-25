@@ -409,28 +409,52 @@ Webhook n8n
 
 ---
 
-## 📝 Résumé du flux recommandé
+## 📝 Résumé du flux utilisateur final
 
 ```
 1. Firebase Auth (obligatoire)
+   → Connexion email/password
    → Sécurise l'accès à l'app
 
-2. Choix du mode
-   → MP3 local : Pas besoin de Spotify
-   → Spotify : Nécessite connexion Spotify
+2. Interface Master s'affiche
+   → Deux boutons proposés :
+     • 🎵 Mode Spotify
+     • 📁 Mode MP3 manuel
 
-3. Spotify OAuth (si mode Spotify)
-   → Accès aux playlists
-   → Récupération userId
+3A. Si clic "Mode Spotify" :
+   → Vérification automatique du token
+   → Si pas de token : Redirection AUTO vers Spotify OAuth
+   → Si token présent : Affichage des playlists
 
-4. Créer playlist vide (côté client)
-   → Via spotifyService.createEmptyPlaylist()
+3B. Si clic "Mode MP3 manuel" :
+   → Pas de connexion Spotify nécessaire
+   → Ajout manuel de fichiers MP3
+
+4. (Mode Spotify) Après retour de Spotify OAuth
+   → Token stocké
+   → Liste des playlists affichée
+   → Peut jouer les chansons
+
+5. Créer playlist vide (via n8n)
+   → Webhook n8n (utilise credentials configurés)
    → Nom auto : BlindTest-2024-10-24-XXX
+   → Playlist créée sur votre compte
 
-5. Remplir playlist avec IA (via n8n)
+6. Remplir playlist avec IA (via n8n - futur)
    → Webhook n8n avec theme + playlistId
    → n8n génère liste et ajoute les tracks
 ```
+
+## 🎯 Flux simplifié (VOTRE CAS)
+
+**Expérience utilisateur :**
+1. Ouvrir l'app
+2. Se connecter (Firebase)
+3. Clic "Mode Spotify" → **Redirection automatique** vers Spotify
+4. Autoriser → Retour sur l'app
+5. Playlists affichées → Prêt à jouer !
+
+**Plus besoin de bouton "Se connecter à Spotify" séparé !**
 
 ---
 
