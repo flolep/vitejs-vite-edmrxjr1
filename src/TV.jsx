@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { database } from './firebase';
 import { ref, onValue, set } from 'firebase/database';
 import { QRCodeSVG } from 'qrcode.react';
@@ -169,6 +169,8 @@ export default function TV() {
 
   // NOUVEAU : État pour le bonus personnel
   const [personalBonus, setPersonalBonus] = useState(null);
+  // Référence pour tracker les popups déjà affichées (évite les re-déclenchements)
+  const displayedBonusTracksRef = useRef(new Set());
 
   // Vérifier le code de session depuis l'URL
   useEffect(() => {
@@ -179,6 +181,14 @@ export default function TV() {
       verifySession(sessionParam);
     }
   }, []);
+
+  // Réinitialiser le tracker des popups bonus à chaque nouvelle session
+  useEffect(() => {
+    if (sessionId) {
+      displayedBonusTracksRef.current.clear();
+      console.log(`🔄 Tracker de popup bonus réinitialisé pour la session ${sessionId}`);
+    }
+  }, [sessionId]);
 
   // Fonction pour vérifier si la session existe
   const verifySession = async (id) => {
@@ -304,6 +314,13 @@ export default function TV() {
         // Si une chanson est révélée, vérifier s'il y a un bonus personnel
         if (songData.revealed && songData.number) {
           const trackIndex = songData.number - 1;
+
+          // ✅ Vérifier si on a déjà affiché la popup pour cette chanson
+          if (displayedBonusTracksRef.current.has(trackIndex)) {
+            console.log(`ℹ️ Popup bonus déjà affichée pour la chanson #${trackIndex}, skip`);
+            return;
+          }
+
           const buzzTimesRef = ref(database, `sessions/${sessionId}/buzz_times/${trackIndex}`);
           onValue(buzzTimesRef, (buzzSnapshot) => {
             const buzzes = buzzSnapshot.val();
@@ -311,6 +328,10 @@ export default function TV() {
               // Vérifier le dernier buzz (celui qui a été validé)
               const lastBuzz = buzzes[buzzes.length - 1];
               if (lastBuzz.hasPersonalBonus && lastBuzz.correct) {
+                // ✅ Marquer cette chanson comme déjà affichée
+                displayedBonusTracksRef.current.add(trackIndex);
+                console.log(`🎯 Popup bonus affichée pour ${lastBuzz.playerName} - chanson #${trackIndex}`);
+
                 setPersonalBonus({
                   playerName: lastBuzz.playerName,
                   basePoints: lastBuzz.basePoints,
