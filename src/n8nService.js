@@ -142,5 +142,60 @@ export const n8nService = {
       console.error('❌ Erreur workflow création playlist:', error);
       throw error;
     }
+  },
+
+  /**
+   * Remplit une playlist Spotify avec des chansons générées par IA
+   * Basé sur les préférences du joueur (âge, genres musicaux, etc.)
+   * @param {object} params - Les paramètres
+   * @param {string} params.playlistId - ID de la playlist à remplir (créée précédemment)
+   * @param {number} params.age - Âge du joueur
+   * @param {array} params.genres - Liste de 3 genres musicaux favoris (ex: ["Pop", "Rock", "Electronic"])
+   * @param {string} params.genre1Preferences - Préférences détaillées pour le genre 1 (optionnel)
+   * @param {string} params.genre2Preferences - Préférences détaillées pour le genre 2 (optionnel)
+   * @param {string} params.genre3Preferences - Préférences détaillées pour le genre 3 (optionnel)
+   * @returns {Promise<{success: boolean, playlistId: string, totalSongs: number, songs: array}>}
+   */
+  async fillPlaylistWithAI({
+    playlistId,
+    age,
+    genres,
+    genre1Preferences = '',
+    genre2Preferences = '',
+    genre3Preferences = ''
+  }) {
+    try {
+      const payload = {
+        playlistId: playlistId,
+        age: age,
+        genres: genres,
+        genre1Preferences: genre1Preferences,
+        genre2Preferences: genre2Preferences,
+        genre3Preferences: genre3Preferences
+      };
+
+      console.log('🤖 Génération playlist IA via n8n:', payload);
+
+      const response = await fetch(`${N8N_WEBHOOK_BASE_URL}/blindtest-player-input`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`n8n webhook error: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ Playlist remplie avec IA:', data);
+
+      return data;
+    } catch (error) {
+      console.error('❌ Erreur remplissage playlist IA:', error);
+      throw error;
+    }
   }
 };

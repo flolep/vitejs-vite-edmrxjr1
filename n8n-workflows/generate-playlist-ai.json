@@ -93,7 +93,7 @@
     {
       "parameters": {
         "resource": "playlist",
-        "id": "={{ $json.id }}",
+        "id": "={{ $node['Player Input Webhook'].json.body.playlistId }}",
         "trackID": "={{ $('Extract Track URIs').item.json.trackUrisString }}",
         "additionalFields": {}
       },
@@ -126,19 +126,13 @@
               "id": "message-1",
               "name": "message",
               "type": "string",
-              "value": "Blindtest playlist created successfully!"
-            },
-            {
-              "id": "playlistUrl-1",
-              "name": "playlistUrl",
-              "type": "string",
-              "value": "={{ $node[\"Create Spotify Playlist\"].json.external_urls.spotify }}"
+              "value": "Blindtest playlist filled successfully!"
             },
             {
               "id": "playlistId-1",
               "name": "playlistId",
               "type": "string",
-              "value": "={{ $node[\"Create Spotify Playlist\"].json.id }}"
+              "value": "={{ $node['Player Input Webhook'].json.body.playlistId }}"
             },
             {
               "id": "totalSongs-1",
