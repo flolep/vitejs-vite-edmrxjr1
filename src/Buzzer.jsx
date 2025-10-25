@@ -353,8 +353,17 @@ useEffect(() => {
       console.log('✅ Playlist remplie avec succès:', result);
       console.log(`🎵 ${result.totalSongs} chansons ajoutées à la playlist`);
 
-      // Optionnel : afficher un message de succès à l'utilisateur
-      // (pour l'instant on continue silencieusement)
+      // Signaler à Firebase que la playlist a été mise à jour
+      // Cela permettra au Master de rafraîchir automatiquement la playlist
+      if (sessionId) {
+        const updateRef = ref(database, `sessions/${sessionId}/lastPlaylistUpdate`);
+        await set(updateRef, {
+          timestamp: Date.now(),
+          playerName: selectedPlayer?.name || playerName,
+          songsAdded: result.totalSongs || 10
+        });
+        console.log('✅ Mise à jour signalée à Firebase pour rafraîchissement automatique');
+      }
 
     } catch (err) {
       console.error('❌ Erreur appel workflow n8n:', err);

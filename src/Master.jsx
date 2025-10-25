@@ -204,6 +204,44 @@ export default function Master({ initialSessionId = null }) {
     return () => unsubscribe();
   }, [sessionId]);
 
+  // Écouter les mises à jour de la playlist et rafraîchir automatiquement
+  useEffect(() => {
+    if (!sessionId || !isSpotifyMode || !spotifyToken) return;
+
+    const updateRef = ref(database, `sessions/${sessionId}/lastPlaylistUpdate`);
+    const playlistIdRef = ref(database, `sessions/${sessionId}/playlistId`);
+
+    let lastTimestamp = null;
+
+    const unsubscribe = onValue(updateRef, (snapshot) => {
+      const updateData = snapshot.val();
+      if (updateData && updateData.timestamp) {
+        // Éviter de recharger au premier chargement
+        if (lastTimestamp === null) {
+          lastTimestamp = updateData.timestamp;
+          return;
+        }
+
+        // Si le timestamp a changé, recharger la playlist
+        if (updateData.timestamp > lastTimestamp) {
+          console.log(`🔄 Mise à jour détectée par ${updateData.playerName}, rechargement de la playlist...`);
+          lastTimestamp = updateData.timestamp;
+
+          // Récupérer l'ID de playlist et recharger
+          onValue(playlistIdRef, (playlistSnapshot) => {
+            const playlistId = playlistSnapshot.val();
+            if (playlistId) {
+              loadSpotifyPlaylistById(playlistId, spotifyToken);
+              setDebugInfo(`🔄 Playlist mise à jour par ${updateData.playerName} (+${updateData.songsAdded} chansons)`);
+            }
+          }, { onlyOnce: true });
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [sessionId, isSpotifyMode, spotifyToken]);
+
   // Mettre à jour le chrono toutes les 100ms quand la musique joue
   useEffect(() => {
     if (!sessionId) return;
