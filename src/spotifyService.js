@@ -58,12 +58,22 @@ export const spotifyService = {
 
   // Récupérer les morceaux d'une playlist
   async getPlaylistTracks(accessToken, playlistId) {
+    console.log('🎵 Récupération playlist:', playlistId);
+    console.log('🔑 Token utilisé:', accessToken ? `${accessToken.substring(0, 20)}...` : 'AUCUN TOKEN');
+
     const response = await fetch(
       `https://api.spotify.com/v1/playlists/${playlistId}/tracks`,
       { headers: { 'Authorization': `Bearer ${accessToken}` } }
     );
-    
-    if (!response.ok) throw new Error('Failed to get playlist tracks');
+
+    console.log('📡 Réponse Spotify:', response.status, response.statusText);
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('❌ Erreur Spotify:', response.status, errorData);
+      throw new Error('Failed to get playlist tracks');
+    }
+
     const data = await response.json();
     
     return data.items.map(item => ({

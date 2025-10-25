@@ -163,9 +163,13 @@ export default function Master({ initialSessionId = null }) {
   // Vérifier connexion Spotify au chargement
   useEffect(() => {
     const token = sessionStorage.getItem('spotify_access_token');
+    console.log('🔍 Vérification token Spotify au chargement:', token ? `Token présent (${token.substring(0, 20)}...)` : 'Aucun token');
     if (token) {
+      console.log('✅ Token Spotify chargé depuis sessionStorage');
       setSpotifyToken(token);
       loadSpotifyPlaylists(token);
+    } else {
+      console.log('❌ Pas de token Spotify dans sessionStorage');
     }
   }, []);
 
