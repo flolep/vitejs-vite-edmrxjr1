@@ -75,6 +75,7 @@ export default function Master({ initialSessionId = null }) {
   const [isSpotifyMode, setIsSpotifyMode] = useState(false);
   const [spotifyPosition, setSpotifyPosition] = useState(0);
   const [lastPlayedTrack, setLastPlayedTrack] = useState(null);
+  const [playlistUpdates, setPlaylistUpdates] = useState([]); // Feed des MAJ pour mode IA
   
   const audioRef = useRef(null);
   const buzzerSoundRef = useRef(null);
@@ -207,7 +208,7 @@ export default function Master({ initialSessionId = null }) {
 
   // Écouter les mises à jour de la playlist et rafraîchir automatiquement
   useEffect(() => {
-    if (!sessionId || !isSpotifyMode || !spotifyToken) return;
+    if (!sessionId || !spotifyToken) return;
 
     const updateRef = ref(database, `sessions/${sessionId}/lastPlaylistUpdate`);
     const playlistIdRef = ref(database, `sessions/${sessionId}/playlistId`);
@@ -228,6 +229,16 @@ export default function Master({ initialSessionId = null }) {
           console.log(`🔄 Mise à jour détectée par ${updateData.playerName}, rechargement de la playlist...`);
           lastTimestamp = updateData.timestamp;
 
+          // Ajouter au feed des mises à jour (pour le mode IA)
+          if (gameMode === 'spotify-ai') {
+            setPlaylistUpdates(prev => [{
+              playerName: updateData.playerName,
+              songsAdded: updateData.songsAdded,
+              timestamp: updateData.timestamp,
+              time: new Date(updateData.timestamp).toLocaleTimeString()
+            }, ...prev].slice(0, 10)); // Garder les 10 dernières MAJ
+          }
+
           // Récupérer l'ID de playlist et recharger
           onValue(playlistIdRef, (playlistSnapshot) => {
             const playlistId = playlistSnapshot.val();
@@ -241,7 +252,7 @@ export default function Master({ initialSessionId = null }) {
     });
 
     return () => unsubscribe();
-  }, [sessionId, isSpotifyMode, spotifyToken]);
+  }, [sessionId, spotifyToken, gameMode]);
 
   // Mettre à jour le chrono toutes les 100ms quand la musique joue
   useEffect(() => {
@@ -1359,8 +1370,8 @@ const loadBuzzStats = (shouldShow = true) => {
                     style={{
                       width: '100%',
                       padding: '0.75rem 1rem',
-                      backgroundColor: 'rgba(156, 163, 175, 0.2)',
-                      border: '1px solid rgba(156, 163, 175, 0.5)',
+                      backgroundColor: 'rgba(236, 72, 153, 0.2)',
+                      border: '1px solid rgba(236, 72, 153, 0.5)',
                       fontSize: '0.9rem',
                       borderRadius: '0.5rem',
                       color: 'rgba(255, 255, 255, 0.5)',
@@ -1374,10 +1385,66 @@ const loadBuzzStats = (shouldShow = true) => {
                     textAlign: 'center',
                     marginTop: '0.75rem',
                     opacity: 0.7,
-                    fontSize: '0.85rem'
+                    fontSize: '0.85rem',
+                    marginBottom: playlistUpdates.length > 0 ? '1rem' : 0
                   }}>
                     La playlist se remplit automatiquement avec les préférences des joueurs
                   </p>
+
+                  {/* Feed des mises à jour */}
+                  {playlistUpdates.length > 0 && (
+                    <div style={{
+                      marginTop: '1rem',
+                      padding: '0.75rem',
+                      backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                      borderRadius: '0.5rem',
+                      maxHeight: '200px',
+                      overflowY: 'auto'
+                    }}>
+                      <div style={{
+                        fontSize: '0.75rem',
+                        fontWeight: '600',
+                        opacity: 0.8,
+                        marginBottom: '0.5rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em'
+                      }}>
+                        📊 Mises à jour
+                      </div>
+                      {playlistUpdates.map((update, index) => (
+                        <div
+                          key={index}
+                          style={{
+                            fontSize: '0.8rem',
+                            padding: '0.4rem 0',
+                            borderBottom: index < playlistUpdates.length - 1 ? '1px solid rgba(255, 255, 255, 0.1)' : 'none',
+                            opacity: 0.9
+                          }}
+                        >
+                          <div style={{ fontWeight: '500', color: '#ec4899' }}>
+                            {update.playerName}
+                          </div>
+                          <div style={{ fontSize: '0.7rem', opacity: 0.7 }}>
+                            +{update.songsAdded} chanson{update.songsAdded > 1 ? 's' : ''} • {update.time}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {playlistUpdates.length === 0 && (
+                    <div style={{
+                      marginTop: '1rem',
+                      padding: '1rem',
+                      backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                      borderRadius: '0.5rem',
+                      textAlign: 'center',
+                      fontSize: '0.8rem',
+                      opacity: 0.6
+                    }}>
+                      En attente des contributions des joueurs...
+                    </div>
+                  )}
                 </div>
               )}
             </div>
