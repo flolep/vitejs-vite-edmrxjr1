@@ -11,11 +11,19 @@
   # Functions directory (if using Netlify Functions)
   functions = "netlify/functions"
 
-# Environment variables for build
-[build.environment]
-  # Disable secrets scanning (Firebase API keys are public by design)
-  # Security is ensured by Firebase Security Rules, not by hiding the API key
-  SECRETS_SCAN_SMART_DETECTION_ENABLED = "false"
+# Configuration des variables d'environnement dans Netlify UI
+# Site settings > Environment variables > Add variables suivantes :
+#
+# VITE_FIREBASE_API_KEY=AIzaSyBcx5aW2LxZVuiiyoSlIWyf7Wyogm6Zqi4
+# VITE_FIREBASE_AUTH_DOMAIN=blindtestapp-cd177.firebaseapp.com
+# VITE_FIREBASE_DATABASE_URL=https://blindtestapp-cd177-default-rtdb.europe-west1.firebasedatabase.app
+# VITE_FIREBASE_PROJECT_ID=blindtestapp-cd177
+# VITE_FIREBASE_STORAGE_BUCKET=blindtestapp-cd177.firebasestorage.app
+# VITE_FIREBASE_MESSAGING_SENDER_ID=212614020775
+# VITE_FIREBASE_APP_ID=1:212614020775:web:5311d1000115dd87eba582
+#
+# Note : Les valeurs par défaut existent dans le code, donc l'app fonctionnera même sans ces variables
+# Mais les ajouter dans Netlify évite que le scan de secrets bloque le build
 
 # Production context (main branch)
 [context.production]
