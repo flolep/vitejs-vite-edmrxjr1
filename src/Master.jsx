@@ -787,16 +787,50 @@ const revealAnswer = async () => {
 };
 
 const addPoint = async (team) => {
-  const points = calculatePoints(currentChrono, songDuration);
+  let points = calculatePoints(currentChrono, songDuration);
+  let hasPersonalBonus = false;
+  let bonusPlayerName = '';
+
+  // Référence au buzz actuel
+  const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
+
+  // Vérifier si la chanson correspond aux préférences du joueur (bonus personnel)
+  const currentSongUri = playlist[currentTrack]?.uri; // URI Spotify de la chanson actuelle
+
+  if (currentSongUri) {
+    try {
+      // Récupérer les données du joueur qui a buzzé
+      const buzzSnapshot = await new Promise((resolve) => {
+        onValue(buzzRef, resolve, { onlyOnce: true });
+      });
+      const buzzData = buzzSnapshot.val();
+
+      if (buzzData && buzzData.playerId) {
+        // Récupérer les chansons associées à ce joueur
+        const playerSongsRef = ref(database, `sessions/${sessionId}/playerSongs/${buzzData.playerId}`);
+        const playerSongsSnapshot = await new Promise((resolve) => {
+          onValue(playerSongsRef, resolve, { onlyOnce: true });
+        });
+        const playerSongsData = playerSongsSnapshot.val();
+
+        // Vérifier si l'URI de la chanson actuelle est dans les préférences du joueur
+        if (playerSongsData && playerSongsData.uris && playerSongsData.uris.includes(currentSongUri)) {
+          hasPersonalBonus = true;
+          bonusPlayerName = buzzData.playerName || '';
+          points += 500; // Bonus de 500 points
+          console.log(`🎯 BONUS PERSONNEL pour ${bonusPlayerName} ! Chanson issue de ses préférences (+500 pts)`);
+        }
+      }
+    } catch (error) {
+      console.error('Erreur vérification bonus personnel:', error);
+    }
+  }
 
   const newScores = { ...scores, [team]: scores[team] + points };
   setScores(newScores);
 
   const scoresRef = ref(database, `sessions/${sessionId}/scores`);
   set(scoresRef, newScores);
-
-  // Référence au buzz actuel
-  const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
 
   // ✅ Marquer le dernier buzz de ce track comme correct et ajouter les points
   const buzzTimesRef = ref(database, `sessions/${sessionId}/buzz_times/${currentTrack}`);
@@ -807,6 +841,11 @@ const addPoint = async (team) => {
       const lastIndex = existingBuzzes.length - 1;
       existingBuzzes[lastIndex].correct = true;
       existingBuzzes[lastIndex].points = points;
+      existingBuzzes[lastIndex].hasPersonalBonus = hasPersonalBonus; // Ajouter info du bonus
+      if (hasPersonalBonus) {
+        existingBuzzes[lastIndex].basePoints = points - 500; // Points de base (sans bonus)
+        existingBuzzes[lastIndex].bonusPoints = 500; // Bonus séparé
+      }
       set(buzzTimesRef, existingBuzzes);
     }
   }, { onlyOnce: true });
@@ -866,7 +905,9 @@ const addPoint = async (team) => {
     number: currentTrack + 1
   });
   
-  setDebugInfo(`✅ ${points} points pour ${team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2'}`);
+  const teamName = team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2';
+  const bonusText = hasPersonalBonus ? ` (dont 🎯 BONUS PERSONNEL +500 pour ${bonusPlayerName})` : '';
+  setDebugInfo(`✅ ${points} points pour ${teamName}${bonusText}`);
 };
 
   // === GESTION DE PARTIE ===
