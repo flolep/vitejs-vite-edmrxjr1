@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { database, auth } from './firebase';
 import { ref, onValue, remove, set } from 'firebase/database';
 import { spotifyService } from './spotifyService';
+import { n8nService } from './n8nService';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -165,6 +166,20 @@ export default function Master({ initialSessionId = null }) {
       loadSpotifyPlaylists(token);
     }
   }, []);
+
+  // Charger automatiquement la playlist en mode IA quand le token Spotify est disponible
+  useEffect(() => {
+    if (!sessionId || gameMode !== 'spotify-ai' || !spotifyToken || playlist.length > 0) return;
+
+    const playlistIdRef = ref(database, `sessions/${sessionId}/playlistId`);
+    onValue(playlistIdRef, (snapshot) => {
+      const playlistId = snapshot.val();
+      if (playlistId) {
+        console.log(`🤖 Chargement auto de la playlist IA: ${playlistId}`);
+        loadSpotifyPlaylistById(playlistId, spotifyToken);
+      }
+    }, { onlyOnce: true });
+  }, [sessionId, gameMode, spotifyToken]);
 
   // Créer le son de buzzer
   useEffect(() => {
@@ -945,7 +960,7 @@ const addPoint = async (team) => {
   };
 
   // Créer une nouvelle session avec le mode sélectionné
-  const createNewSession = (mode) => {
+  const createNewSession = async (mode) => {
     // Générer un nouveau code de session
     const newSessionId = Math.random().toString(36).substring(2, 8).toUpperCase();
     setSessionId(newSessionId);
@@ -996,9 +1011,32 @@ const addPoint = async (team) => {
 
     setDebugInfo(`🔄 Nouvelle partie créée ! Code: ${newSessionId} - ${modeNames[mode]}`);
 
-    // Si mode Spotify IA, démarrer le workflow
+    // Si mode Spotify IA, créer la playlist vide via n8n
     if (mode === 'spotify-ai') {
-      setDebugInfo(`🤖 Mode IA activé - En attente des playlists générées par les joueurs...`);
+      setDebugInfo(`🤖 Création de la playlist IA via n8n...`);
+      try {
+        const result = await n8nService.createSpotifyPlaylistSimple(
+          `BlindTest-${newSessionId}`,
+          `Playlist générée automatiquement pour la session ${newSessionId}`
+        );
+
+        if (result.success && result.playlistId) {
+          // Stocker l'ID de la playlist dans Firebase
+          const playlistIdRef = ref(database, `sessions/${newSessionId}/playlistId`);
+          await set(playlistIdRef, result.playlistId);
+
+          console.log(`✅ Playlist Spotify IA créée: ${result.playlistId}`);
+          setDebugInfo(`🤖 Playlist IA créée ! En attente des contributions des joueurs...`);
+
+          // Initialiser le mode Spotify
+          setIsSpotifyMode(true);
+        } else {
+          throw new Error('Playlist ID non reçu');
+        }
+      } catch (error) {
+        console.error('❌ Erreur création playlist IA:', error);
+        setDebugInfo(`❌ Erreur création playlist IA: ${error.message}`);
+      }
     }
   };
 
