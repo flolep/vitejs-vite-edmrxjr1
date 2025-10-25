@@ -11,6 +11,13 @@
   # Functions directory (if using Netlify Functions)
   functions = "netlify/functions"
 
+# Environment variables for build
+[build.environment]
+  # Exclude Firebase API key from secrets scanning (it's a public key by design)
+  SECRETS_SCAN_SMART_DETECTION_OMIT_VALUES = "AIzaSyBcx5aW2LxZVuiiyoSlIWyf7Wyogm6Zqi4"
+  # Exclude source files from secrets scanning
+  SECRETS_SCAN_PATHS_EXCLUDE = "src/firebase.js,dist/**"
+
 # Production context (main branch)
 [context.production]
   environment = { NODE_ENV = "production" }
