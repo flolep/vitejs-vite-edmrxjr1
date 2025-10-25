@@ -143,15 +143,17 @@ export default function Master({ initialSessionId = null }) {
       const newSessionId = Math.random().toString(36).substring(2, 8).toUpperCase();
       setSessionId(newSessionId);
 
-      // Créer la nouvelle session dans Firebase
-      set(ref(database, `sessions/${newSessionId}`), {
-        active: true,
-        createdAt: Date.now(),
-        scores: { team1: 0, team2: 0 },
-        chrono: 0,
-        isPlaying: false,
-        showQRCode: false
-      });
+      // Créer la nouvelle session dans Firebase avec une opération atomique
+      const updates = {};
+      updates[`sessions/${newSessionId}/createdBy`] = user.uid;
+      updates[`sessions/${newSessionId}/createdAt`] = Date.now();
+      updates[`sessions/${newSessionId}/active`] = true;
+      updates[`sessions/${newSessionId}/scores`] = { team1: 0, team2: 0 };
+      updates[`sessions/${newSessionId}/chrono`] = 0;
+      updates[`sessions/${newSessionId}/isPlaying`] = false;
+      updates[`sessions/${newSessionId}/showQRCode`] = false;
+
+      update(ref(database), updates);
 
       setDebugInfo(`🎮 Nouvelle partie créée ! Code: ${newSessionId}`);
       console.log(`✅ Nouvelle session ${newSessionId} créée automatiquement`);
