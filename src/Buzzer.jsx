@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { database } from './firebase';
 import { ref, set, onValue, remove } from 'firebase/database';
 import { airtableService } from './airtableService';
+import { n8nService } from './n8nService';
 
 export default function Buzzer() {
   // États de session
@@ -329,7 +330,7 @@ useEffect(() => {
     startCamera();
   };
 
-  // NOUVEAU : Envoyer les données au workflow n8n
+  // NOUVEAU : Envoyer les données au workflow n8n pour remplir la playlist avec l'IA
   const sendToN8nWorkflow = async () => {
     if (!playlistId) {
       console.warn('⚠️ Pas de playlistId disponible, skip n8n');
@@ -337,32 +338,28 @@ useEffect(() => {
     }
 
     try {
-      const payload = {
+      console.log('📤 Envoi des préférences au workflow n8n (AI Playlist Generator)...');
+
+      // Appeler le workflow AI via n8nService
+      const result = await n8nService.fillPlaylistWithAI({
         playlistId: playlistId,
-        age: parseInt(playerAge) || null,
-        genres: selectedGenres,
-        specialPhrase: specialPhrase
-      };
-
-      console.log('📤 Envoi au workflow n8n:', payload);
-
-      const response = await fetch('https://n8n.srv1038816.hstgr.cloud/webhook-test/blindtest-player-input', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
+        age: parseInt(playerAge),
+        genres: selectedGenres, // Array de 3 genres
+        genre1Preferences: specialPhrase || '', // Utiliser la phrase spéciale comme préférence globale
+        genre2Preferences: '',
+        genre3Preferences: ''
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        console.log('✅ Réponse n8n:', result);
-      } else {
-        console.error('❌ Erreur n8n:', response.status, response.statusText);
-      }
+      console.log('✅ Playlist remplie avec succès:', result);
+      console.log(`🎵 ${result.totalSongs} chansons ajoutées à la playlist`);
+
+      // Optionnel : afficher un message de succès à l'utilisateur
+      // (pour l'instant on continue silencieusement)
+
     } catch (err) {
-      console.error('❌ Erreur appel n8n:', err);
+      console.error('❌ Erreur appel workflow n8n:', err);
       // On continue quand même, ne pas bloquer le joueur
+      // L'animateur peut toujours charger la playlist manuellement
     }
   };
 
