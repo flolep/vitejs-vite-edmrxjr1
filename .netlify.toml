@@ -11,11 +11,11 @@
   # Functions directory (if using Netlify Functions)
   functions = "netlify/functions"
 
-# Environment variables for build
-[build.environment]
-  # Disable secrets scanning (Firebase API keys are public by design)
-  # Security is ensured by Firebase Security Rules, not by hiding the API key
-  SECRETS_SCAN_SMART_DETECTION_ENABLED = "false"
+# Note: La clé Firebase API est publique par design (sécurité via Firebase Security Rules)
+# Pour que Netlify ne bloque pas le build, ajoutez dans Netlify UI :
+# Site settings > Environment variables > Add a variable
+# Name: SECRETS_SCAN_SMART_DETECTION_OMIT_VALUES
+# Value: [coller votre clé Firebase API depuis src/firebase.js]
 
 # Production context (main branch)
 [context.production]
