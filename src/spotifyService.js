@@ -1,5 +1,9 @@
 const CLIENT_ID = '4a234a00902a452a8d326ddfb1534f81';
-const REDIRECT_URI = 'https://blindtestflolep.netlify.app/callback';
+
+// URL de callback dynamique basée sur l'environnement actuel
+// Fonctionne sur : production, staging, develop, et localhost
+const getRedirectUri = () => `${window.location.origin}/callback`;
+
 const SCOPES = [
   'user-read-private',
   'user-read-email',
@@ -16,7 +20,7 @@ export const spotifyService = {
     const params = new URLSearchParams({
       client_id: CLIENT_ID,
       response_type: 'code',
-      redirect_uri: REDIRECT_URI,
+      redirect_uri: getRedirectUri(),
       scope: SCOPES,
       show_dialog: true
     });
@@ -29,7 +33,7 @@ export const spotifyService = {
       const response = await fetch('/.netlify/functions/spotify-auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, redirectUri: REDIRECT_URI })
+        body: JSON.stringify({ code, redirectUri: getRedirectUri() })
       });
       
       if (!response.ok) throw new Error('Failed to get access token');
