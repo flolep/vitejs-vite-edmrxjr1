@@ -230,21 +230,31 @@ export default function Master({ initialSessionId = null }) {
     const updateRef = ref(database, `sessions/${sessionId}/lastPlaylistUpdate`);
     const playlistIdRef = ref(database, `sessions/${sessionId}/playlistId`);
 
-    let lastTimestamp = null;
+    let isFirstLoad = true;
 
     const unsubscribe = onValue(updateRef, (snapshot) => {
       const updateData = snapshot.val();
       if (updateData && updateData.timestamp) {
-        // Éviter de recharger au premier chargement
-        if (lastTimestamp === null) {
-          lastTimestamp = updateData.timestamp;
-          return;
-        }
+        console.log(`🔔 Notification Firebase reçue: ${updateData.playerName} a ajouté ${updateData.songsAdded} chansons`);
 
-        // Si le timestamp a changé, recharger la playlist
-        if (updateData.timestamp > lastTimestamp) {
-          console.log(`🔄 Mise à jour détectée par ${updateData.playerName}, rechargement de la playlist...`);
-          lastTimestamp = updateData.timestamp;
+        // Au premier chargement, on charge la playlist s'il y a déjà des mises à jour
+        // Ensuite, on recharge à chaque nouvelle mise à jour
+        if (isFirstLoad) {
+          isFirstLoad = false;
+          // Si des chansons ont déjà été ajoutées, charger la playlist
+          if (updateData.songsAdded > 0) {
+            console.log(`📥 Chargement initial de la playlist mise à jour`);
+            onValue(playlistIdRef, (playlistSnapshot) => {
+              const playlistId = playlistSnapshot.val();
+              if (playlistId) {
+                loadSpotifyPlaylistById(playlistId, spotifyToken);
+                setDebugInfo(`✅ Playlist chargée (${updateData.songsAdded} chansons)`);
+              }
+            }, { onlyOnce: true });
+          }
+        } else {
+          // Recharger la playlist pour les mises à jour suivantes
+          console.log(`🔄 Rechargement de la playlist suite à mise à jour...`);
 
           // Ajouter au feed des mises à jour (pour le mode IA)
           if (gameMode === 'spotify-ai') {
