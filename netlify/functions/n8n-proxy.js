@@ -3,7 +3,7 @@
  * Contourne les problèmes CORS en agissant comme intermédiaire
  */
 
-const N8N_BASE_URL = 'https://n8n.srv1038816.hstgr.cloud/webhook-test';
+const N8N_BASE_URL = 'https://n8n.srv1038816.hstgr.cloud/webhook';
 
 exports.handler = async (event, context) => {
   // Headers CORS pour autoriser les requêtes depuis le frontend
