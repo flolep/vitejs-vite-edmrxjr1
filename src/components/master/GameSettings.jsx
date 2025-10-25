@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function GameSettings({ 
+export default function GameSettings({
   playlist,
   scores,
   showStats,
@@ -13,41 +13,7 @@ export default function GameSettings({
   onCancelEndGame
 }) {
   return (
-    <div className="player-box">
-      <h3 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>
-        ⚙️ Paramètres de la partie
-      </h3>
-      
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        {/* Bouton Statistiques */}
-        {playlist.length > 0 && (
-          <button 
-            onClick={onShowStats} 
-            className="btn btn-purple"
-          >
-            📊 Voir les statistiques des buzz
-          </button>
-        )}
-        
-        {/* Bouton Terminer la partie */}
-        {playlist.length > 0 && (
-          <button 
-            onClick={onEndGame} 
-            className="btn btn-yellow"
-          >
-            🏁 Terminer la partie
-          </button>
-        )}
-        
-        {/* Bouton Réinitialiser */}
-        <button 
-          onClick={onResetGame} 
-          className="btn btn-gray"
-        >
-          🔄 Réinitialiser tout
-        </button>
-      </div>
-
+    <>
       {/* Modal de confirmation de fin de partie */}
       {showEndGameConfirm && (
         <div style={{
@@ -168,14 +134,18 @@ export default function GameSettings({
               <p style={{ textAlign: 'center', opacity: 0.7 }}>
                 Aucun buzz enregistré pour le moment
               </p>
+            ) : buzzStats.filter(buzz => buzz.correct === true).length === 0 ? (
+              <p style={{ textAlign: 'center', opacity: 0.7 }}>
+                Aucun buzz gagnant pour le moment
+              </p>
             ) : (
               <>
                 <div style={{ marginBottom: '1.5rem' }}>
                   <h3 style={{ fontSize: '1.25rem', marginBottom: '0.75rem' }}>
-                    🏆 Top des buzz les plus rapides
+                    🏆 Top des buzz gagnants les plus rapides
                   </h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {buzzStats.slice(0, 10).map((buzz, index) => (
+                    {buzzStats.filter(buzz => buzz.correct === true).slice(0, 10).map((buzz, index) => (
                       <div 
                         key={index}
                         style={{
@@ -214,7 +184,7 @@ export default function GameSettings({
                     gap: '1rem' 
                   }}>
                     {['team1', 'team2'].map((team) => {
-                      const teamBuzzes = buzzStats.filter(b => b.team === team);
+                      const teamBuzzes = buzzStats.filter(b => b.team === team && b.correct === true);
                       const avgTime = teamBuzzes.length > 0
                         ? (teamBuzzes.reduce((sum, b) => sum + b.time, 0) / teamBuzzes.length)
                         : 0;
@@ -258,6 +228,6 @@ export default function GameSettings({
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

@@ -1,0 +1,135 @@
+{
+  "name": "Create Spotify Playlist (Simple - Single User)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "create-playlist-simple",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-create-playlist",
+      "name": "Webhook: Create Playlist",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [250, 300],
+      "webhookId": "create-playlist-simple"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "date",
+              "name": "date",
+              "value": "={{ new Date().toISOString().split('T')[0] }}",
+              "type": "string"
+            },
+            {
+              "id": "orderKey",
+              "name": "orderKey",
+              "value": "={{ String(Math.floor(Date.now() / 1000) % 1000).padStart(3, '0') }}",
+              "type": "string"
+            },
+            {
+              "id": "playlistName",
+              "name": "playlistName",
+              "value": "={{ $json.playlistName || 'BlindTest-' + $('Edit Fields').item.json.date + '-' + $('Edit Fields').item.json.orderKey }}",
+              "type": "string"
+            },
+            {
+              "id": "description",
+              "name": "description",
+              "value": "={{ $json.description || 'Playlist créée automatiquement pour Blind Test le ' + $('Edit Fields').item.json.date }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "edit-fields-generate-name",
+      "name": "Edit Fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [350, 300]
+    },
+    {
+      "parameters": {
+        "resource": "playlist",
+        "operation": "create",
+        "name": "={{ $json.playlistName }}",
+        "additionalFields": {
+          "description": "={{ $json.description }}",
+          "public": false
+        }
+      },
+      "id": "spotify-create-playlist",
+      "name": "Spotify: Create Playlist",
+      "type": "n8n-nodes-base.spotify",
+      "typeVersion": 1,
+      "position": [550, 300],
+      "credentials": {
+        "spotifyOAuth2Api": {
+          "id": "1",
+          "name": "Spotify account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"playlistId\": $json.id, \"playlistName\": $json.name, \"playlistUrl\": $json.external_urls.spotify } }}"
+      },
+      "id": "respond-to-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [750, 300]
+    }
+  ],
+  "connections": {
+    "Webhook: Create Playlist": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Spotify: Create Playlist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Spotify: Create Playlist": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "id": "create-spotify-playlist-simple",
+  "meta": {
+    "instanceId": "your-instance-id"
+  },
+  "tags": []
+}

@@ -14,9 +14,9 @@ export default function SpotifyCallback() {
           // Stocker le token (en mémoire pour cette session)
           sessionStorage.setItem('spotify_access_token', tokenData.access_token);
           sessionStorage.setItem('spotify_refresh_token', tokenData.refresh_token);
-          
+
           // Rediriger vers Master
-          window.location.href = '/';
+          window.location.href = '/master';
         } catch (error) {
           console.error('Error during callback:', error);
           alert('Erreur de connexion Spotify');

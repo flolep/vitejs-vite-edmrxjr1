@@ -1,41 +1,38 @@
 import React from 'react';
 
-export default function SpotifyConnection({ 
-  spotifyToken, 
-  onConnect, 
+export default function SpotifyConnection({
+  spotifyToken,
+  onConnect,
   onShowPlaylists,
   onAddManual
 }) {
-  if (!spotifyToken) {
-    return (
-      <div className="player-box text-center mb-4">
-        <h3 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>
-          Connectez-vous à Spotify
-        </h3>
-        <button onClick={onConnect} className="btn btn-green">
-          🎵 Se connecter avec Spotify
-        </button>
-        <p style={{ marginTop: '1rem', opacity: 0.7 }}>ou</p>
-        <button onClick={onAddManual} className="btn btn-purple" style={{ marginTop: '0.5rem' }}>
-          📁 Mode MP3 manuel
-        </button>
-      </div>
-    );
-  }
+  // Fonction qui vérifie le token avant d'agir
+  const handleSpotifyAction = () => {
+    if (!spotifyToken) {
+      // Pas de token → Redirection automatique vers Spotify OAuth
+      console.log('📤 Pas de token Spotify, redirection automatique...');
+      onConnect();
+    } else {
+      // Token présent → Afficher les playlists
+      onShowPlaylists();
+    }
+  };
 
   return (
     <div className="player-box mb-4">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span>✅ Connecté à Spotify</span>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button onClick={onShowPlaylists} className="btn btn-green">
-            🎵 Importer playlist
-          </button>
-          <button onClick={onAddManual} className="btn btn-purple">
-            📁 Ajouter MP3
-          </button>
-        </div>
+      <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+        <button onClick={handleSpotifyAction} className="btn btn-green">
+          🎵 {spotifyToken ? 'Importer playlist Spotify' : 'Mode Spotify'}
+        </button>
+        <button onClick={onAddManual} className="btn btn-purple">
+          📁 Mode MP3 manuel
+        </button>
       </div>
+      {!spotifyToken && (
+        <p style={{ textAlign: 'center', marginTop: '0.5rem', opacity: 0.7, fontSize: '0.9rem' }}>
+          ℹ️ Le mode Spotify vous redirigera vers l'authentification
+        </p>
+      )}
     </div>
   );
 }
