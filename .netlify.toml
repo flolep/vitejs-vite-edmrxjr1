@@ -9,7 +9,7 @@
   publish = "dist"
 
   # Functions directory (if using Netlify Functions)
-  # functions = "netlify/functions"
+  functions = "netlify/functions"
 
 # Production context (main branch)
 [context.production]
