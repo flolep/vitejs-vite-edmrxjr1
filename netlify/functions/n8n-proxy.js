@@ -1,9 +1,11 @@
 /**
  * Netlify Function : Proxy pour les appels n8n
  * Contourne les problèmes CORS en agissant comme intermédiaire
+ * Sécurisé par un token d'authentification
  */
 
 const N8N_BASE_URL = 'https://n8n.srv1038816.hstgr.cloud/webhook';
+const N8N_AUTH_TOKEN = process.env.N8N_AUTH_TOKEN || 'your-secret-token-here';
 
 exports.handler = async (event, context) => {
   // Headers CORS pour autoriser les requêtes depuis le frontend
@@ -52,11 +54,12 @@ exports.handler = async (event, context) => {
 
     console.log(`📤 Proxying request to n8n: ${n8nUrl}`);
 
-    // Appeler n8n
+    // Appeler n8n avec authentification
     const response = await fetch(n8nUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'X-Auth-Token': N8N_AUTH_TOKEN  // Token de sécurité
       },
       body: JSON.stringify(payload || {})
     });
