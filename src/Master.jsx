@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { database, auth } from './firebase';
-import { ref, onValue, remove, set } from 'firebase/database';
+import { ref, onValue, remove, set, update } from 'firebase/database';
 import { spotifyService } from './spotifyService';
 import { n8nService } from './n8nService';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -966,41 +966,29 @@ const addPoint = async (team) => {
     setSessionId(newSessionId);
     setGameMode(mode);
 
-    // Créer la nouvelle session dans Firebase
-    set(ref(database, `sessions/${newSessionId}`), {
-      createdBy: user.uid,
-      createdAt: Date.now(),
-      active: true,
-      gameMode: mode
-    });
+    // Créer la nouvelle session dans Firebase avec une seule opération atomique
+    const updates = {};
+    updates[`sessions/${newSessionId}/createdBy`] = user.uid;
+    updates[`sessions/${newSessionId}/createdAt`] = Date.now();
+    updates[`sessions/${newSessionId}/active`] = true;
+    updates[`sessions/${newSessionId}/gameMode`] = mode;
+    updates[`sessions/${newSessionId}/scores`] = { team1: 0, team2: 0 };
+    updates[`sessions/${newSessionId}/chrono`] = 0;
+    updates[`sessions/${newSessionId}/isPlaying`] = false;
+    updates[`sessions/${newSessionId}/currentSong`] = null;
+    updates[`sessions/${newSessionId}/game_status`] = { ended: false };
+    updates[`sessions/${newSessionId}/showQRCode`] = false;
 
-    // Réinitialiser tous les états
+    await update(ref(database), updates);
+
+    // Réinitialiser tous les états locaux
     const newScores = { team1: 0, team2: 0 };
     setScores(newScores);
-    const scoresRef = ref(database, `sessions/${newSessionId}/scores`);
-    set(scoresRef, newScores);
-
     setPlaylist([]);
     setCurrentTrack(0);
     setIsPlaying(false);
-
-    const chronoRef = ref(database, `sessions/${newSessionId}/chrono`);
-    set(chronoRef, 0);
     setCurrentChrono(0);
-
-    const playingRef = ref(database, `sessions/${newSessionId}/isPlaying`);
-    set(playingRef, false);
-
-    const songRef = ref(database, `sessions/${newSessionId}/currentSong`);
-    set(songRef, null);
-
-    const gameStatusRef = ref(database, `sessions/${newSessionId}/game_status`);
-    set(gameStatusRef, { ended: false });
-
     setShowQRCode(false);
-    const qrCodeRef = ref(database, `sessions/${newSessionId}/showQRCode`);
-    set(qrCodeRef, false);
-
     setShowModeSelection(false);
 
     const modeNames = {
