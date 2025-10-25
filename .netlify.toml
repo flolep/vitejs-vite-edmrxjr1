@@ -11,6 +11,12 @@
   # Functions directory (if using Netlify Functions)
   # functions = "netlify/functions"
 
+# Limit branch deploys to specific branches only
+[build.ignore]
+  # Only build main, staging, and develop branches
+  # Skip builds for all other branches (like claude/* branches)
+  command = "bash -c '[[ $BRANCH != \"main\" && $BRANCH != \"staging\" && $BRANCH != \"develop\" ]]'"
+
 # Production context (main branch)
 [context.production]
   environment = { NODE_ENV = "production" }
