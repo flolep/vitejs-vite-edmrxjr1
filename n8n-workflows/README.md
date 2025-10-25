@@ -2,7 +2,50 @@
 
 Ce dossier contient les workflows n8n pour l'intégration avec Spotify.
 
-## 1. Create Spotify Playlist
+## 🎯 Choix du workflow
+
+### Vous êtes le SEUL animateur ?
+**→ Utilisez `create-playlist-simple.json`** ✅
+- Plus simple (pas besoin de userId)
+- Les playlists sont créées sur VOTRE compte Spotify configuré dans n8n
+- Parfait pour un usage personnel
+
+### Vous avez PLUSIEURS animateurs différents ?
+**→ Utilisez `create-playlist.json`**
+- Nécessite de passer le userId
+- Plus complexe mais supporte multi-utilisateurs
+
+---
+
+## 1. Create Spotify Playlist (Simple - Recommandé)
+
+**Fichier:** `create-playlist-simple.json`
+
+### Description
+Version simplifiée pour **animateur unique**. Crée une playlist vide sur VOTRE compte Spotify (configuré dans n8n) avec un nom généré automatiquement au format **`BlindTest-YYYY-MM-DD-XXX`**.
+
+### Avantages
+- ✅ Plus simple (pas de userId à gérer)
+- ✅ Playlist créée directement sur votre compte
+- ✅ Moins de paramètres à passer
+
+### Paramètres d'entrée (tous optionnels)
+
+```json
+{
+  "playlistName": "Mon Blind Test (optionnel)",
+  "description": "Description (optionnel)"
+}
+```
+
+Vous pouvez même appeler le webhook **sans aucun paramètre** :
+```bash
+curl -X POST https://n8n.com/webhook/create-playlist-simple
+```
+
+---
+
+## 2. Create Spotify Playlist (Multi-utilisateurs)
 
 **Fichier:** `create-playlist.json`
 

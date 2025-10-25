@@ -3,7 +3,53 @@ const N8N_WEBHOOK_BASE_URL = import.meta.env.VITE_N8N_WEBHOOK_URL || 'https://yo
 
 export const n8nService = {
   /**
-   * Crée une playlist vide sur Spotify via n8n
+   * Crée une playlist vide sur Spotify via n8n (VERSION SIMPLE - Animateur unique)
+   * Utilise le compte Spotify configuré dans n8n (vos credentials personnels)
+   * @param {string} playlistName - Le nom de la playlist (optionnel). Si non fourni, génère "BlindTest-YYYY-MM-DD-XXX"
+   * @param {string} description - La description de la playlist (optionnel)
+   * @returns {Promise<{success: boolean, playlistId: string, playlistName: string, playlistUrl: string}>}
+   */
+  async createSpotifyPlaylistSimple(playlistName = null, description = null) {
+    try {
+      const payload = {};
+
+      // Ajouter le nom seulement s'il est fourni (sinon n8n le génère automatiquement)
+      if (playlistName) {
+        payload.playlistName = playlistName;
+      }
+
+      // Ajouter la description seulement si elle est fournie
+      if (description) {
+        payload.description = description;
+      }
+
+      console.log('📤 Création playlist Spotify via n8n (simple):', payload);
+
+      const response = await fetch(`${N8N_WEBHOOK_BASE_URL}/create-playlist-simple`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`n8n webhook error: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ Playlist créée:', data);
+
+      return data;
+    } catch (error) {
+      console.error('❌ Erreur création playlist via n8n:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Crée une playlist vide sur Spotify via n8n (VERSION MULTI-UTILISATEURS)
    * @param {string} userId - L'ID utilisateur Spotify
    * @param {string} playlistName - Le nom de la playlist (optionnel). Si non fourni, génère "BlindTest-YYYY-MM-DD-XXX"
    * @param {string} description - La description de la playlist (optionnel)
