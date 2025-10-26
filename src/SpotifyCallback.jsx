@@ -4,26 +4,48 @@ import { spotifyService } from './spotifyService';
 export default function SpotifyCallback() {
   useEffect(() => {
     const handleCallback = async () => {
+      console.log('🔐 SpotifyCallback démarré');
+      console.log('🔐 URL:', window.location.href);
+
       const params = new URLSearchParams(window.location.search);
       const code = params.get('code');
-      
+      const error = params.get('error');
+
+      console.log('🔐 Code reçu:', code ? code.substring(0, 20) + '...' : 'AUCUN');
+      console.log('🔐 Erreur reçue:', error);
+
+      if (error) {
+        console.error('❌ Erreur OAuth Spotify:', error);
+        alert(`Erreur Spotify: ${error}`);
+        return;
+      }
+
       if (code) {
         try {
+          console.log('🔐 Appel getAccessToken...');
           const tokenData = await spotifyService.getAccessToken(code);
-          
+          console.log('🔐 Token reçu:', tokenData);
+          console.log('🔐 access_token:', tokenData.access_token ? tokenData.access_token.substring(0, 20) + '...' : 'MANQUANT');
+          console.log('🔐 refresh_token:', tokenData.refresh_token ? 'Présent' : 'MANQUANT');
+
           // Stocker le token (en mémoire pour cette session)
           sessionStorage.setItem('spotify_access_token', tokenData.access_token);
           sessionStorage.setItem('spotify_refresh_token', tokenData.refresh_token);
+          console.log('✅ Tokens stockés dans sessionStorage');
 
           // Rediriger vers Master
+          console.log('🔐 Redirection vers /master...');
           window.location.href = '/master';
         } catch (error) {
-          console.error('Error during callback:', error);
-          alert('Erreur de connexion Spotify');
+          console.error('❌ Error during callback:', error);
+          alert('Erreur de connexion Spotify: ' + error.message);
         }
+      } else {
+        console.error('❌ Pas de code dans l\'URL');
+        alert('Erreur: Pas de code d\'autorisation reçu');
       }
     };
-    
+
     handleCallback();
   }, []);
 

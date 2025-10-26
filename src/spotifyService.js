@@ -30,16 +30,30 @@ export const spotifyService = {
   // Échanger le code contre un token
   async getAccessToken(code) {
     try {
+      console.log('🔑 getAccessToken appelé');
+      console.log('🔑 Code:', code ? code.substring(0, 20) + '...' : 'MANQUANT');
+      console.log('🔑 RedirectUri:', getRedirectUri());
+
       const response = await fetch('/.netlify/functions/spotify-auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code, redirectUri: getRedirectUri() })
       });
-      
-      if (!response.ok) throw new Error('Failed to get access token');
-      return await response.json();
+
+      console.log('🔑 Réponse fonction Netlify:', response.status, response.statusText);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Erreur fonction Netlify:', response.status, errorText);
+        throw new Error(`Failed to get access token: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log('🔑 Données reçues:', data);
+
+      return data;
     } catch (error) {
-      console.error('Error getting access token:', error);
+      console.error('❌ Error getting access token:', error);
       throw error;
     }
   },
