@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { auth, database } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { ref, set, onValue } from 'firebase/database';
+import { ref, set, update, onValue } from 'firebase/database';
 import { spotifyService } from '../spotifyService';
 import { n8nService } from '../n8nService';
 import Login from './Login';
