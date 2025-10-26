@@ -28,6 +28,21 @@ export default function SpotifyCallback() {
           console.log('🔐 access_token:', tokenData.access_token ? tokenData.access_token.substring(0, 20) + '...' : 'MANQUANT');
           console.log('🔐 refresh_token:', tokenData.refresh_token ? 'Présent' : 'MANQUANT');
 
+          // Vérifier si on a une erreur Spotify
+          if (tokenData.error) {
+            console.error('❌ Erreur Spotify OAuth:', tokenData.error);
+            console.error('❌ Description:', tokenData.error_description || 'Aucune description');
+            alert(`Erreur Spotify OAuth: ${tokenData.error}\n\n${tokenData.error_description || ''}\n\nVérifie les credentials Spotify dans Netlify.`);
+            return;
+          }
+
+          // Vérifier que le token est présent
+          if (!tokenData.access_token) {
+            console.error('❌ Pas de access_token dans la réponse');
+            alert('Erreur: Pas de token reçu de Spotify');
+            return;
+          }
+
           // Stocker le token (en mémoire pour cette session)
           console.log('💾 Écriture dans sessionStorage...');
           sessionStorage.setItem('spotify_access_token', tokenData.access_token);
