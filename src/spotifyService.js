@@ -50,6 +50,10 @@ export const spotifyService = {
 
       const data = await response.json();
       console.log('🔑 Données reçues:', data);
+      console.log('🔑 data.access_token:', data.access_token ? data.access_token.substring(0, 20) + '...' : 'UNDEFINED/MANQUANT');
+      console.log('🔑 data.refresh_token:', data.refresh_token ? 'Présent' : 'UNDEFINED/MANQUANT');
+      console.log('🔑 data.error:', data.error || 'Aucune erreur');
+      console.log('🔑 data complet:', JSON.stringify(data));
 
       return data;
     } catch (error) {
