@@ -37,16 +37,31 @@ export default function App() {
     }
   }, []);
 
+  // Détecter si on revient de Spotify OAuth et rouvrir le wizard automatiquement
+  useEffect(() => {
+    const wizardInProgress = localStorage.getItem('wizardInProgress');
+    if (wizardInProgress === 'true' && page === 'home') {
+      // Nettoyer le flag
+      localStorage.removeItem('wizardInProgress');
+      // Rouvrir le wizard
+      setShowWizard(true);
+    }
+  }, [page]);
+
   // Handler de completion du wizard
   const handleWizardComplete = (config) => {
     console.log('✅ Wizard complété avec config:', config);
     setMasterConfig(config);
     setShowWizard(false);
     setPage('master');
+    // Nettoyer le flag wizard en cours
+    localStorage.removeItem('wizardInProgress');
   };
 
   // Handler du bouton Animateur
   const handleAnimatorClick = () => {
+    // Marquer le wizard en cours
+    localStorage.setItem('wizardInProgress', 'true');
     setShowWizard(true);
   };
 

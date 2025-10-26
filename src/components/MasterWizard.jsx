@@ -62,6 +62,8 @@ export default function MasterWizard({ onComplete }) {
   }, []);
 
   const handleSpotifyLogin = () => {
+    // Marquer que le wizard est en cours pour le rouvrir après le callback
+    localStorage.setItem('wizardInProgress', 'true');
     window.location.href = spotifyService.getAuthUrl();
   };
 
