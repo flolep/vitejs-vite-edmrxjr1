@@ -136,7 +136,7 @@ export default function MasterWizard({ onComplete }) {
       updates[`sessions/${newSessionId}/game_status`] = { ended: false };
       updates[`sessions/${newSessionId}/showQRCode`] = false;
 
-      await set(ref(database), updates);
+      await update(ref(database), updates);
       localStorage.setItem('lastSessionId', newSessionId);
 
       // Selon le mode, charger/créer la playlist
