@@ -233,6 +233,14 @@ export default function MasterWizard({ onComplete }) {
   useEffect(() => {
     if (step === 'ready' && sessionId && gameMode) {
       // Appeler le callback parent pour lancer Master
+      console.log('🎯 onComplete appelé avec:', {
+        sessionId,
+        gameMode,
+        playlistId,
+        playlist: playlist.length + ' morceaux',
+        spotifyToken: spotifyToken ? spotifyToken.substring(0, 20) + '...' : 'UNDEFINED'
+      });
+
       onComplete({
         sessionId,
         gameMode,
@@ -241,7 +249,7 @@ export default function MasterWizard({ onComplete }) {
         spotifyToken
       });
     }
-  }, [step, sessionId, gameMode]);
+  }, [step, sessionId, gameMode, playlistId, playlist, spotifyToken, onComplete]);
 
   // ========== RENDU DES ÉTAPES ==========
 
