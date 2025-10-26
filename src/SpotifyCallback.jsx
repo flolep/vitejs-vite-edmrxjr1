@@ -33,9 +33,9 @@ export default function SpotifyCallback() {
           sessionStorage.setItem('spotify_refresh_token', tokenData.refresh_token);
           console.log('✅ Tokens stockés dans sessionStorage');
 
-          // Rediriger vers Master
-          console.log('🔐 Redirection vers /master...');
-          window.location.href = '/master';
+          // Rediriger vers l'accueil pour relancer le wizard
+          console.log('🔐 Redirection vers / (home) pour continuer le wizard...');
+          window.location.href = '/';
         } catch (error) {
           console.error('❌ Error during callback:', error);
           alert('Erreur de connexion Spotify: ' + error.message);
