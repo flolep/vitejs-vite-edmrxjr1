@@ -37,14 +37,20 @@ function calculatePoints(chrono, songDuration) {
   return Math.max(0, Math.round(availablePoints));
 }
 
-export default function Master({ initialSessionId = null }) {
+export default function Master({
+  initialSessionId = null,
+  initialGameMode = null,
+  initialPlaylist = [],
+  initialPlaylistId = null,
+  initialSpotifyToken = null
+}) {
   // États d'authentification et session
   const [user, setUser] = useState(null);
   const [sessionId, setSessionId] = useState(initialSessionId);
   const [showQRCode, setShowQRCode] = useState(false);
   const [showSessionModal, setShowSessionModal] = useState(false);
   const [showModeSelection, setShowModeSelection] = useState(false);
-  const [gameMode, setGameMode] = useState(null); // null | 'mp3' | 'spotify-auto' | 'spotify-ai'
+  const [gameMode, setGameMode] = useState(initialGameMode); // Initialisé depuis wizard ou null
 
   // États des paramètres de cooldown
   const [cooldownThreshold, setCooldownThreshold] = useState(2); // Nombre de bonnes réponses d'affilée
@@ -52,7 +58,7 @@ export default function Master({ initialSessionId = null }) {
   const [showCooldownSettings, setShowCooldownSettings] = useState(false);
 
   // États principaux
-  const [playlist, setPlaylist] = useState([]);
+  const [playlist, setPlaylist] = useState(initialPlaylist); // Initialisée depuis wizard ou []
   const [currentTrack, setCurrentTrack] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [scores, setScores] = useState({ team1: 0, team2: 0 });
@@ -61,14 +67,14 @@ export default function Master({ initialSessionId = null }) {
   const [currentChrono, setCurrentChrono] = useState(0);
   const [songDuration, setSongDuration] = useState(0);
   const [buzzedPlayerKey, setBuzzedPlayerKey] = useState(null);
-  
+
   // États statistiques
   const [showStats, setShowStats] = useState(false);
   const [buzzStats, setBuzzStats] = useState([]);
   const [showEndGameConfirm, setShowEndGameConfirm] = useState(false);
-  
+
   // États Spotify
-  const [spotifyToken, setSpotifyToken] = useState(null);
+  const [spotifyToken, setSpotifyToken] = useState(initialSpotifyToken); // Initialisé depuis wizard ou null
   const [spotifyPlaylists, setSpotifyPlaylists] = useState([]);
   const [showPlaylistSelector, setShowPlaylistSelector] = useState(false);
   const [spotifyPlayer, setSpotifyPlayer] = useState(null);
