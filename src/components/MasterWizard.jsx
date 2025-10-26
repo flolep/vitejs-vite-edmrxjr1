@@ -47,9 +47,16 @@ export default function MasterWizard({ onComplete }) {
 
   // Vérifier le token Spotify au chargement
   useEffect(() => {
+    console.log('🔍 [WIZARD] useEffect chargement token');
+    console.log('🔍 [WIZARD] sessionStorage keys:', Object.keys(sessionStorage));
     const token = sessionStorage.getItem('spotify_access_token');
+    console.log('🔍 [WIZARD] Token lu depuis sessionStorage:', token ? token.substring(0, 20) + '...' : 'AUCUN');
+
     if (token) {
+      console.log('✅ [WIZARD] setSpotifyToken appelé');
       setSpotifyToken(token);
+    } else {
+      console.log('❌ [WIZARD] Pas de token dans sessionStorage');
     }
   }, []);
 

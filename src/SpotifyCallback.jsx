@@ -29,9 +29,11 @@ export default function SpotifyCallback() {
           console.log('🔐 refresh_token:', tokenData.refresh_token ? 'Présent' : 'MANQUANT');
 
           // Stocker le token (en mémoire pour cette session)
+          console.log('💾 Écriture dans sessionStorage...');
           sessionStorage.setItem('spotify_access_token', tokenData.access_token);
           sessionStorage.setItem('spotify_refresh_token', tokenData.refresh_token);
           console.log('✅ Tokens stockés dans sessionStorage');
+          console.log('✅ Vérification: access_token =', sessionStorage.getItem('spotify_access_token') ? 'PRÉSENT' : 'ABSENT');
 
           // Rediriger vers l'accueil pour relancer le wizard
           console.log('🔐 Redirection vers / (home) pour continuer le wizard...');
