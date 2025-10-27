@@ -77,6 +77,7 @@ export default function Master({ initialSessionId = null }) {
   
   const audioRef = useRef(null);
   const buzzerSoundRef = useRef(null);
+  const currentChronoRef = useRef(0);
 
   // Gestion de l'authentification
   useEffect(() => {
@@ -204,6 +205,11 @@ export default function Master({ initialSessionId = null }) {
     return () => unsubscribe();
   }, [sessionId]);
 
+  // Synchroniser la ref du chrono avec le state
+  useEffect(() => {
+    currentChronoRef.current = currentChrono;
+  }, [currentChrono]);
+
   // Écouter les mises à jour de la playlist et rafraîchir automatiquement
   useEffect(() => {
     if (!sessionId || !isSpotifyMode || !spotifyToken) return;
@@ -271,7 +277,7 @@ useEffect(() => {
     if (buzzData && isPlaying) {
       const { team } = buzzData;
       // ✅ FIX : Utiliser le chrono actuel au lieu d'attendre buzzData.time
-      const buzzTime = currentChrono;
+      const buzzTime = currentChronoRef.current;
 
       setBuzzedTeam(team);
       setBuzzedPlayerKey(buzzData.playerFirebaseKey || null);
@@ -315,7 +321,7 @@ useEffect(() => {
   });
 
   return () => unsubscribe();
-}, [isPlaying, isSpotifyMode, spotifyToken, currentChrono, currentTrack]);
+}, [isPlaying, isSpotifyMode, spotifyToken, currentTrack, sessionId, playlist]);
 
   // === SPOTIFY ===
   const handleSpotifyLogin = () => {

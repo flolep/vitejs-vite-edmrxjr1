@@ -186,20 +186,6 @@ export default function Buzzer() {
     return () => clearInterval(interval);
     }, [cooldownEnd]);
 
-    // ✅ AJOUTEZ CE useEffect AVEC LES AUTRES (vers la ligne 90-100)
-useEffect(() => {
-  if (step === 'photo' && !photoData) {
-    startCamera();
-  }
-  
-  // Cleanup : arrêter la caméra si on quitte cette étape
-  return () => {
-    if (streamRef.current && step !== 'photo') {
-      streamRef.current.getTracks().forEach(track => track.stop());
-    }
-  };
-}, [step, photoData]);
-
   // NOUVEAU : Rechercher le joueur
   const handleSearchPlayer = async () => {
     if (!playerName.trim()) {
@@ -227,20 +213,6 @@ useEffect(() => {
       setIsSearching(false);
     }
   };
-
-  // ✅ AJOUTEZ CET useEffect TOUT EN HAUT de votre composant Buzzer, après les autres useEffect
-useEffect(() => {
-  if (step === 'photo' && !photoData) {
-    startCamera();
-  }
-  
-  // Cleanup
-  return () => {
-    if (streamRef.current && step !== 'photo') {
-      streamRef.current.getTracks().forEach(track => track.stop());
-    }
-  };
-}, [step, photoData]);
 
   // NOUVEAU : Sélectionner un joueur existant
   const handleSelectPlayer = (player) => {
@@ -834,65 +806,7 @@ if (step === 'photo') {
   );
 }
 
-  // ÉCRAN 4 : Validation du selfie
-  if (step === 'photo' && photoData) {
-    return (
-      <div className="bg-gradient flex-center">
-        <div className="text-center" style={{ maxWidth: '500px', width: '100%', padding: '2rem' }}>
-          <h1 className="title">✨ Parfait !</h1>
-          <h2 style={{ fontSize: '1.25rem', marginBottom: '2rem' }}>
-            Valider cette photo ?
-          </h2>
-
-          <img
-            src={photoData}
-            alt="Selfie"
-            style={{
-              width: '300px',
-              height: '300px',
-              borderRadius: '50%',
-              objectFit: 'cover',
-              marginBottom: '2rem',
-              border: '4px solid #fbbf24'
-            }}
-          />
-
-          {error && (
-            <div style={{ color: '#ef4444', marginBottom: '1rem' }}>
-              {error}
-            </div>
-          )}
-
-          <div className="space-y">
-            <button
-              onClick={confirmSelfie}
-              disabled={isSearching}
-              className="btn btn-green"
-              style={{
-                width: '100%',
-                padding: '1.5rem',
-                fontSize: '1.25rem',
-                opacity: isSearching ? 0.5 : 1
-              }}
-            >
-              {isSearching ? '💾 Sauvegarde...' : '✅ Valider'}
-            </button>
-
-            <button
-              onClick={retakeSelfie}
-              disabled={isSearching}
-              className="btn btn-gray"
-              style={{ width: '100%', padding: '1rem' }}
-            >
-              🔄 Reprendre
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ÉCRAN 5 : Préférences du joueur
+  // ÉCRAN 4 : Préférences du joueur
   if (step === 'preferences') {
     const availableGenres = [
       'Pop', 'Rock', 'Hip-Hop', 'Jazz', 'Électro',
