@@ -604,19 +604,31 @@ const togglePlay = async () => {
         const stateResponse = await fetch('https://api.spotify.com/v1/me/player', {
           headers: { 'Authorization': `Bearer ${spotifyToken}` }
         });
-        
+
         if (stateResponse.ok) {
           const playerState = await stateResponse.json();
           setSpotifyPosition(playerState.progress_ms);
         }
-        
+
         await spotifyService.pausePlayback(spotifyToken);
         setIsPlaying(false);
         setDebugInfo('⏸️ Pause');
-        
+
         const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
         set(playingRef, false);
       } else {
+        // Vérifier que le player est toujours connecté
+        if (spotifyPlayer) {
+          const state = await spotifyPlayer.getCurrentState();
+          if (!state) {
+            console.warn('⚠️ Player déconnecté, reconnexion...');
+            setDebugInfo('🔄 Reconnexion du player...');
+            await spotifyPlayer.connect();
+            // Attendre un peu que la connexion soit établie
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
+
         const isNewTrack = lastPlayedTrack !== currentTrack;
         const startPosition = isNewTrack ? 0 : spotifyPosition;
         
@@ -651,7 +663,26 @@ const togglePlay = async () => {
       }
     } catch (error) {
       console.error('Erreur Spotify:', error);
-      setDebugInfo('❌ Erreur Spotify');
+
+      // Erreur 404 : Device not found - proposer une reconnexion
+      if (error.message && error.message.includes('404')) {
+        setDebugInfo('❌ Player déconnecté. Rechargez la page ou reconnectez Spotify.');
+
+        // Tenter une reconnexion automatique
+        if (spotifyPlayer) {
+          try {
+            console.log('Tentative de reconnexion automatique...');
+            await spotifyPlayer.disconnect();
+            await spotifyPlayer.connect();
+            setDebugInfo('🔄 Player reconnecté. Réessayez.');
+          } catch (reconnectError) {
+            console.error('Échec reconnexion:', reconnectError);
+            setDebugInfo('❌ Échec reconnexion. Rechargez la page.');
+          }
+        }
+      } else {
+        setDebugInfo('❌ Erreur Spotify : ' + (error.message || 'Erreur inconnue'));
+      }
     }
   } else {
     // Mode MP3
