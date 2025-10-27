@@ -389,7 +389,7 @@ const selectTeam = async (teamNumber) => {
 
   try {
     const playerData = {
-      id: selectedPlayer?.id || `temp_${Date.now()}`,
+      id: selectedPlayer?.id || `temp_${playerName}`,
       name: selectedPlayer?.name || playerName,
       photo: selectedPlayer?.photo || photoData || null,
       status: 'idle',
@@ -421,7 +421,7 @@ const handleBuzz = async () => {
     team: `team${team}`,
     teamName: team === 1 ? 'Équipe 1' : 'Équipe 2',
     playerName: selectedPlayer?.name || playerName,
-    playerId: selectedPlayer?.id || null,
+    playerId: selectedPlayer?.id || `temp_${playerName}`,
     playerPhoto: selectedPlayer?.photo || photoData || null,
     playerFirebaseKey: playerFirebaseKey, // ✅ AJOUTEZ CECI
     timestamp: Date.now()

@@ -801,7 +801,7 @@ const addPoint = async (team) => {
   const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
 
   // Vérifier si la chanson correspond aux préférences du joueur (bonus personnel)
-  const currentSongUri = playlist[currentTrack]?.uri; // URI Spotify de la chanson actuelle
+  const currentSongUri = playlist[currentTrack]?.spotifyUri; // URI Spotify de la chanson actuelle
 
   if (currentSongUri) {
     try {
