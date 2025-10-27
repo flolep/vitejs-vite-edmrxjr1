@@ -86,6 +86,7 @@ export default function Master({
   
   const audioRef = useRef(null);
   const buzzerSoundRef = useRef(null);
+  const currentChronoRef = useRef(0);
 
   // Gestion de l'authentification
   useEffect(() => {
@@ -243,6 +244,11 @@ export default function Master({
     return () => unsubscribe();
   }, [sessionId]);
 
+  // Synchroniser la ref du chrono avec le state
+  useEffect(() => {
+    currentChronoRef.current = currentChrono;
+  }, [currentChrono]);
+
   // Écouter les mises à jour de la playlist et rafraîchir automatiquement
   useEffect(() => {
     if (!sessionId || !spotifyToken) return;
@@ -250,30 +256,33 @@ export default function Master({
     const updateRef = ref(database, `sessions/${sessionId}/lastPlaylistUpdate`);
     const playlistIdRef = ref(database, `sessions/${sessionId}/playlistId`);
 
-    let isFirstLoad = true;
+    let lastTimestamp = null;
+    let isFirstCallback = true;
 
     const unsubscribe = onValue(updateRef, (snapshot) => {
       const updateData = snapshot.val();
-      if (updateData && updateData.timestamp) {
+
+      // Le premier callback représente l'état initial de Firebase (peut être null ou contenir des données)
+      if (isFirstCallback) {
+        isFirstCallback = false;
+        // Si des données existent déjà au montage, les ignorer (session reprise)
+        if (updateData?.timestamp) {
+          lastTimestamp = updateData.timestamp;
+          console.log('📌 État initial ignoré (données existantes au montage)');
+          return;
+        }
+        // Sinon (Firebase vide), ne rien faire et attendre la première contribution
+      }
+
+      // Traiter les mises à jour (callbacks suivants)
+      if (updateData?.timestamp) {
         console.log(`🔔 Notification Firebase reçue: ${updateData.playerName} a ajouté ${updateData.songsAdded} chansons`);
 
-        // Au premier chargement, on charge la playlist s'il y a déjà des mises à jour
-        // Ensuite, on recharge à chaque nouvelle mise à jour
-        if (isFirstLoad) {
-          isFirstLoad = false;
-          // Si des chansons ont déjà été ajoutées, charger la playlist
-          if (updateData.songsAdded > 0) {
-            console.log(`📥 Chargement initial de la playlist mise à jour`);
-            onValue(playlistIdRef, (playlistSnapshot) => {
-              const playlistId = playlistSnapshot.val();
-              if (playlistId) {
-                loadSpotifyPlaylistById(playlistId, spotifyToken);
-                setDebugInfo(`✅ Playlist chargée (${updateData.songsAdded} chansons)`);
-              }
-            }, { onlyOnce: true });
-          }
-        } else {
-          // Recharger la playlist pour les mises à jour suivantes
+        // Première contribution OU mise à jour suivante
+        if (lastTimestamp === null || updateData.timestamp > lastTimestamp) {
+          lastTimestamp = updateData.timestamp;
+
+          // Recharger la playlist
           console.log(`🔄 Rechargement de la playlist suite à mise à jour...`);
 
           // Ajouter au feed des mises à jour (pour le mode IA)
@@ -330,7 +339,7 @@ useEffect(() => {
     if (buzzData && isPlaying) {
       const { team } = buzzData;
       // ✅ FIX : Utiliser le chrono actuel au lieu d'attendre buzzData.time
-      const buzzTime = currentChrono;
+      const buzzTime = currentChronoRef.current;
 
       setBuzzedTeam(team);
       setBuzzedPlayerKey(buzzData.playerFirebaseKey || null);
@@ -374,7 +383,7 @@ useEffect(() => {
   });
 
   return () => unsubscribe();
-}, [isPlaying, isSpotifyMode, spotifyToken, currentChrono, currentTrack]);
+}, [isPlaying, isSpotifyMode, spotifyToken, currentTrack, sessionId, playlist]);
 
   // === SPOTIFY ===
   const handleSpotifyLogin = () => {
@@ -854,7 +863,7 @@ const addPoint = async (team) => {
   const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
 
   // Vérifier si la chanson correspond aux préférences du joueur (bonus personnel)
-  const currentSongUri = playlist[currentTrack]?.uri; // URI Spotify de la chanson actuelle
+  const currentSongUri = playlist[currentTrack]?.spotifyUri; // URI Spotify de la chanson actuelle
 
   if (currentSongUri) {
     try {
