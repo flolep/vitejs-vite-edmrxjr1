@@ -116,9 +116,25 @@ export const spotifyService = {
         });
 
         player.addListener('ready', ({ device_id }) => {
-          console.log('Player ready with device ID:', device_id);
+          console.log('✅ Player ready with device ID:', device_id);
           onReady(device_id);
           resolve(player);
+        });
+
+        player.addListener('not_ready', ({ device_id }) => {
+          console.warn('⚠️ Player not ready, device ID:', device_id);
+        });
+
+        player.addListener('initialization_error', ({ message }) => {
+          console.error('❌ Initialization error:', message);
+        });
+
+        player.addListener('authentication_error', ({ message }) => {
+          console.error('❌ Authentication error:', message);
+        });
+
+        player.addListener('account_error', ({ message }) => {
+          console.error('❌ Account error:', message);
         });
 
         player.addListener('player_state_changed', onStateChange);
