@@ -218,18 +218,27 @@ export default function Master({ initialSessionId = null }) {
     const playlistIdRef = ref(database, `sessions/${sessionId}/playlistId`);
 
     let lastTimestamp = null;
+    let isFirstCallback = true;
 
     const unsubscribe = onValue(updateRef, (snapshot) => {
       const updateData = snapshot.val();
-      if (updateData && updateData.timestamp) {
-        // Éviter de recharger au premier chargement
-        if (lastTimestamp === null) {
+
+      // Le premier callback représente l'état initial de Firebase (peut être null ou contenir des données)
+      if (isFirstCallback) {
+        isFirstCallback = false;
+        // Si des données existent déjà au montage, les ignorer (session reprise)
+        if (updateData?.timestamp) {
           lastTimestamp = updateData.timestamp;
+          console.log('📌 État initial ignoré (données existantes au montage)');
           return;
         }
+        // Sinon (Firebase vide), ne rien faire et attendre la première contribution
+      }
 
-        // Si le timestamp a changé, recharger la playlist
-        if (updateData.timestamp > lastTimestamp) {
+      // Traiter les mises à jour (callbacks suivants)
+      if (updateData?.timestamp) {
+        // Première contribution OU mise à jour suivante
+        if (lastTimestamp === null || updateData.timestamp > lastTimestamp) {
           console.log(`🔄 Mise à jour détectée par ${updateData.playerName}, rechargement de la playlist...`);
           lastTimestamp = updateData.timestamp;
 
