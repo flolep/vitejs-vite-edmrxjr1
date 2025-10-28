@@ -385,14 +385,30 @@ export default function Buzzer() {
       return;
     }
 
-    // Vérifier que le playlistId est disponible
-    if (!playlistId) {
-      setError('⏳ Playlist en cours de création par le maître du jeu. Attendez quelques secondes et réessayez.');
-      console.error('❌ PlaylistId non disponible pour le joueur');
-      return;
-    }
-
     setIsSearching(true);
+    setError(''); // Effacer les erreurs précédentes
+
+    // Attendre que le playlistId soit disponible (max 10 secondes)
+    let currentPlaylistId = playlistId;
+    if (!currentPlaylistId) {
+      console.log('⏳ Attente du playlistId depuis Firebase...');
+      const startTime = Date.now();
+      const timeout = 10000; // 10 secondes max
+
+      while (!currentPlaylistId && (Date.now() - startTime) < timeout) {
+        await new Promise(resolve => setTimeout(resolve, 500)); // Attendre 500ms
+        currentPlaylistId = playlistId; // Vérifier si le state a été mis à jour
+      }
+
+      if (!currentPlaylistId) {
+        console.error('❌ PlaylistId toujours indisponible après 10 secondes');
+        setIsSearching(false);
+        setError('❌ La playlist n\'est pas encore prête. Assurez-vous que le maître du jeu a créé la session en mode Spotify IA.');
+        return;
+      }
+
+      console.log('✅ PlaylistId récupéré après attente');
+    }
 
     // Envoyer au workflow n8n
     const success = await sendToN8nWorkflow();
