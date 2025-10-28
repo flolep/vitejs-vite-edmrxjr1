@@ -107,7 +107,7 @@ export const spotifyService = {
 
   // Initialiser le Web Playback SDK
   async initPlayer(accessToken, onReady, onStateChange) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       window.onSpotifyWebPlaybackSDKReady = () => {
         const player = new window.Spotify.Player({
           name: 'Blind Test Player',
@@ -115,10 +115,26 @@ export const spotifyService = {
           volume: 0.8
         });
 
-        player.addListener('ready', ({ device_id }) => {
+        player.addListener('ready', async ({ device_id }) => {
           console.log('✅ Player ready with device ID:', device_id);
-          onReady(device_id);
-          resolve(player);
+
+          try {
+            // Étape 1 : Transférer la lecture vers ce device pour l'activer
+            console.log('🔄 Activation du device via transferPlayback...');
+            await this.transferPlayback(accessToken, device_id);
+
+            // Étape 2 : Attendre un peu que Spotify enregistre le device
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            console.log('✅ Device activé et prêt');
+            onReady(device_id);
+            resolve(player);
+          } catch (error) {
+            console.error('❌ Erreur activation device:', error);
+            // On continue quand même car le device peut être utilisable
+            onReady(device_id);
+            resolve(player);
+          }
         });
 
         player.addListener('not_ready', ({ device_id }) => {
@@ -127,19 +143,30 @@ export const spotifyService = {
 
         player.addListener('initialization_error', ({ message }) => {
           console.error('❌ Initialization error:', message);
+          reject(new Error(`Player initialization error: ${message}`));
         });
 
         player.addListener('authentication_error', ({ message }) => {
           console.error('❌ Authentication error:', message);
+          reject(new Error(`Player authentication error: ${message}`));
         });
 
         player.addListener('account_error', ({ message }) => {
           console.error('❌ Account error:', message);
+          reject(new Error(`Player account error: ${message}`));
         });
 
         player.addListener('player_state_changed', onStateChange);
 
-        player.connect();
+        // Connexion au player
+        player.connect().then(success => {
+          if (success) {
+            console.log('🔗 Player connecté avec succès à Spotify');
+          } else {
+            console.error('❌ Échec connexion player à Spotify');
+            reject(new Error('Player connection failed'));
+          }
+        });
       };
 
       // Charger le SDK si pas déjà chargé
