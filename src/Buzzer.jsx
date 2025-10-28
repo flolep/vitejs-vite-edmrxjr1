@@ -320,7 +320,7 @@ export default function Buzzer() {
   const sendToN8nWorkflow = async () => {
     if (!playlistId) {
       console.warn('⚠️ Pas de playlistId disponible, skip n8n');
-      return;
+      return false;
     }
 
     try {
@@ -369,10 +369,11 @@ export default function Buzzer() {
         }
       }
 
+      return true; // Succès
+
     } catch (err) {
       console.error('❌ Erreur appel workflow n8n:', err);
-      // On continue quand même, ne pas bloquer le joueur
-      // L'animateur peut toujours charger la playlist manuellement
+      return false; // Échec
     }
   };
 
@@ -384,13 +385,26 @@ export default function Buzzer() {
       return;
     }
 
+    // Vérifier que le playlistId est disponible
+    if (!playlistId) {
+      setError('⏳ Playlist en cours de création par le maître du jeu. Attendez quelques secondes et réessayez.');
+      console.error('❌ PlaylistId non disponible pour le joueur');
+      return;
+    }
+
     setIsSearching(true);
 
     // Envoyer au workflow n8n
-    await sendToN8nWorkflow();
+    const success = await sendToN8nWorkflow();
 
     setIsSearching(false);
-    setStep('team');
+
+    // Ne passer à l'étape suivante QUE si l'envoi a réussi
+    if (success) {
+      setStep('team');
+    } else {
+      setError('❌ Erreur lors de l\'envoi de vos préférences. Veuillez réessayer.');
+    }
   };
 
 const selectTeam = async (teamNumber) => {
