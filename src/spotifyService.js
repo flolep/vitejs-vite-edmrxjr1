@@ -205,7 +205,29 @@ export const spotifyService = {
       const errorText = await response.text();
       throw new Error(`Spotify resume error: ${response.status} - ${errorText}`);
     }
-    
+
+    return;
+  },
+
+  // Transférer la lecture vers un device spécifique
+  async transferPlayback(accessToken, deviceId) {
+    const response = await fetch('https://api.spotify.com/v1/me/player', {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        device_ids: [deviceId],
+        play: false
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Spotify transfer error: ${response.status} - ${errorText}`);
+    }
+
     return;
   }
 };
