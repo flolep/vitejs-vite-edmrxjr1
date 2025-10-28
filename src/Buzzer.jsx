@@ -320,7 +320,7 @@ export default function Buzzer() {
   const sendToN8nWorkflow = async () => {
     if (!playlistId) {
       console.warn('⚠️ Pas de playlistId disponible, skip n8n');
-      return;
+      return false;
     }
 
     try {
@@ -369,10 +369,11 @@ export default function Buzzer() {
         }
       }
 
+      return true; // Succès
+
     } catch (err) {
       console.error('❌ Erreur appel workflow n8n:', err);
-      // On continue quand même, ne pas bloquer le joueur
-      // L'animateur peut toujours charger la playlist manuellement
+      return false; // Échec
     }
   };
 
@@ -385,12 +386,41 @@ export default function Buzzer() {
     }
 
     setIsSearching(true);
+    setError(''); // Effacer les erreurs précédentes
+
+    // Attendre que le playlistId soit disponible (max 10 secondes)
+    let currentPlaylistId = playlistId;
+    if (!currentPlaylistId) {
+      console.log('⏳ Attente du playlistId depuis Firebase...');
+      const startTime = Date.now();
+      const timeout = 10000; // 10 secondes max
+
+      while (!currentPlaylistId && (Date.now() - startTime) < timeout) {
+        await new Promise(resolve => setTimeout(resolve, 500)); // Attendre 500ms
+        currentPlaylistId = playlistId; // Vérifier si le state a été mis à jour
+      }
+
+      if (!currentPlaylistId) {
+        console.error('❌ PlaylistId toujours indisponible après 10 secondes');
+        setIsSearching(false);
+        setError('❌ La playlist n\'est pas encore prête. Assurez-vous que le maître du jeu a créé la session en mode Spotify IA.');
+        return;
+      }
+
+      console.log('✅ PlaylistId récupéré après attente');
+    }
 
     // Envoyer au workflow n8n
-    await sendToN8nWorkflow();
+    const success = await sendToN8nWorkflow();
 
     setIsSearching(false);
-    setStep('team');
+
+    // Ne passer à l'étape suivante QUE si l'envoi a réussi
+    if (success) {
+      setStep('team');
+    } else {
+      setError('❌ Erreur lors de l\'envoi de vos préférences. Veuillez réessayer.');
+    }
   };
 
 const selectTeam = async (teamNumber) => {
