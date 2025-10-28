@@ -594,12 +594,17 @@ const togglePlay = async () => {
   }
   
   if (isSpotifyMode) {
+    console.log('🔍 Debug Play - Token:', !!spotifyToken, 'DeviceId:', spotifyDeviceId);
+
     if (!spotifyToken || !spotifyDeviceId) {
       setDebugInfo('❌ Player Spotify non initialisé');
+      console.error('❌ Manque token ou deviceId:', { token: !!spotifyToken, deviceId: spotifyDeviceId });
       return;
     }
 
     try {
+      console.log('▶️ Tentative Play/Pause - isPlaying:', isPlaying);
+
       if (isPlaying) {
         const stateResponse = await fetch('https://api.spotify.com/v1/me/player', {
           headers: { 'Authorization': `Bearer ${spotifyToken}` }
