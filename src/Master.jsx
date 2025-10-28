@@ -601,17 +601,6 @@ const togglePlay = async () => {
 
     try {
       if (isPlaying) {
-        // Vérifier que le player est actif avant de mettre en pause
-        if (spotifyPlayer) {
-          const state = await spotifyPlayer.getCurrentState();
-          if (!state) {
-            console.warn('⚠️ Player inactif lors de la pause, reconnexion...');
-            setDebugInfo('🔄 Reconnexion du player...');
-            await spotifyPlayer.connect();
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          }
-        }
-
         const stateResponse = await fetch('https://api.spotify.com/v1/me/player', {
           headers: { 'Authorization': `Bearer ${spotifyToken}` }
         });
@@ -628,21 +617,9 @@ const togglePlay = async () => {
         const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
         set(playingRef, false);
       } else {
-        // Vérifier que le player est toujours connecté
-        if (spotifyPlayer) {
-          const state = await spotifyPlayer.getCurrentState();
-          if (!state) {
-            console.warn('⚠️ Player déconnecté, reconnexion...');
-            setDebugInfo('🔄 Reconnexion du player...');
-            await spotifyPlayer.connect();
-            // Attendre un peu que la connexion soit établie
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          }
-        }
-
         const isNewTrack = lastPlayedTrack !== currentTrack;
         const startPosition = isNewTrack ? 0 : spotifyPosition;
-        
+
         await spotifyService.playTrack(
           spotifyToken,
           spotifyDeviceId,
@@ -675,21 +652,19 @@ const togglePlay = async () => {
     } catch (error) {
       console.error('Erreur Spotify:', error);
 
-      // Erreur 404 : Device not found - proposer une reconnexion
+      // Erreur 404 : Device not found - transférer la lecture vers notre device
       if (error.message && error.message.includes('404')) {
-        setDebugInfo('❌ Player déconnecté. Rechargez la page ou reconnectez Spotify.');
+        try {
+          console.log('⚠️ Device inactif, transfert de la lecture...');
+          setDebugInfo('🔄 Activation du player...');
 
-        // Tenter une reconnexion automatique
-        if (spotifyPlayer) {
-          try {
-            console.log('Tentative de reconnexion automatique...');
-            await spotifyPlayer.disconnect();
-            await spotifyPlayer.connect();
-            setDebugInfo('🔄 Player reconnecté. Réessayez.');
-          } catch (reconnectError) {
-            console.error('Échec reconnexion:', reconnectError);
-            setDebugInfo('❌ Échec reconnexion. Rechargez la page.');
-          }
+          // Transférer la lecture vers notre device
+          await spotifyService.transferPlayback(spotifyToken, spotifyDeviceId);
+
+          setDebugInfo('✅ Player activé. Cliquez à nouveau sur Play.');
+        } catch (transferError) {
+          console.error('Échec du transfert:', transferError);
+          setDebugInfo('❌ Impossible d\'activer le player. Rechargez la page.');
         }
       } else {
         setDebugInfo('❌ Erreur Spotify : ' + (error.message || 'Erreur inconnue'));
