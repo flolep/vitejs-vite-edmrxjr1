@@ -1,5 +1,9 @@
 const CLIENT_ID = '4a234a00902a452a8d326ddfb1534f81';
-const REDIRECT_URI = 'https://blindtestflolep.netlify.app/callback';
+
+// URL de callback dynamique basée sur l'environnement actuel
+// Fonctionne sur : production, staging, develop, et localhost
+const getRedirectUri = () => `${window.location.origin}/callback`;
+
 const SCOPES = [
   'user-read-private',
   'user-read-email',
@@ -16,7 +20,7 @@ export const spotifyService = {
     const params = new URLSearchParams({
       client_id: CLIENT_ID,
       response_type: 'code',
-      redirect_uri: REDIRECT_URI,
+      redirect_uri: getRedirectUri(),
       scope: SCOPES,
       show_dialog: true
     });
@@ -26,16 +30,34 @@ export const spotifyService = {
   // Échanger le code contre un token
   async getAccessToken(code) {
     try {
+      console.log('🔑 getAccessToken appelé');
+      console.log('🔑 Code:', code ? code.substring(0, 20) + '...' : 'MANQUANT');
+      console.log('🔑 RedirectUri:', getRedirectUri());
+
       const response = await fetch('/.netlify/functions/spotify-auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, redirectUri: REDIRECT_URI })
+        body: JSON.stringify({ code, redirectUri: getRedirectUri() })
       });
-      
-      if (!response.ok) throw new Error('Failed to get access token');
-      return await response.json();
+
+      console.log('🔑 Réponse fonction Netlify:', response.status, response.statusText);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Erreur fonction Netlify:', response.status, errorText);
+        throw new Error(`Failed to get access token: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log('🔑 Données reçues:', data);
+      console.log('🔑 data.access_token:', data.access_token ? data.access_token.substring(0, 20) + '...' : 'UNDEFINED/MANQUANT');
+      console.log('🔑 data.refresh_token:', data.refresh_token ? 'Présent' : 'UNDEFINED/MANQUANT');
+      console.log('🔑 data.error:', data.error || 'Aucune erreur');
+      console.log('🔑 data complet:', JSON.stringify(data));
+
+      return data;
     } catch (error) {
-      console.error('Error getting access token:', error);
+      console.error('❌ Error getting access token:', error);
       throw error;
     }
   },
@@ -54,12 +76,22 @@ export const spotifyService = {
 
   // Récupérer les morceaux d'une playlist
   async getPlaylistTracks(accessToken, playlistId) {
+    console.log('🎵 Récupération playlist:', playlistId);
+    console.log('🔑 Token utilisé:', accessToken ? `${accessToken.substring(0, 20)}...` : 'AUCUN TOKEN');
+
     const response = await fetch(
       `https://api.spotify.com/v1/playlists/${playlistId}/tracks`,
       { headers: { 'Authorization': `Bearer ${accessToken}` } }
     );
-    
-    if (!response.ok) throw new Error('Failed to get playlist tracks');
+
+    console.log('📡 Réponse Spotify:', response.status, response.statusText);
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('❌ Erreur Spotify:', response.status, errorData);
+      throw new Error('Failed to get playlist tracks');
+    }
+
     const data = await response.json();
     
     return data.items.map(item => ({
@@ -75,7 +107,7 @@ export const spotifyService = {
 
   // Initialiser le Web Playback SDK
   async initPlayer(accessToken, onReady, onStateChange) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       window.onSpotifyWebPlaybackSDKReady = () => {
         const player = new window.Spotify.Player({
           name: 'Blind Test Player',
@@ -83,15 +115,58 @@ export const spotifyService = {
           volume: 0.8
         });
 
-        player.addListener('ready', ({ device_id }) => {
-          console.log('Player ready with device ID:', device_id);
-          onReady(device_id);
-          resolve(player);
+        player.addListener('ready', async ({ device_id }) => {
+          console.log('✅ Player ready with device ID:', device_id);
+
+          try {
+            // Étape 1 : Transférer la lecture vers ce device pour l'activer
+            console.log('🔄 Activation du device via transferPlayback...');
+            await this.transferPlayback(accessToken, device_id);
+
+            // Étape 2 : Attendre un peu que Spotify enregistre le device
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            console.log('✅ Device activé et prêt');
+            onReady(device_id);
+            resolve(player);
+          } catch (error) {
+            console.error('❌ Erreur activation device:', error);
+            // On continue quand même car le device peut être utilisable
+            onReady(device_id);
+            resolve(player);
+          }
+        });
+
+        player.addListener('not_ready', ({ device_id }) => {
+          console.warn('⚠️ Player not ready, device ID:', device_id);
+        });
+
+        player.addListener('initialization_error', ({ message }) => {
+          console.error('❌ Initialization error:', message);
+          reject(new Error(`Player initialization error: ${message}`));
+        });
+
+        player.addListener('authentication_error', ({ message }) => {
+          console.error('❌ Authentication error:', message);
+          reject(new Error(`Player authentication error: ${message}`));
+        });
+
+        player.addListener('account_error', ({ message }) => {
+          console.error('❌ Account error:', message);
+          reject(new Error(`Player account error: ${message}`));
         });
 
         player.addListener('player_state_changed', onStateChange);
 
-        player.connect();
+        // Connexion au player
+        player.connect().then(success => {
+          if (success) {
+            console.log('🔗 Player connecté avec succès à Spotify');
+          } else {
+            console.error('❌ Échec connexion player à Spotify');
+            reject(new Error('Player connection failed'));
+          }
+        });
       };
 
       // Charger le SDK si pas déjà chargé
@@ -157,7 +232,29 @@ export const spotifyService = {
       const errorText = await response.text();
       throw new Error(`Spotify resume error: ${response.status} - ${errorText}`);
     }
-    
+
+    return;
+  },
+
+  // Transférer la lecture vers un device spécifique
+  async transferPlayback(accessToken, deviceId) {
+    const response = await fetch('https://api.spotify.com/v1/me/player', {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        device_ids: [deviceId],
+        play: false
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Spotify transfer error: ${response.status} - ${errorText}`);
+    }
+
     return;
   }
 };

@@ -9,7 +9,21 @@
   publish = "dist"
 
   # Functions directory (if using Netlify Functions)
-  # functions = "netlify/functions"
+  functions = "netlify/functions"
+
+# IMPORTANT : Configuration des variables d'environnement Firebase
+#
+# Ajoutez ces variables dans Netlify UI : Site settings > Environment variables
+# Les valeurs sont dans le fichier .env (non commité dans git)
+#
+# Variables requises :
+# - VITE_FIREBASE_API_KEY
+# - VITE_FIREBASE_AUTH_DOMAIN
+# - VITE_FIREBASE_DATABASE_URL
+# - VITE_FIREBASE_PROJECT_ID
+# - VITE_FIREBASE_STORAGE_BUCKET
+# - VITE_FIREBASE_MESSAGING_SENDER_ID
+# - VITE_FIREBASE_APP_ID
 
 # Production context (main branch)
 [context.production]

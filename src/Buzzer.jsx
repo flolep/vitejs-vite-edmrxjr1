@@ -186,19 +186,19 @@ export default function Buzzer() {
     return () => clearInterval(interval);
     }, [cooldownEnd]);
 
-    // ✅ AJOUTEZ CE useEffect AVEC LES AUTRES (vers la ligne 90-100)
-useEffect(() => {
-  if (step === 'photo' && !photoData) {
-    startCamera();
-  }
-  
-  // Cleanup : arrêter la caméra si on quitte cette étape
-  return () => {
-    if (streamRef.current && step !== 'photo') {
-      streamRef.current.getTracks().forEach(track => track.stop());
+  // Gérer la caméra pour le selfie
+  useEffect(() => {
+    if (step === 'photo' && !photoData) {
+      startCamera();
     }
-  };
-}, [step, photoData]);
+
+    // Cleanup : arrêter la caméra si on quitte cette étape
+    return () => {
+      if (streamRef.current && step !== 'photo') {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [step, photoData]);
 
   // NOUVEAU : Rechercher le joueur
   const handleSearchPlayer = async () => {
@@ -227,20 +227,6 @@ useEffect(() => {
       setIsSearching(false);
     }
   };
-
-  // ✅ AJOUTEZ CET useEffect TOUT EN HAUT de votre composant Buzzer, après les autres useEffect
-useEffect(() => {
-  if (step === 'photo' && !photoData) {
-    startCamera();
-  }
-  
-  // Cleanup
-  return () => {
-    if (streamRef.current && step !== 'photo') {
-      streamRef.current.getTracks().forEach(track => track.stop());
-    }
-  };
-}, [step, photoData]);
 
   // NOUVEAU : Sélectionner un joueur existant
   const handleSelectPlayer = (player) => {
@@ -334,7 +320,7 @@ useEffect(() => {
   const sendToN8nWorkflow = async () => {
     if (!playlistId) {
       console.warn('⚠️ Pas de playlistId disponible, skip n8n');
-      return;
+      return false;
     }
 
     try {
@@ -383,10 +369,11 @@ useEffect(() => {
         }
       }
 
+      return true; // Succès
+
     } catch (err) {
       console.error('❌ Erreur appel workflow n8n:', err);
-      // On continue quand même, ne pas bloquer le joueur
-      // L'animateur peut toujours charger la playlist manuellement
+      return false; // Échec
     }
   };
 
@@ -399,12 +386,41 @@ useEffect(() => {
     }
 
     setIsSearching(true);
+    setError(''); // Effacer les erreurs précédentes
+
+    // Attendre que le playlistId soit disponible (max 10 secondes)
+    let currentPlaylistId = playlistId;
+    if (!currentPlaylistId) {
+      console.log('⏳ Attente du playlistId depuis Firebase...');
+      const startTime = Date.now();
+      const timeout = 10000; // 10 secondes max
+
+      while (!currentPlaylistId && (Date.now() - startTime) < timeout) {
+        await new Promise(resolve => setTimeout(resolve, 500)); // Attendre 500ms
+        currentPlaylistId = playlistId; // Vérifier si le state a été mis à jour
+      }
+
+      if (!currentPlaylistId) {
+        console.error('❌ PlaylistId toujours indisponible après 10 secondes');
+        setIsSearching(false);
+        setError('❌ La playlist n\'est pas encore prête. Assurez-vous que le maître du jeu a créé la session en mode Spotify IA.');
+        return;
+      }
+
+      console.log('✅ PlaylistId récupéré après attente');
+    }
 
     // Envoyer au workflow n8n
-    await sendToN8nWorkflow();
+    const success = await sendToN8nWorkflow();
 
     setIsSearching(false);
-    setStep('team');
+
+    // Ne passer à l'étape suivante QUE si l'envoi a réussi
+    if (success) {
+      setStep('team');
+    } else {
+      setError('❌ Erreur lors de l\'envoi de vos préférences. Veuillez réessayer.');
+    }
   };
 
 const selectTeam = async (teamNumber) => {
@@ -417,7 +433,7 @@ const selectTeam = async (teamNumber) => {
 
   try {
     const playerData = {
-      id: selectedPlayer?.id || `temp_${Date.now()}`,
+      id: selectedPlayer?.id || `temp_${playerName}`,
       name: selectedPlayer?.name || playerName,
       photo: selectedPlayer?.photo || photoData || null,
       status: 'idle',
@@ -449,7 +465,7 @@ const handleBuzz = async () => {
     team: `team${team}`,
     teamName: team === 1 ? 'Équipe 1' : 'Équipe 2',
     playerName: selectedPlayer?.name || playerName,
-    playerId: selectedPlayer?.id || null,
+    playerId: selectedPlayer?.id || `temp_${playerName}`,
     playerPhoto: selectedPlayer?.photo || photoData || null,
     playerFirebaseKey: playerFirebaseKey, // ✅ AJOUTEZ CECI
     timestamp: Date.now()
@@ -834,65 +850,7 @@ if (step === 'photo') {
   );
 }
 
-  // ÉCRAN 4 : Validation du selfie
-  if (step === 'photo' && photoData) {
-    return (
-      <div className="bg-gradient flex-center">
-        <div className="text-center" style={{ maxWidth: '500px', width: '100%', padding: '2rem' }}>
-          <h1 className="title">✨ Parfait !</h1>
-          <h2 style={{ fontSize: '1.25rem', marginBottom: '2rem' }}>
-            Valider cette photo ?
-          </h2>
-
-          <img
-            src={photoData}
-            alt="Selfie"
-            style={{
-              width: '300px',
-              height: '300px',
-              borderRadius: '50%',
-              objectFit: 'cover',
-              marginBottom: '2rem',
-              border: '4px solid #fbbf24'
-            }}
-          />
-
-          {error && (
-            <div style={{ color: '#ef4444', marginBottom: '1rem' }}>
-              {error}
-            </div>
-          )}
-
-          <div className="space-y">
-            <button
-              onClick={confirmSelfie}
-              disabled={isSearching}
-              className="btn btn-green"
-              style={{
-                width: '100%',
-                padding: '1.5rem',
-                fontSize: '1.25rem',
-                opacity: isSearching ? 0.5 : 1
-              }}
-            >
-              {isSearching ? '💾 Sauvegarde...' : '✅ Valider'}
-            </button>
-
-            <button
-              onClick={retakeSelfie}
-              disabled={isSearching}
-              className="btn btn-gray"
-              style={{ width: '100%', padding: '1rem' }}
-            >
-              🔄 Reprendre
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ÉCRAN 5 : Préférences du joueur
+  // ÉCRAN 4 : Préférences du joueur
   if (step === 'preferences') {
     const availableGenres = [
       'Pop', 'Rock', 'Hip-Hop', 'Jazz', 'Électro',

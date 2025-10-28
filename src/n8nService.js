@@ -1,5 +1,6 @@
 // Configuration n8n
-const N8N_WEBHOOK_BASE_URL = import.meta.env.VITE_N8N_WEBHOOK_URL || 'https://your-n8n-instance.com/webhook';
+// On passe par une Netlify Function pour éviter les problèmes CORS
+const N8N_PROXY_URL = '/.netlify/functions/n8n-proxy';
 
 export const n8nService = {
   /**
@@ -25,17 +26,20 @@ export const n8nService = {
 
       console.log('📤 Création playlist Spotify via n8n (simple):', payload);
 
-      const response = await fetch(`${N8N_WEBHOOK_BASE_URL}/create-playlist-simple`, {
+      const response = await fetch(N8N_PROXY_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          endpoint: 'create-playlist-simple',
+          payload: payload
+        })
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`n8n webhook error: ${response.status} - ${errorText}`);
+        throw new Error(`n8n proxy error: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
@@ -73,17 +77,20 @@ export const n8nService = {
 
       console.log('📤 Création playlist Spotify via n8n:', payload);
 
-      const response = await fetch(`${N8N_WEBHOOK_BASE_URL}/create-playlist`, {
+      const response = await fetch(N8N_PROXY_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          endpoint: 'create-playlist',
+          payload: payload
+        })
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`n8n webhook error: ${response.status} - ${errorText}`);
+        throw new Error(`n8n proxy error: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
@@ -176,17 +183,20 @@ export const n8nService = {
 
       console.log('🤖 Génération playlist IA via n8n:', payload);
 
-      const response = await fetch(`${N8N_WEBHOOK_BASE_URL}/blindtest-player-input`, {
+      const response = await fetch(N8N_PROXY_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          endpoint: 'blindtest-player-input',
+          payload: payload
+        })
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`n8n webhook error: ${response.status} - ${errorText}`);
+        throw new Error(`n8n proxy error: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();

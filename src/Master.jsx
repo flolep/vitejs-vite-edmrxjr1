@@ -1,13 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { database, auth } from './firebase';
-import { ref, onValue, remove, set } from 'firebase/database';
+import { ref, onValue, remove, set, update } from 'firebase/database';
 import { spotifyService } from './spotifyService';
+import { n8nService } from './n8nService';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { QRCodeSVG } from 'qrcode.react';
 
 // Import des composants
 import Login from './components/Login';
-import SpotifyConnection from './components/master/SpotifyConnection';
 import PlaylistSelector from './components/master/PlaylistSelector';
 import PlayerControls from './components/master/PlayerControls';
 import ScoreDisplay from './components/master/ScoreDisplay';
@@ -37,12 +37,20 @@ function calculatePoints(chrono, songDuration) {
   return Math.max(0, Math.round(availablePoints));
 }
 
-export default function Master({ initialSessionId = null }) {
+export default function Master({
+  initialSessionId = null,
+  initialGameMode = null,
+  initialPlaylist = [],
+  initialPlaylistId = null,
+  initialSpotifyToken = null
+}) {
   // États d'authentification et session
   const [user, setUser] = useState(null);
   const [sessionId, setSessionId] = useState(initialSessionId);
   const [showQRCode, setShowQRCode] = useState(false);
   const [showSessionModal, setShowSessionModal] = useState(false);
+  const [showModeSelection, setShowModeSelection] = useState(false);
+  const [gameMode, setGameMode] = useState(initialGameMode); // Initialisé depuis wizard ou null
 
   // États des paramètres de cooldown
   const [cooldownThreshold, setCooldownThreshold] = useState(2); // Nombre de bonnes réponses d'affilée
@@ -50,7 +58,7 @@ export default function Master({ initialSessionId = null }) {
   const [showCooldownSettings, setShowCooldownSettings] = useState(false);
 
   // États principaux
-  const [playlist, setPlaylist] = useState([]);
+  const [playlist, setPlaylist] = useState(initialPlaylist); // Initialisée depuis wizard ou []
   const [currentTrack, setCurrentTrack] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [scores, setScores] = useState({ team1: 0, team2: 0 });
@@ -59,14 +67,14 @@ export default function Master({ initialSessionId = null }) {
   const [currentChrono, setCurrentChrono] = useState(0);
   const [songDuration, setSongDuration] = useState(0);
   const [buzzedPlayerKey, setBuzzedPlayerKey] = useState(null);
-  
+
   // États statistiques
   const [showStats, setShowStats] = useState(false);
   const [buzzStats, setBuzzStats] = useState([]);
   const [showEndGameConfirm, setShowEndGameConfirm] = useState(false);
-  
+
   // États Spotify
-  const [spotifyToken, setSpotifyToken] = useState(null);
+  const [spotifyToken, setSpotifyToken] = useState(initialSpotifyToken); // Initialisé depuis wizard ou null
   const [spotifyPlaylists, setSpotifyPlaylists] = useState([]);
   const [showPlaylistSelector, setShowPlaylistSelector] = useState(false);
   const [spotifyPlayer, setSpotifyPlayer] = useState(null);
@@ -74,9 +82,11 @@ export default function Master({ initialSessionId = null }) {
   const [isSpotifyMode, setIsSpotifyMode] = useState(false);
   const [spotifyPosition, setSpotifyPosition] = useState(0);
   const [lastPlayedTrack, setLastPlayedTrack] = useState(null);
+  const [playlistUpdates, setPlaylistUpdates] = useState([]); // Feed des MAJ pour mode IA
   
   const audioRef = useRef(null);
   const buzzerSoundRef = useRef(null);
+  const currentChronoRef = useRef(0);
 
   // Gestion de l'authentification
   useEffect(() => {
@@ -140,15 +150,17 @@ export default function Master({ initialSessionId = null }) {
       const newSessionId = Math.random().toString(36).substring(2, 8).toUpperCase();
       setSessionId(newSessionId);
 
-      // Créer la nouvelle session dans Firebase
-      set(ref(database, `sessions/${newSessionId}`), {
-        active: true,
-        createdAt: Date.now(),
-        scores: { team1: 0, team2: 0 },
-        chrono: 0,
-        isPlaying: false,
-        showQRCode: false
-      });
+      // Créer la nouvelle session dans Firebase avec une opération atomique
+      const updates = {};
+      updates[`sessions/${newSessionId}/createdBy`] = user.uid;
+      updates[`sessions/${newSessionId}/createdAt`] = Date.now();
+      updates[`sessions/${newSessionId}/active`] = true;
+      updates[`sessions/${newSessionId}/scores`] = { team1: 0, team2: 0 };
+      updates[`sessions/${newSessionId}/chrono`] = 0;
+      updates[`sessions/${newSessionId}/isPlaying`] = false;
+      updates[`sessions/${newSessionId}/showQRCode`] = false;
+
+      update(ref(database), updates);
 
       setDebugInfo(`🎮 Nouvelle partie créée ! Code: ${newSessionId}`);
       console.log(`✅ Nouvelle session ${newSessionId} créée automatiquement`);
@@ -157,12 +169,40 @@ export default function Master({ initialSessionId = null }) {
 
   // Vérifier connexion Spotify au chargement
   useEffect(() => {
+    // Si le token est fourni par le wizard (initialSpotifyToken), l'utiliser directement
+    if (initialSpotifyToken) {
+      console.log('🔍 Token Spotify fourni par wizard:', initialSpotifyToken.substring(0, 20) + '...');
+      console.log('✅ Token Spotify chargé depuis wizard props');
+      setSpotifyToken(initialSpotifyToken);
+      loadSpotifyPlaylists(initialSpotifyToken);
+      return;
+    }
+
+    // Sinon, essayer de lire depuis sessionStorage (compatibilité ancien flux)
     const token = sessionStorage.getItem('spotify_access_token');
+    console.log('🔍 Vérification token Spotify dans sessionStorage:', token ? `Token présent (${token.substring(0, 20)}...)` : 'Aucun token');
     if (token) {
+      console.log('✅ Token Spotify chargé depuis sessionStorage');
       setSpotifyToken(token);
       loadSpotifyPlaylists(token);
+    } else {
+      console.log('❌ Pas de token Spotify disponible');
     }
-  }, []);
+  }, [initialSpotifyToken]);
+
+  // Charger automatiquement la playlist en mode IA quand le token Spotify est disponible
+  useEffect(() => {
+    if (!sessionId || gameMode !== 'spotify-ai' || !spotifyToken || playlist.length > 0) return;
+
+    const playlistIdRef = ref(database, `sessions/${sessionId}/playlistId`);
+    onValue(playlistIdRef, (snapshot) => {
+      const playlistId = snapshot.val();
+      if (playlistId) {
+        console.log(`🤖 Chargement auto de la playlist IA: ${playlistId}`);
+        loadSpotifyPlaylistById(playlistId, spotifyToken);
+      }
+    }, { onlyOnce: true });
+  }, [sessionId, gameMode, spotifyToken]);
 
   // Créer le son de buzzer
   useEffect(() => {
@@ -204,28 +244,56 @@ export default function Master({ initialSessionId = null }) {
     return () => unsubscribe();
   }, [sessionId]);
 
+  // Synchroniser la ref du chrono avec le state
+  useEffect(() => {
+    currentChronoRef.current = currentChrono;
+  }, [currentChrono]);
+
   // Écouter les mises à jour de la playlist et rafraîchir automatiquement
   useEffect(() => {
-    if (!sessionId || !isSpotifyMode || !spotifyToken) return;
+    if (!sessionId || !spotifyToken) return;
 
     const updateRef = ref(database, `sessions/${sessionId}/lastPlaylistUpdate`);
     const playlistIdRef = ref(database, `sessions/${sessionId}/playlistId`);
 
     let lastTimestamp = null;
+    let isFirstCallback = true;
 
     const unsubscribe = onValue(updateRef, (snapshot) => {
       const updateData = snapshot.val();
-      if (updateData && updateData.timestamp) {
-        // Éviter de recharger au premier chargement
-        if (lastTimestamp === null) {
+
+      // Le premier callback représente l'état initial de Firebase (peut être null ou contenir des données)
+      if (isFirstCallback) {
+        isFirstCallback = false;
+        // Si des données existent déjà au montage, les ignorer (session reprise)
+        if (updateData?.timestamp) {
           lastTimestamp = updateData.timestamp;
+          console.log('📌 État initial ignoré (données existantes au montage)');
           return;
         }
+        // Sinon (Firebase vide), ne rien faire et attendre la première contribution
+      }
 
-        // Si le timestamp a changé, recharger la playlist
-        if (updateData.timestamp > lastTimestamp) {
-          console.log(`🔄 Mise à jour détectée par ${updateData.playerName}, rechargement de la playlist...`);
+      // Traiter les mises à jour (callbacks suivants)
+      if (updateData?.timestamp) {
+        console.log(`🔔 Notification Firebase reçue: ${updateData.playerName} a ajouté ${updateData.songsAdded} chansons`);
+
+        // Première contribution OU mise à jour suivante
+        if (lastTimestamp === null || updateData.timestamp > lastTimestamp) {
           lastTimestamp = updateData.timestamp;
+
+          // Recharger la playlist
+          console.log(`🔄 Rechargement de la playlist suite à mise à jour...`);
+
+          // Ajouter au feed des mises à jour (pour le mode IA)
+          if (gameMode === 'spotify-ai') {
+            setPlaylistUpdates(prev => [{
+              playerName: updateData.playerName,
+              songsAdded: updateData.songsAdded,
+              timestamp: updateData.timestamp,
+              time: new Date(updateData.timestamp).toLocaleTimeString()
+            }, ...prev].slice(0, 10)); // Garder les 10 dernières MAJ
+          }
 
           // Récupérer l'ID de playlist et recharger
           onValue(playlistIdRef, (playlistSnapshot) => {
@@ -240,7 +308,7 @@ export default function Master({ initialSessionId = null }) {
     });
 
     return () => unsubscribe();
-  }, [sessionId, isSpotifyMode, spotifyToken]);
+  }, [sessionId, spotifyToken, gameMode]);
 
   // Mettre à jour le chrono toutes les 100ms quand la musique joue
   useEffect(() => {
@@ -271,7 +339,7 @@ useEffect(() => {
     if (buzzData && isPlaying) {
       const { team } = buzzData;
       // ✅ FIX : Utiliser le chrono actuel au lieu d'attendre buzzData.time
-      const buzzTime = currentChrono;
+      const buzzTime = currentChronoRef.current;
 
       setBuzzedTeam(team);
       setBuzzedPlayerKey(buzzData.playerFirebaseKey || null);
@@ -315,7 +383,7 @@ useEffect(() => {
   });
 
   return () => unsubscribe();
-}, [isPlaying, isSpotifyMode, spotifyToken, currentChrono, currentTrack]);
+}, [isPlaying, isSpotifyMode, spotifyToken, currentTrack, sessionId, playlist]);
 
   // === SPOTIFY ===
   const handleSpotifyLogin = () => {
@@ -526,32 +594,37 @@ const togglePlay = async () => {
   }
   
   if (isSpotifyMode) {
+    console.log('🔍 Debug Play - Token:', !!spotifyToken, 'DeviceId:', spotifyDeviceId);
+
     if (!spotifyToken || !spotifyDeviceId) {
       setDebugInfo('❌ Player Spotify non initialisé');
+      console.error('❌ Manque token ou deviceId:', { token: !!spotifyToken, deviceId: spotifyDeviceId });
       return;
     }
 
     try {
+      console.log('▶️ Tentative Play/Pause - isPlaying:', isPlaying);
+
       if (isPlaying) {
         const stateResponse = await fetch('https://api.spotify.com/v1/me/player', {
           headers: { 'Authorization': `Bearer ${spotifyToken}` }
         });
-        
+
         if (stateResponse.ok) {
           const playerState = await stateResponse.json();
           setSpotifyPosition(playerState.progress_ms);
         }
-        
+
         await spotifyService.pausePlayback(spotifyToken);
         setIsPlaying(false);
         setDebugInfo('⏸️ Pause');
-        
+
         const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
         set(playingRef, false);
       } else {
         const isNewTrack = lastPlayedTrack !== currentTrack;
         const startPosition = isNewTrack ? 0 : spotifyPosition;
-        
+
         await spotifyService.playTrack(
           spotifyToken,
           spotifyDeviceId,
@@ -583,7 +656,7 @@ const togglePlay = async () => {
       }
     } catch (error) {
       console.error('Erreur Spotify:', error);
-      setDebugInfo('❌ Erreur Spotify');
+      setDebugInfo('❌ Erreur Spotify : ' + (error.message || 'Erreur inconnue'));
     }
   } else {
     // Mode MP3
@@ -795,7 +868,7 @@ const addPoint = async (team) => {
   const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
 
   // Vérifier si la chanson correspond aux préférences du joueur (bonus personnel)
-  const currentSongUri = playlist[currentTrack]?.uri; // URI Spotify de la chanson actuelle
+  const currentSongUri = playlist[currentTrack]?.spotifyUri; // URI Spotify de la chanson actuelle
 
   if (currentSongUri) {
     try {
@@ -928,45 +1001,92 @@ const addPoint = async (team) => {
       });
     }
 
+    // Afficher la modale de sélection de mode
+    setShowModeSelection(true);
+  };
+
+  // Créer une nouvelle session avec le mode sélectionné
+  const createNewSession = async (mode) => {
     // Générer un nouveau code de session
     const newSessionId = Math.random().toString(36).substring(2, 8).toUpperCase();
     setSessionId(newSessionId);
+    setGameMode(mode);
 
-    // Créer la nouvelle session dans Firebase
-    set(ref(database, `sessions/${newSessionId}`), {
-      createdBy: user.uid,
-      createdAt: Date.now(),
-      active: true
-    });
+    // Créer la nouvelle session dans Firebase avec une seule opération atomique
+    const updates = {};
+    updates[`sessions/${newSessionId}/createdBy`] = user.uid;
+    updates[`sessions/${newSessionId}/createdAt`] = Date.now();
+    updates[`sessions/${newSessionId}/active`] = true;
+    updates[`sessions/${newSessionId}/gameMode`] = mode;
+    updates[`sessions/${newSessionId}/scores`] = { team1: 0, team2: 0 };
+    updates[`sessions/${newSessionId}/chrono`] = 0;
+    updates[`sessions/${newSessionId}/isPlaying`] = false;
+    updates[`sessions/${newSessionId}/currentSong`] = null;
+    updates[`sessions/${newSessionId}/game_status`] = { ended: false };
+    updates[`sessions/${newSessionId}/showQRCode`] = false;
 
-    // Réinitialiser tous les états
+    await update(ref(database), updates);
+
+    // Réinitialiser tous les états locaux
     const newScores = { team1: 0, team2: 0 };
     setScores(newScores);
-    const scoresRef = ref(database, `sessions/${newSessionId}/scores`);
-    set(scoresRef, newScores);
-
     setPlaylist([]);
     setCurrentTrack(0);
     setIsPlaying(false);
-
-    const chronoRef = ref(database, `sessions/${newSessionId}/chrono`);
-    set(chronoRef, 0);
     setCurrentChrono(0);
-
-    const playingRef = ref(database, `sessions/${newSessionId}/isPlaying`);
-    set(playingRef, false);
-
-    const songRef = ref(database, `sessions/${newSessionId}/currentSong`);
-    set(songRef, null);
-
-    const gameStatusRef = ref(database, `sessions/${newSessionId}/game_status`);
-    set(gameStatusRef, { ended: false });
-
     setShowQRCode(false);
-    const qrCodeRef = ref(database, `sessions/${newSessionId}/showQRCode`);
-    set(qrCodeRef, false);
+    setShowModeSelection(false);
 
-    setDebugInfo(`🔄 Nouvelle partie créée ! Code: ${newSessionId}`);
+    const modeNames = {
+      'mp3': 'Mode MP3',
+      'spotify-auto': 'Mode Spotify Autonome',
+      'spotify-ai': 'Mode Spotify IA'
+    };
+
+    setDebugInfo(`🔄 Nouvelle partie créée ! Code: ${newSessionId} - ${modeNames[mode]}`);
+
+    // Si mode Spotify IA, créer la playlist vide via n8n
+    if (mode === 'spotify-ai') {
+      setDebugInfo(`🤖 Création de la playlist IA via n8n...`);
+      try {
+        const result = await n8nService.createSpotifyPlaylistSimple(
+          `BlindTest-${newSessionId}`,
+          `Playlist générée automatiquement pour la session ${newSessionId}`
+        );
+
+        if (result.success && result.playlistId) {
+          // Extraire l'ID pur de la playlist (au cas où n8n renvoie un URI ou URL)
+          let playlistId = result.playlistId;
+
+          // Si c'est un URI Spotify (spotify:playlist:ID)
+          if (playlistId.startsWith('spotify:playlist:')) {
+            playlistId = playlistId.replace('spotify:playlist:', '');
+          }
+
+          // Si c'est une URL Spotify (https://open.spotify.com/playlist/ID)
+          if (playlistId.includes('open.spotify.com/playlist/')) {
+            playlistId = playlistId.split('/playlist/')[1].split('?')[0];
+          }
+
+          console.log('🆔 Playlist ID extrait:', playlistId, '(original:', result.playlistId, ')');
+
+          // Stocker l'ID de la playlist dans Firebase
+          const playlistIdRef = ref(database, `sessions/${newSessionId}/playlistId`);
+          await set(playlistIdRef, playlistId);
+
+          console.log(`✅ Playlist Spotify IA créée: ${result.playlistId}`);
+          setDebugInfo(`🤖 Playlist IA créée ! En attente des contributions des joueurs...`);
+
+          // Initialiser le mode Spotify
+          setIsSpotifyMode(true);
+        } else {
+          throw new Error('Playlist ID non reçu');
+        }
+      } catch (error) {
+        console.error('❌ Erreur création playlist IA:', error);
+        setDebugInfo(`❌ Erreur création playlist IA: ${error.message}`);
+      }
+    }
   };
 
 const loadBuzzStats = (shouldShow = true) => {
@@ -1276,14 +1396,198 @@ const loadBuzzStats = (shouldShow = true) => {
           flexDirection: 'column',
           gap: '1.5rem'
         }}>
-          {/* Section Connexion Spotify */}
-          <SpotifyConnection
-            spotifyToken={spotifyToken}
-            onConnect={handleSpotifyLogin}
-            onShowPlaylists={() => setShowPlaylistSelector(true)}
-            onAddManual={handleManualAdd}
-            isSpotifyMode={isSpotifyMode}
-          />
+          {/* Section Bouton selon le mode */}
+          {gameMode && (
+            <div style={{
+              backgroundColor: 'rgba(0, 0, 0, 0.2)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '0.75rem',
+              padding: '1.25rem'
+            }}>
+              {gameMode === 'mp3' && (
+                <button
+                  onClick={handleManualAdd}
+                  className="btn"
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem 1rem',
+                    backgroundColor: 'rgba(124, 58, 237, 0.3)',
+                    border: '1px solid #7c3aed',
+                    fontSize: '0.9rem',
+                    borderRadius: '0.5rem',
+                    color: 'white',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  📁 Charger MP3
+                </button>
+              )}
+
+              {gameMode === 'spotify-auto' && (
+                <button
+                  onClick={() => {
+                    if (!spotifyToken) {
+                      handleSpotifyLogin();
+                    } else {
+                      setShowPlaylistSelector(true);
+                    }
+                  }}
+                  className="btn"
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem 1rem',
+                    backgroundColor: 'rgba(16, 185, 129, 0.3)',
+                    border: '1px solid #10b981',
+                    fontSize: '0.9rem',
+                    borderRadius: '0.5rem',
+                    color: 'white',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  🎵 {spotifyToken ? 'Charger Playlist' : 'Se connecter à Spotify'}
+                </button>
+              )}
+
+              {gameMode === 'spotify-ai' && (
+                <div>
+                  {/* Si pas connecté à Spotify, afficher le bouton de connexion */}
+                  {!spotifyToken ? (
+                    <>
+                      <button
+                        onClick={handleSpotifyLogin}
+                        className="btn"
+                        style={{
+                          width: '100%',
+                          padding: '0.75rem 1rem',
+                          backgroundColor: 'rgba(16, 185, 129, 0.3)',
+                          border: '1px solid #10b981',
+                          fontSize: '0.9rem',
+                          borderRadius: '0.5rem',
+                          color: 'white',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          marginBottom: '0.75rem'
+                        }}
+                      >
+                        🎵 Se connecter à Spotify
+                      </button>
+                      <p style={{
+                        textAlign: 'center',
+                        opacity: 0.7,
+                        fontSize: '0.85rem',
+                        backgroundColor: 'rgba(251, 191, 36, 0.2)',
+                        padding: '0.75rem',
+                        borderRadius: '0.5rem',
+                        border: '1px solid rgba(251, 191, 36, 0.3)'
+                      }}>
+                        ⚠️ Connectez-vous à Spotify pour voir les chansons ajoutées par les joueurs
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        disabled
+                        style={{
+                          width: '100%',
+                          padding: '0.75rem 1rem',
+                          backgroundColor: 'rgba(236, 72, 153, 0.2)',
+                          border: '1px solid rgba(236, 72, 153, 0.5)',
+                          fontSize: '0.9rem',
+                          borderRadius: '0.5rem',
+                          color: 'rgba(255, 255, 255, 0.5)',
+                          cursor: 'not-allowed',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        🤖 Chargement Auto
+                      </button>
+                      <p style={{
+                        textAlign: 'center',
+                        marginTop: '0.75rem',
+                        opacity: 0.7,
+                        fontSize: '0.85rem',
+                        marginBottom: playlistUpdates.length > 0 ? '1rem' : 0
+                      }}>
+                        La playlist se remplit automatiquement avec les préférences des joueurs
+                      </p>
+                    </>
+                  )}
+
+                  {/* Feed des mises à jour */}
+                  {playlistUpdates.length > 0 && (
+                    <div style={{
+                      marginTop: '1rem',
+                      padding: '0.75rem',
+                      backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                      borderRadius: '0.5rem',
+                      maxHeight: '200px',
+                      overflowY: 'auto'
+                    }}>
+                      <div style={{
+                        fontSize: '0.75rem',
+                        fontWeight: '600',
+                        opacity: 0.8,
+                        marginBottom: '0.5rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em'
+                      }}>
+                        📊 Mises à jour
+                      </div>
+                      {playlistUpdates.map((update, index) => (
+                        <div
+                          key={index}
+                          style={{
+                            fontSize: '0.8rem',
+                            padding: '0.4rem 0',
+                            borderBottom: index < playlistUpdates.length - 1 ? '1px solid rgba(255, 255, 255, 0.1)' : 'none',
+                            opacity: 0.9
+                          }}
+                        >
+                          <div style={{ fontWeight: '500', color: '#ec4899' }}>
+                            {update.playerName}
+                          </div>
+                          <div style={{ fontSize: '0.7rem', opacity: 0.7 }}>
+                            +{update.songsAdded} chanson{update.songsAdded > 1 ? 's' : ''} • {update.time}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {playlistUpdates.length === 0 && (
+                    <div style={{
+                      marginTop: '1rem',
+                      padding: '1rem',
+                      backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                      borderRadius: '0.5rem',
+                      textAlign: 'center',
+                      fontSize: '0.8rem',
+                      opacity: 0.6
+                    }}>
+                      En attente des contributions des joueurs...
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {!gameMode && (
+            <div style={{
+              backgroundColor: 'rgba(0, 0, 0, 0.2)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '0.75rem',
+              padding: '1.25rem',
+              textAlign: 'center',
+              opacity: 0.7
+            }}>
+              <p style={{ fontSize: '0.9rem', margin: 0 }}>
+                Cliquez sur "🔄 Nouvelle partie" pour choisir un mode de jeu
+              </p>
+            </div>
+          )}
 
           {/* Section Playlist */}
           {playlist.length > 0 && (
@@ -1645,6 +1949,162 @@ const loadBuzzStats = (shouldShow = true) => {
                 Fermer
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modale Sélection de Mode */}
+      {showModeSelection && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '2rem'
+          }}
+          onClick={() => setShowModeSelection(false)}
+        >
+          <div
+            style={{
+              backgroundColor: '#1f2937',
+              borderRadius: '1rem',
+              padding: '2rem',
+              maxWidth: '600px',
+              width: '100%'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ fontSize: '1.75rem', marginBottom: '1rem', textAlign: 'center' }}>
+              🎮 Choisissez le mode de jeu
+            </h2>
+            <p style={{
+              textAlign: 'center',
+              opacity: 0.8,
+              marginBottom: '2rem',
+              fontSize: '0.95rem'
+            }}>
+              Sélectionnez comment vous souhaitez créer votre playlist
+            </p>
+
+            {/* Options de mode */}
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1rem',
+              marginBottom: '1.5rem'
+            }}>
+              {/* Mode MP3 */}
+              <div
+                onClick={() => createNewSession('mp3')}
+                style={{
+                  padding: '1.5rem',
+                  backgroundColor: 'rgba(124, 58, 237, 0.2)',
+                  border: '2px solid rgba(124, 58, 237, 0.5)',
+                  borderRadius: '0.75rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(124, 58, 237, 0.3)';
+                  e.currentTarget.style.borderColor = '#7c3aed';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(124, 58, 237, 0.2)';
+                  e.currentTarget.style.borderColor = 'rgba(124, 58, 237, 0.5)';
+                }}
+              >
+                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📁</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                  Mode MP3
+                </div>
+                <div style={{ fontSize: '0.875rem', opacity: 0.8 }}>
+                  Chargez vos propres fichiers MP3 manuellement
+                </div>
+              </div>
+
+              {/* Mode Spotify Autonome */}
+              <div
+                onClick={() => createNewSession('spotify-auto')}
+                style={{
+                  padding: '1.5rem',
+                  backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                  border: '2px solid rgba(16, 185, 129, 0.5)',
+                  borderRadius: '0.75rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.3)';
+                  e.currentTarget.style.borderColor = '#10b981';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.2)';
+                  e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.5)';
+                }}
+              >
+                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🎵</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                  Mode Spotify - Autonome
+                </div>
+                <div style={{ fontSize: '0.875rem', opacity: 0.8 }}>
+                  Importez une de vos playlists Spotify existantes
+                </div>
+              </div>
+
+              {/* Mode Spotify IA */}
+              <div
+                onClick={() => createNewSession('spotify-ai')}
+                style={{
+                  padding: '1.5rem',
+                  backgroundColor: 'rgba(236, 72, 153, 0.2)',
+                  border: '2px solid rgba(236, 72, 153, 0.5)',
+                  borderRadius: '0.75rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(236, 72, 153, 0.3)';
+                  e.currentTarget.style.borderColor = '#ec4899';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(236, 72, 153, 0.2)';
+                  e.currentTarget.style.borderColor = 'rgba(236, 72, 153, 0.5)';
+                }}
+              >
+                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🤖</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                  Mode Spotify - IA
+                </div>
+                <div style={{ fontSize: '0.875rem', opacity: 0.8 }}>
+                  Playlist générée automatiquement par IA selon les préférences des joueurs
+                </div>
+              </div>
+            </div>
+
+            {/* Bouton Annuler */}
+            <button
+              onClick={() => setShowModeSelection(false)}
+              className="btn"
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                backgroundColor: 'rgba(156, 163, 175, 0.3)',
+                border: '1px solid #9ca3af',
+                fontSize: '0.9rem',
+                borderRadius: '0.5rem',
+                color: 'white',
+                cursor: 'pointer'
+              }}
+            >
+              Annuler
+            </button>
           </div>
         </div>
       )}

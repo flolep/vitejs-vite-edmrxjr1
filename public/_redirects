@@ -1,0 +1,7 @@
+# Netlify redirects for SPA (Single Page Application)
+# This file is copied to dist/_redirects during build
+# Documentation: https://docs.netlify.com/routing/redirects/
+
+# Redirect all routes to index.html for client-side routing
+# This allows React Router to handle all routes (/callback, /master, /buzzer, /tv)
+/*    /index.html   200
