@@ -601,6 +601,17 @@ const togglePlay = async () => {
 
     try {
       if (isPlaying) {
+        // Vérifier que le player est actif avant de mettre en pause
+        if (spotifyPlayer) {
+          const state = await spotifyPlayer.getCurrentState();
+          if (!state) {
+            console.warn('⚠️ Player inactif lors de la pause, reconnexion...');
+            setDebugInfo('🔄 Reconnexion du player...');
+            await spotifyPlayer.connect();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
+
         const stateResponse = await fetch('https://api.spotify.com/v1/me/player', {
           headers: { 'Authorization': `Bearer ${spotifyToken}` }
         });
