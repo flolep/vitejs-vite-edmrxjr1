@@ -1040,13 +1040,14 @@ const addPoint = async (team) => {
     const modeNames = {
       'mp3': 'Mode MP3',
       'spotify-auto': 'Mode Spotify Autonome',
-      'spotify-ai': 'Mode Spotify IA'
+      'spotify-ai': 'Mode Spotify IA',
+      'quiz': 'Mode Quiz'
     };
 
     setDebugInfo(`🔄 Nouvelle partie créée ! Code: ${newSessionId} - ${modeNames[mode]}`);
 
-    // Si mode Spotify IA, créer la playlist vide via n8n
-    if (mode === 'spotify-ai') {
+    // Si mode Spotify IA ou Quiz, créer la playlist vide via n8n
+    if (mode === 'spotify-ai' || mode === 'quiz') {
       setDebugInfo(`🤖 Création de la playlist IA via n8n...`);
       try {
         const result = await n8nService.createSpotifyPlaylistSimple(
@@ -2084,6 +2085,35 @@ const loadBuzzStats = (shouldShow = true) => {
                 </div>
                 <div style={{ fontSize: '0.875rem', opacity: 0.8 }}>
                   Playlist générée automatiquement par IA selon les préférences des joueurs
+                </div>
+              </div>
+
+              {/* Mode Quiz */}
+              <div
+                onClick={() => createNewSession('quiz')}
+                style={{
+                  padding: '1.5rem',
+                  backgroundColor: 'rgba(251, 146, 60, 0.2)',
+                  border: '2px solid rgba(251, 146, 60, 0.5)',
+                  borderRadius: '0.75rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(251, 146, 60, 0.3)';
+                  e.currentTarget.style.borderColor = '#fb923c';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(251, 146, 60, 0.2)';
+                  e.currentTarget.style.borderColor = 'rgba(251, 146, 60, 0.5)';
+                }}
+              >
+                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🎯</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                  Mode Quiz
+                </div>
+                <div style={{ fontSize: '0.875rem', opacity: 0.8 }}>
+                  Questions à choix multiples - Chaque joueur pour soi !
                 </div>
               </div>
             </div>

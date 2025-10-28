@@ -207,5 +207,80 @@ export const n8nService = {
       console.error('❌ Erreur remplissage playlist IA:', error);
       throw error;
     }
+  },
+
+  /**
+   * Génère une playlist Quiz avec questions à choix multiples
+   * Chaque chanson est accompagnée de 3 mauvaises réponses (faux titre ou artiste)
+   * @param {object} params - Les paramètres
+   * @param {string} params.playlistId - ID de la playlist à remplir
+   * @param {number} params.age - Âge du joueur
+   * @param {array} params.genres - Liste de 3 genres musicaux favoris
+   * @param {string} params.genre1Preferences - Préférences détaillées (optionnel)
+   * @param {string} params.genre2Preferences - Préférences détaillées (optionnel)
+   * @param {string} params.genre3Preferences - Préférences détaillées (optionnel)
+   * @returns {Promise<{success: boolean, playlistId: string, totalSongs: number, songs: array}>}
+   */
+  async fillPlaylistQuizMode({
+    playlistId,
+    age,
+    genres,
+    genre1Preferences = '',
+    genre2Preferences = '',
+    genre3Preferences = ''
+  }) {
+    try {
+      const payload = {
+        playlistId: playlistId,
+        age: age,
+        genres: genres,
+        genre1Preferences: genre1Preferences,
+        genre2Preferences: genre2Preferences,
+        genre3Preferences: genre3Preferences
+      };
+
+      console.log('🎯 Génération playlist Quiz via n8n:', payload);
+
+      const response = await fetch(N8N_PROXY_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          endpoint: 'blindtest-quiz-mode',
+          payload: payload
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`n8n proxy error: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ Playlist Quiz générée:', data);
+
+      // Format attendu de la réponse:
+      // {
+      //   success: true,
+      //   playlistId: "xxx",
+      //   totalSongs: 10,
+      //   songs: [
+      //     {
+      //       uri: "spotify:track:xxx",
+      //       title: "Song Title",
+      //       artist: "Artist Name",
+      //       correctAnswer: "Song Title - Artist Name",
+      //       wrongAnswers: ["Wrong 1", "Wrong 2", "Wrong 3"],
+      //       allAnswers: ["Correct", "Wrong 1", "Wrong 2", "Wrong 3"] // Mélangées
+      //     }
+      //   ]
+      // }
+
+      return data;
+    } catch (error) {
+      console.error('❌ Erreur génération playlist Quiz:', error);
+      throw error;
+    }
   }
 };
