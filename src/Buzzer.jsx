@@ -60,6 +60,10 @@ export default function Buzzer() {
   // Sauvegarder l'état dans localStorage
   const saveToLocalStorage = (data) => {
     try {
+      // Récupérer les données existantes pour préserver certains flags
+      const existing = localStorage.getItem(STORAGE_KEY);
+      const existingData = existing ? JSON.parse(existing) : {};
+
       const toSave = {
         sessionId: data.sessionId || sessionId,
         playerName: data.playerName || playerName,
@@ -70,6 +74,7 @@ export default function Buzzer() {
         selectedGenres: data.selectedGenres || selectedGenres,
         specialPhrase: data.specialPhrase || specialPhrase,
         photoData: data.photoData || photoData,
+        preferencesSubmitted: data.preferencesSubmitted !== undefined ? data.preferencesSubmitted : existingData.preferencesSubmitted || false,
         timestamp: Date.now()
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
@@ -593,6 +598,14 @@ export default function Buzzer() {
       return;
     }
 
+    // ✅ GARDE-FOU : Vérifier si les préférences ont déjà été soumises
+    const storedData = loadFromLocalStorage();
+    if (storedData && storedData.preferencesSubmitted) {
+      console.log('⚠️ Préférences déjà soumises, skip n8n workflow');
+      setStep('team');
+      return;
+    }
+
     setIsSearching(true);
     setError(''); // Effacer les erreurs précédentes
 
@@ -626,8 +639,14 @@ export default function Buzzer() {
     // Ne passer à l'étape suivante QUE si l'envoi a réussi
     if (success) {
       setStep('team');
-      // Sauvegarder les préférences
-      saveToLocalStorage({ playerAge, selectedGenres, specialPhrase });
+      // ✅ Sauvegarder les préférences ET marquer comme soumises
+      saveToLocalStorage({
+        playerAge,
+        selectedGenres,
+        specialPhrase,
+        preferencesSubmitted: true  // Flag pour éviter la double soumission
+      });
+      console.log('✅ Préférences marquées comme soumises');
     } else {
       setError('❌ Erreur lors de l\'envoi de vos préférences. Veuillez réessayer.');
     }
