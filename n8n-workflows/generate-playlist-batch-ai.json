@@ -94,7 +94,7 @@
       "parameters": {
         "resource": "playlist",
         "id": "={{ $('Batch Player Input Webhook').first().json.body.playlistId }}",
-        "trackID": "={{ $json.trackIds.join(',') }}",
+        "trackID": "={{ $json.trackUrisString }}",
         "additionalFields": {}
       },
       "id": "261d2ba9-d514-4b10-8935-bf15ee7f10d0",

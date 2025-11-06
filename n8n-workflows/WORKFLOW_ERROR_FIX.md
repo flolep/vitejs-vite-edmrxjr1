@@ -1,24 +1,36 @@
-# 🔧 Correction de l'erreur "Cannot read properties of undefined (reading 'replace')"
+# 🔧 Correction des erreurs Spotify dans le workflow n8n
 
-## 📋 Erreur rencontrée
+## 📋 Erreurs rencontrées
+
+### Erreur 1 : "Cannot read properties of undefined (reading 'replace')"
 
 ```
 TypeError: Cannot read properties of undefined (reading 'replace')
 at ExecuteContext.execute (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file+packages+nodes-base_@aws-sdk+credential-providers@3.808.0_asn1.js@5_afd197edb2c1f848eae21a96a97fab23/node_modules/n8n-nodes-base/nodes/Spotify/Spotify.node.ts:1083:22)
 ```
 
-## 🔍 Cause du problème
+### Erreur 2 : "Bad request - please check your parameters"
 
-L'erreur se produisait dans le nœud **"Add Songs to Playlist"** du workflow n8n. Le problème était dû à :
+```
+NodeApiError: Bad request - please check your parameters
+at ExecuteContext.httpRequestWithAuthentication
+at ExecuteContext.spotifyApiRequest
+at ExecuteContext.execute (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file+packages+nodes-base_@aws-sdk+credential-providers@3.808.0_asn1.js@5_afd197edb2c1f848eae21a96a97fab23/node_modules/n8n-nodes-base/nodes/Spotify/Spotify.node.ts:1148:23)
+```
 
-1. **Syntaxe incorrecte pour accéder au `playlistId`** :
+## 🔍 Cause des problèmes
+
+Les erreurs se produisaient dans le nœud **"Add Songs to Playlist"** du workflow n8n. Les problèmes étaient :
+
+1. **Syntaxe incorrecte pour accéder au `playlistId`** (Erreur 1) :
    - Ancienne syntaxe : `$node['Batch Player Input Webhook'].json.body.playlistId`
    - Cette syntaxe ne fonctionnait pas correctement dans le contexte d'exécution
-   - Le nœud Spotify recevait `undefined` et tentait de faire `.replace()` dessus → erreur
+   - Le nœud Spotify recevait `undefined` et tentait de faire `.replace()` dessus → TypeError
 
-2. **Format incorrect pour les `trackIDs`** :
+2. **Format incorrect pour les `trackIDs`** (Erreur 2) :
    - Ancienne syntaxe : `$('Extract Track URIs').item.json.trackUrisString`
-   - Le nœud Spotify attend un format spécifique pour les IDs de tracks
+   - Problème : Spotify API exige des **URIs complets** au format `spotify:track:XXXXX`
+   - Si on envoie juste les IDs (`XXXXX`) sans le préfixe, l'API retourne "Bad request"
 
 ## ✅ Solutions appliquées
 
@@ -39,14 +51,14 @@ L'erreur se produisait dans le nœud **"Add Songs to Playlist"** du workflow n8n
 {
   "resource": "playlist",
   "id": "={{ $('Batch Player Input Webhook').first().json.body.playlistId }}",
-  "trackID": "={{ $json.trackIds.join(',') }}",
+  "trackID": "={{ $json.trackUrisString }}",
   "additionalFields": {}
 }
 ```
 
 **Changements :**
 - ✅ Utilisation de `$('Node Name').first()` pour accéder de manière fiable au premier item du webhook
-- ✅ Utilisation de `$json.trackIds.join(',')` pour accéder directement aux IDs des tracks depuis le contexte actuel
+- ✅ Utilisation de `$json.trackUrisString` pour accéder aux URIs complets des tracks (format requis par Spotify API)
 
 ### 2. Correction du nœud "Format Success Response"
 
@@ -59,6 +71,24 @@ L'erreur se produisait dans le nœud **"Add Songs to Playlist"** du workflow n8n
 **Changement :**
 - Suppression de la référence au webhook dans le log (non essentielle)
 - Le code fonctionne désormais de manière autonome
+
+### 4. Format des URIs Spotify - IMPORTANT ⚠️
+
+Le nœud **"Extract Track URIs"** génère 3 formats différents :
+
+```javascript
+{
+  trackUris: ["spotify:track:ABC123", "spotify:track:DEF456"],        // ✅ URIs complets (ARRAY)
+  trackUrisString: "spotify:track:ABC123,spotify:track:DEF456",       // ✅ URIs complets (STRING)
+  trackIds: ["ABC123", "DEF456"]                                       // ❌ IDs seulement (ne marche PAS)
+}
+```
+
+**Spotify API exige le format avec préfixe :**
+- ✅ CORRECT : `spotify:track:ABC123,spotify:track:DEF456`
+- ❌ INCORRECT : `ABC123,DEF456`
+
+**C'est pourquoi on utilise `$json.trackUrisString` et PAS `$json.trackIds.join(',')`**
 
 ## 🧪 Comment tester le workflow corrigé
 
