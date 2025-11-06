@@ -203,9 +203,9 @@
       "parameters": {
         "model": {
           "__rl": true,
-          "value": "gpt-4o",
+          "value": "gpt-3.5-turbo",
           "mode": "list",
-          "cachedResultName": "gpt-4o"
+          "cachedResultName": "gpt-3.5-turbo"
         },
         "options": {}
       },
@@ -216,7 +216,7 @@
         176
       ],
       "id": "6022a8ec-3e9f-4457-9491-d1202bf6e08c",
-      "name": "OpenAI Chat Model",
+      "name": "OpenAI Chat Model (GPT-3.5)",
       "credentials": {
         "openAiApi": {
           "id": "ytGgzcq7Rtx4z7WA",
