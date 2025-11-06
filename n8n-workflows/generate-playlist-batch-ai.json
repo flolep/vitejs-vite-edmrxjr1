@@ -43,7 +43,7 @@
     },
     {
       "parameters": {
-        "jsCode": "  // The AI Agent output is already in the correct format\n  const response = $input.item.json;\n\n  console.log('Received data:', JSON.stringify(response, null, 2));\n\n  // If the response is directly an array, use it\n  let songs = Array.isArray(response) ? response : response.output || response.text;\n\n  // If still not an array, try parsing as string\n  if (typeof songs === 'string') {\n    songs = JSON.parse(songs);\n  }\n\n  // Final validation\n  if (!Array.isArray(songs)) {\n    throw new Error(`Expected array but got: ${typeof songs}`);\n  }\n\n  console.log(`Processing ${songs.length} songs for ${$node['Batch Player Input Webhook'].json.body.players.length} players`);\n\n  // Return each song for parallel Spotify search\n  return songs.map((song, index) => ({\n    json: {\n      artist: song.artist,\n      song: song.song,\n      searchQuery: `${song.song} ${song.artist}`,\n      index: index\n    }\n  }));"
+        "jsCode": "  // The AI Agent output is already in the correct format\n  const response = $input.item.json;\n\n  console.log('Received data:', JSON.stringify(response, null, 2));\n\n  // If the response is directly an array, use it\n  let songs = Array.isArray(response) ? response : response.output || response.text;\n\n  // If still not an array, try parsing as string\n  if (typeof songs === 'string') {\n    songs = JSON.parse(songs);\n  }\n\n  // Final validation\n  if (!Array.isArray(songs)) {\n    throw new Error(`Expected array but got: ${typeof songs}`);\n  }\n\n  console.log(`Processing ${songs.length} songs for batch playlist generation`);\n\n  // Return each song for parallel Spotify search\n  return songs.map((song, index) => ({\n    json: {\n      artist: song.artist,\n      song: song.song,\n      searchQuery: `${song.song} ${song.artist}`,\n      index: index\n    }\n  }));"
       },
       "id": "2cc4bdb1-b4d7-4efc-a330-d1f7c5c251d0",
       "name": "Parse Song List",
@@ -93,8 +93,8 @@
     {
       "parameters": {
         "resource": "playlist",
-        "id": "={{ $node['Batch Player Input Webhook'].json.body.playlistId }}",
-        "trackID": "={{ $('Extract Track URIs').item.json.trackUrisString }}",
+        "id": "={{ $('Batch Player Input Webhook').first().json.body.playlistId }}",
+        "trackID": "={{ $json.trackIds.join(',') }}",
         "additionalFields": {}
       },
       "id": "261d2ba9-d514-4b10-8935-bf15ee7f10d0",
@@ -132,7 +132,7 @@
               "id": "playlistId-1",
               "name": "playlistId",
               "type": "string",
-              "value": "={{ $node['Batch Player Input Webhook'].json.body.playlistId }}"
+              "value": "={{ $('Batch Player Input Webhook').first().json.body.playlistId }}"
             },
             {
               "id": "totalSongs-1",
@@ -144,7 +144,7 @@
               "id": "totalPlayers-1",
               "name": "totalPlayers",
               "type": "number",
-              "value": "={{ $node[\"Batch Player Input Webhook\"].json.body.players.length }}"
+              "value": "={{ $('Batch Player Input Webhook').first().json.body.players.length }}"
             },
             {
               "id": "songs-1",

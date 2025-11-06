@@ -533,6 +533,8 @@ useEffect(() => {
     });
 
     const playlistId = playlistSnapshot.val();
+    console.log('🆔 PlaylistId récupéré depuis Firebase:', playlistId);
+
     if (!playlistId) {
       alert('Aucune playlist n\'a été créée. Veuillez d\'abord créer une session en mode Spotify IA.');
       return;
