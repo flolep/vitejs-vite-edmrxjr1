@@ -90,9 +90,9 @@ export default function Buzzer() {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const data = JSON.parse(stored);
-        // Vérifier que les données ne sont pas trop anciennes (24h max)
+        // Vérifier que les données ne sont pas trop anciennes (3h max)
         const age = Date.now() - (data.timestamp || 0);
-        if (age > 24 * 60 * 60 * 1000) {
+        if (age > 3 * 60 * 60 * 1000) {
           console.log('⚠️ Données localStorage trop anciennes, suppression');
           localStorage.removeItem(STORAGE_KEY);
           return null;
