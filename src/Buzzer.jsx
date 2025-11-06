@@ -529,7 +529,39 @@ export default function Buzzer() {
     startCamera();
   };
 
-  // NOUVEAU : Envoyer les données au workflow n8n pour remplir la playlist avec l'IA
+  // NOUVEAU : Sauvegarder les préférences du joueur dans Firebase (sans générer la playlist)
+  const savePreferencesToFirebase = async () => {
+    try {
+      console.log('💾 Sauvegarde des préférences dans Firebase...');
+
+      const playerId = selectedPlayer?.id || `temp_${playerName}`;
+      const preferencesRef = ref(database, `sessions/${sessionId}/players_preferences/${playerId}`);
+
+      const preferencesData = {
+        id: playerId,
+        name: selectedPlayer?.name || playerName,
+        photo: selectedPlayer?.photo || photoData || null,
+        age: parseInt(playerAge),
+        genres: selectedGenres,
+        specialPhrase: specialPhrase || '',
+        timestamp: Date.now(),
+        ready: true  // Marquer le joueur comme prêt
+      };
+
+      await set(preferencesRef, preferencesData);
+      console.log('✅ Préférences sauvegardées dans Firebase:', preferencesData);
+
+      return true; // Succès
+
+    } catch (err) {
+      console.error('❌ Erreur sauvegarde préférences:', err);
+      return false; // Échec
+    }
+  };
+
+  // ANCIEN : Envoyer les données au workflow n8n pour remplir la playlist avec l'IA
+  // ⚠️ CETTE FONCTION N'EST PLUS UTILISÉE PAR LES JOUEURS
+  // Elle est conservée pour référence mais sera remplacée par une fonction côté Master
   const sendToN8nWorkflow = async () => {
     if (!playlistId) {
       console.warn('⚠️ Pas de playlistId disponible, skip n8n');
@@ -601,7 +633,7 @@ export default function Buzzer() {
     // ✅ GARDE-FOU : Vérifier si les préférences ont déjà été soumises
     const storedData = loadFromLocalStorage();
     if (storedData && storedData.preferencesSubmitted) {
-      console.log('⚠️ Préférences déjà soumises, skip n8n workflow');
+      console.log('⚠️ Préférences déjà soumises, passage direct à l\'équipe');
       setStep('team');
       return;
     }
@@ -609,46 +641,25 @@ export default function Buzzer() {
     setIsSearching(true);
     setError(''); // Effacer les erreurs précédentes
 
-    // Attendre que le playlistId soit disponible (max 10 secondes)
-    let currentPlaylistId = playlistId;
-    if (!currentPlaylistId) {
-      console.log('⏳ Attente du playlistId depuis Firebase...');
-      const startTime = Date.now();
-      const timeout = 10000; // 10 secondes max
-
-      while (!currentPlaylistId && (Date.now() - startTime) < timeout) {
-        await new Promise(resolve => setTimeout(resolve, 500)); // Attendre 500ms
-        currentPlaylistId = playlistId; // Vérifier si le state a été mis à jour
-      }
-
-      if (!currentPlaylistId) {
-        console.error('❌ PlaylistId toujours indisponible après 10 secondes');
-        setIsSearching(false);
-        setError('❌ La playlist n\'est pas encore prête. Assurez-vous que le maître du jeu a créé la session en mode Spotify IA.');
-        return;
-      }
-
-      console.log('✅ PlaylistId récupéré après attente');
-    }
-
-    // Envoyer au workflow n8n
-    const success = await sendToN8nWorkflow();
+    // ✅ NOUVEAU FLUX : Sauvegarder les préférences dans Firebase
+    // La génération de playlist sera déclenchée par l'animateur plus tard
+    const success = await savePreferencesToFirebase();
 
     setIsSearching(false);
 
-    // Ne passer à l'étape suivante QUE si l'envoi a réussi
+    // Passer à l'étape suivante si la sauvegarde a réussi
     if (success) {
       setStep('team');
-      // ✅ Sauvegarder les préférences ET marquer comme soumises
+      // ✅ Sauvegarder les préférences localement ET marquer comme soumises
       saveToLocalStorage({
         playerAge,
         selectedGenres,
         specialPhrase,
         preferencesSubmitted: true  // Flag pour éviter la double soumission
       });
-      console.log('✅ Préférences marquées comme soumises');
+      console.log('✅ Préférences sauvegardées et joueur marqué comme prêt');
     } else {
-      setError('❌ Erreur lors de l\'envoi de vos préférences. Veuillez réessayer.');
+      setError('❌ Erreur lors de la sauvegarde de vos préférences. Veuillez réessayer.');
     }
   };
 
