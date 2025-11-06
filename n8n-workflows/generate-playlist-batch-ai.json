@@ -20,6 +20,19 @@
     },
     {
       "parameters": {
+        "jsCode": "// Le webhook reçoit le body comme une STRING, il faut le parser\nconst bodyString = $json.body;\n\nconsole.log('Body reçu (type):', typeof bodyString);\nconsole.log('Body reçu (contenu):', bodyString);\n\n// Parser le JSON\nconst data = JSON.parse(bodyString);\n\nconsole.log('Données parsées:', JSON.stringify(data, null, 2));\nconsole.log('PlaylistId:', data.playlistId);\nconsole.log('Nombre de joueurs:', data.players?.length);\n\n// Retourner les données parsées\nreturn [{\n  json: {\n    playlistId: data.playlistId,\n    players: data.players\n  }\n}];"
+      },
+      "id": "parse-body-json",
+      "name": "Parse JSON Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        112,
+        -80
+      ]
+    },
+    {
+      "parameters": {
         "assignments": {
           "assignments": [
             {
@@ -234,6 +247,17 @@
   "pinData": {},
   "connections": {
     "Batch Player Input Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse JSON Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse JSON Body": {
       "main": [
         [
           {
