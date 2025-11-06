@@ -533,6 +533,8 @@ useEffect(() => {
     });
 
     const playlistId = playlistSnapshot.val();
+    console.log('🆔 PlaylistId récupéré depuis Firebase:', playlistId);
+
     if (!playlistId) {
       alert('Aucune playlist n\'a été créée. Veuillez d\'abord créer une session en mode Spotify IA.');
       return;
@@ -569,28 +571,32 @@ Continuer ?
 
       console.log('📦 Payload à envoyer:', payload);
 
-      // TODO: Implémenter l'appel à n8n avec le payload groupé
-      // const result = await n8nService.generatePlaylistWithAllPreferences(payload);
+      // ✅ Appel réel à n8n avec le payload groupé
+      const result = await n8nService.generatePlaylistWithAllPreferences(payload);
 
-      // Pour l'instant, simulation d'un succès
-      console.warn('⚠️ SIMULATION : Le workflow n8n doit être modifié pour accepter un tableau de préférences');
-      console.log('📋 Données qui seront envoyées au workflow n8n:', JSON.stringify(payload, null, 2));
+      console.log('📥 Résultat de n8n:', result);
 
-      // Signaler que la playlist a été générée
-      const updateRef = ref(database, `sessions/${sessionId}/lastPlaylistUpdate`);
-      await set(updateRef, {
-        timestamp: Date.now(),
-        playerName: 'Master (tous les joueurs)',
-        songsAdded: playersPreferences.length * 10, // Estimation
-        type: 'batch_generation'
-      });
+      if (result.success) {
+        // Signaler que la playlist a été générée
+        const updateRef = ref(database, `sessions/${sessionId}/lastPlaylistUpdate`);
+        await set(updateRef, {
+          timestamp: Date.now(),
+          playerName: 'Master (tous les joueurs)',
+          songsAdded: result.totalSongs || 0,
+          totalPlayers: result.totalPlayers || playersPreferences.length,
+          type: 'batch_generation'
+        });
 
-      setDebugInfo(`✅ Playlist générée avec les goûts de ${playersPreferences.length} joueur(s) !`);
-      alert(`✅ Playlist générée avec succès !\n\nLe workflow n8n recevra les préférences de ${playersPreferences.length} joueur(s).\n\nNote: Le workflow n8n doit être modifié pour traiter un tableau de préférences.`);
+        setDebugInfo(`✅ Playlist générée ! ${result.totalSongs} chansons pour ${playersPreferences.length} joueur(s)`);
 
-      // Recharger la playlist depuis Spotify
-      if (spotifyToken) {
-        loadSpotifyPlaylistById(playlistId, spotifyToken);
+        // Recharger la playlist depuis Spotify
+        if (spotifyToken) {
+          await loadSpotifyPlaylistById(playlistId, spotifyToken);
+        }
+
+        alert(`✅ Playlist générée avec succès !\n\n🎵 ${result.totalSongs} chansons ajoutées\n👥 ${playersPreferences.length} joueur(s) satisfaits\n\nLa playlist est maintenant prête pour le jeu !`);
+      } else {
+        throw new Error('La génération a échoué');
       }
 
     } catch (error) {
