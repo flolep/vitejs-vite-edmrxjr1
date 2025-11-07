@@ -40,7 +40,7 @@ exports.handler = async (event, context) => {
     const { endpoint, payload } = body;
 
     // Valider l'endpoint
-    const allowedEndpoints = ['create-playlist-simple', 'create-playlist', 'blindtest-player-input'];
+    const allowedEndpoints = ['create-playlist-simple', 'create-playlist', 'blindtest-player-input', 'blindtest-quiz-mode'];
     if (!endpoint || !allowedEndpoints.includes(endpoint)) {
       return {
         statusCode: 400,
