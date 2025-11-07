@@ -44,7 +44,8 @@ exports.handler = async (event, context) => {
       'create-playlist-simple',
       'create-playlist',
       'blindtest-player-input',
-      'blindtest-batch-playlist' // 🆕 Nouveau endpoint pour génération groupée
+      'blindtest-quiz-mode',      // 🎯 Endpoint pour le mode Quiz
+      'blindtest-batch-playlist'  // 🆕 Endpoint pour génération groupée
     ];
     if (!endpoint || !allowedEndpoints.includes(endpoint)) {
       return {

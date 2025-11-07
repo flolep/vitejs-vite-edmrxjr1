@@ -49,6 +49,14 @@ export default function Buzzer() {
     recognizedSongs: []
   });
 
+  // États Mode Quiz
+  const [gameMode, setGameMode] = useState(null); // 'mp3', 'spotify-auto', 'spotify-ai', 'quiz'
+  const [quizAnswers, setQuizAnswers] = useState([]); // Les 4 réponses [answer1, answer2, answer3, answer4]
+  const [visibleAnswers, setVisibleAnswers] = useState([true, true, true, true]); // Visibilité des réponses
+  const [selectedAnswer, setSelectedAnswer] = useState(null); // Index de la réponse sélectionnée (0-3)
+  const [answerResult, setAnswerResult] = useState(null); // 'correct' | 'incorrect' | null
+  const [quizCorrectIndex, setQuizCorrectIndex] = useState(0); // Index de la bonne réponse
+
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
@@ -326,6 +334,56 @@ export default function Buzzer() {
     });
     return () => unsubscribe();
   }, [sessionValid, sessionId]);
+
+  // Écouter le gameMode depuis Firebase
+  useEffect(() => {
+    if (!sessionValid || !sessionId) return;
+    const gameModeRef = ref(database, `sessions/${sessionId}/gameMode`);
+    const unsubscribe = onValue(gameModeRef, (snapshot) => {
+      const mode = snapshot.val();
+      if (mode) {
+        setGameMode(mode);
+        console.log('✅ Game mode récupéré:', mode);
+      }
+    });
+    return () => unsubscribe();
+  }, [sessionValid, sessionId]);
+
+  // Mode Quiz : Écouter les réponses depuis Firebase
+  useEffect(() => {
+    if (!sessionValid || !sessionId || gameMode !== 'quiz') return;
+    const songRef = ref(database, `sessions/${sessionId}/currentSong`);
+    const unsubscribe = onValue(songRef, (snapshot) => {
+      const songData = snapshot.val();
+      if (songData && songData.quizAnswers) {
+        setQuizAnswers(songData.quizAnswers);
+        setQuizCorrectIndex(songData.quizCorrectIndex || 0);
+        console.log('🎯 Quiz answers:', songData.quizAnswers);
+      }
+    });
+    return () => unsubscribe();
+  }, [sessionValid, sessionId, gameMode]);
+
+  // Mode Quiz : Écouter la visibilité des réponses
+  useEffect(() => {
+    if (!sessionValid || !sessionId || gameMode !== 'quiz') return;
+    const visibleRef = ref(database, `sessions/${sessionId}/visibleAnswers`);
+    const unsubscribe = onValue(visibleRef, (snapshot) => {
+      const visible = snapshot.val();
+      if (visible) {
+        setVisibleAnswers(visible);
+      }
+    });
+    return () => unsubscribe();
+  }, [sessionValid, sessionId, gameMode]);
+
+  // Mode Quiz : Réinitialiser la réponse quand on change de chanson
+  useEffect(() => {
+    if (gameMode !== 'quiz') return;
+    // Réinitialiser la sélection pour la nouvelle chanson
+    setSelectedAnswer(null);
+    setAnswerResult(null);
+  }, [quizAnswers, gameMode]); // Se déclenche quand quizAnswers change (nouvelle chanson)
 
   // Écouter si quelqu'un a buzzé
   useEffect(() => {
@@ -716,6 +774,33 @@ const handleBuzz = async () => {
 
   if (navigator.vibrate) {
     navigator.vibrate(200);
+  }
+};
+
+// Mode Quiz : Gérer la sélection d'une réponse
+const handleAnswerSelect = async (answerIndex) => {
+  if (selectedAnswer !== null || !isPlaying) return; // Déjà répondu ou pas en lecture
+
+  setSelectedAnswer(answerIndex);
+
+  // Vérifier si la réponse est correcte
+  const isCorrect = answerIndex === quizCorrectIndex;
+  setAnswerResult(isCorrect ? 'correct' : 'incorrect');
+
+  // Envoyer la réponse à Firebase
+  const quizAnswerRef = ref(database, `sessions/${sessionId}/quizAnswers/${selectedPlayer?.id || `temp_${playerName}`}`);
+  await set(quizAnswerRef, {
+    playerId: selectedPlayer?.id || `temp_${playerName}`,
+    playerName: selectedPlayer?.name || playerName,
+    answerIndex: answerIndex,
+    isCorrect: isCorrect,
+    time: Date.now() // Timestamp pour calcul des points
+  });
+
+  console.log(`🎯 Réponse ${isCorrect ? 'correcte' : 'incorrecte'} envoyée pour ${playerName}`);
+
+  if (navigator.vibrate) {
+    navigator.vibrate(isCorrect ? [100, 50, 100] : 200);
   }
 };
 
@@ -1378,16 +1463,18 @@ if (step === 'game') {
         📊
       </button>
 
-      <div className="score-display">
-        <div className={`score-mini ${team === 1 ? 'highlighted' : ''}`} style={{ backgroundColor: 'rgba(220, 38, 38, 0.5)' }}>
-          <div className="label">ÉQUIPE 1</div>
-          <div className="value">{scores.team1}</div>
+      {gameMode !== 'quiz' && (
+        <div className="score-display">
+          <div className={`score-mini ${team === 1 ? 'highlighted' : ''}`} style={{ backgroundColor: 'rgba(220, 38, 38, 0.5)' }}>
+            <div className="label">ÉQUIPE 1</div>
+            <div className="value">{scores.team1}</div>
+          </div>
+          <div className={`score-mini ${team === 2 ? 'highlighted' : ''}`} style={{ backgroundColor: 'rgba(37, 99, 235, 0.5)' }}>
+            <div className="label">ÉQUIPE 2</div>
+            <div className="value">{scores.team2}</div>
+          </div>
         </div>
-        <div className={`score-mini ${team === 2 ? 'highlighted' : ''}`} style={{ backgroundColor: 'rgba(37, 99, 235, 0.5)' }}>
-          <div className="label">ÉQUIPE 2</div>
-          <div className="value">{scores.team2}</div>
-        </div>
-      </div>
+      )}
 
       <div className="text-center mb-8">
         {selectedPlayer?.photo && (
@@ -1407,66 +1494,171 @@ if (step === 'game') {
         <div style={{ fontSize: '1.25rem', marginBottom: '0.5rem', opacity: 0.9 }}>
           {selectedPlayer?.name || playerName}
         </div>
-        <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
-          {team === 1 ? '🔴 ÉQUIPE 1' : '🔵 ÉQUIPE 2'}
-        </h1>
-        
-        {/* ✅ Affichage du cooldown */}
-        {isInCooldown ? (
-          <div style={{ 
-            fontSize: '1.5rem', 
-            fontWeight: 'bold',
-            color: '#ef4444',
-            marginTop: '1rem'
-          }}>
-            🔥 COOLDOWN : {cooldownRemaining.toFixed(1)}s
-            <div style={{ fontSize: '1rem', marginTop: '0.5rem', opacity: 0.8 }}>
-              (2 bonnes réponses de suite)
-            </div>
-          </div>
+        {gameMode === 'quiz' ? (
+          <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+            🎯 MODE QUIZ
+          </h1>
         ) : (
+          <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+            {team === 1 ? '🔴 ÉQUIPE 1' : '🔵 ÉQUIPE 2'}
+          </h1>
+        )}
+
+        {/* ✅ Affichage du cooldown (modes team uniquement) */}
+        {gameMode !== 'quiz' && (
+          isInCooldown ? (
+            <div style={{
+              fontSize: '1.5rem',
+              fontWeight: 'bold',
+              color: '#ef4444',
+              marginTop: '1rem'
+            }}>
+              🔥 COOLDOWN : {cooldownRemaining.toFixed(1)}s
+              <div style={{ fontSize: '1rem', marginTop: '0.5rem', opacity: 0.8 }}>
+                (2 bonnes réponses de suite)
+              </div>
+            </div>
+          ) : (
+            <p style={{ fontSize: '1.125rem', opacity: 0.8 }}>
+              {buzzed ? 'Buzzé !' :
+               someoneBuzzed ? 'Une autre équipe a buzzé...' :
+               !isPlaying ? 'En attente de la musique...' :
+               'Appuyez pour buzzer'}
+            </p>
+          )
+        )}
+
+        {/* Message pour le mode Quiz */}
+        {gameMode === 'quiz' && (
           <p style={{ fontSize: '1.125rem', opacity: 0.8 }}>
-            {buzzed ? 'Buzzé !' : 
-             someoneBuzzed ? 'Une autre équipe a buzzé...' : 
-             !isPlaying ? 'En attente de la musique...' : 
-             'Appuyez pour buzzer'}
+            {selectedAnswer !== null
+              ? (answerResult === 'correct' ? '✅ Bonne réponse !' : '❌ Mauvaise réponse')
+              : !isPlaying
+              ? 'En attente de la musique...'
+              : 'Sélectionnez une réponse'}
           </p>
         )}
       </div>
 
-      <button
-        onClick={handleBuzz}
-        disabled={!canBuzz}
-        className={`buzzer ${buzzed ? 'buzzed' : ''} ${isInCooldown ? 'cooldown' : ''}`}
-        style={{
-          backgroundColor: buzzed ? '#fbbf24' : isInCooldown ? '#ef4444' : canBuzz ? buttonColor : '#6b7280',
-          cursor: !canBuzz ? 'not-allowed' : 'pointer',
-          opacity: !canBuzz ? 0.5 : 1
-        }}
-      >
-        <span style={{ fontSize: '5rem' }}>
-          {isInCooldown ? '🔥' : '🔔'}
-        </span>
-        <span style={{ marginTop: '1rem' }}>
-          {isInCooldown ? `${cooldownRemaining.toFixed(1)}s` :
-           buzzed ? 'BUZZÉ !' : 
-           someoneBuzzed ? 'BLOQUÉ' : 
-           !isPlaying ? 'EN ATTENTE' : 
-           'BUZZ'}
-        </span>
-      </button>
+      {gameMode === 'quiz' ? (
+        // Mode Quiz : Afficher 4 boutons de réponses
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '1rem',
+          width: '100%',
+          maxWidth: '600px'
+        }}>
+          {quizAnswers.map((answer, index) => {
+            const isDisabled = selectedAnswer !== null || !isPlaying || !visibleAnswers[index];
+            const isSelected = selectedAnswer === index;
+            const isCorrectAnswer = isSelected && answerResult === 'correct';
+            const isWrongAnswer = isSelected && answerResult === 'incorrect';
 
-      <button onClick={changeTeam} className="btn btn-gray mt-8">
-        Changer d'équipe
-      </button>
-
-      {someoneBuzzed && !buzzed && (
-        <div className="mt-8" style={{ fontSize: '0.875rem', opacity: 0.7 }}>
-          En attente de la décision de l'animateur...
+            return (
+              <button
+                key={index}
+                onClick={() => handleAnswerSelect(index)}
+                disabled={isDisabled}
+                style={{
+                  padding: '2rem 1.5rem',
+                  backgroundColor: isCorrectAnswer
+                    ? '#10b981'
+                    : isWrongAnswer
+                    ? '#ef4444'
+                    : isSelected
+                    ? '#fbbf24'
+                    : visibleAnswers[index]
+                    ? 'rgba(255, 255, 255, 0.1)'
+                    : 'rgba(0, 0, 0, 0.3)',
+                  border: `3px solid ${
+                    isCorrectAnswer ? '#10b981' :
+                    isWrongAnswer ? '#ef4444' :
+                    isSelected ? '#fbbf24' :
+                    visibleAnswers[index] ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.5)'
+                  }`,
+                  borderRadius: '1rem',
+                  color: 'white',
+                  fontSize: '1.1rem',
+                  fontWeight: '700',
+                  cursor: isDisabled ? 'not-allowed' : 'pointer',
+                  opacity: visibleAnswers[index] ? 1 : 0.3,
+                  transition: 'all 0.3s',
+                  textAlign: 'center',
+                  position: 'relative'
+                }}
+              >
+                <div style={{
+                  position: 'absolute',
+                  top: '0.5rem',
+                  left: '0.5rem',
+                  fontSize: '0.875rem',
+                  fontWeight: '700',
+                  opacity: 0.6
+                }}>
+                  {index + 1}
+                </div>
+                {visibleAnswers[index] ? (
+                  <div>
+                    {isCorrectAnswer && '✅ '}
+                    {isWrongAnswer && '❌ '}
+                    {answer}
+                  </div>
+                ) : (
+                  <div style={{ fontStyle: 'italic', opacity: 0.5 }}>
+                    Disparue
+                  </div>
+                )}
+              </button>
+            );
+          })}
         </div>
+      ) : (
+        // Modes Team : Bouton Buzz classique
+        <button
+          onClick={handleBuzz}
+          disabled={!canBuzz}
+          className={`buzzer ${buzzed ? 'buzzed' : ''} ${isInCooldown ? 'cooldown' : ''}`}
+          style={{
+            backgroundColor: buzzed ? '#fbbf24' : isInCooldown ? '#ef4444' : canBuzz ? buttonColor : '#6b7280',
+            cursor: !canBuzz ? 'not-allowed' : 'pointer',
+            opacity: !canBuzz ? 0.5 : 1
+          }}
+        >
+          <span style={{ fontSize: '5rem' }}>
+            {isInCooldown ? '🔥' : '🔔'}
+          </span>
+          <span style={{ marginTop: '1rem' }}>
+            {isInCooldown ? `${cooldownRemaining.toFixed(1)}s` :
+             buzzed ? 'BUZZÉ !' :
+             someoneBuzzed ? 'BLOQUÉ' :
+             !isPlaying ? 'EN ATTENTE' :
+             'BUZZ'}
+          </span>
+        </button>
       )}
-      
-      {!isPlaying && !someoneBuzzed && !isInCooldown && (
+
+      {gameMode !== 'quiz' && (
+        <>
+          <button onClick={changeTeam} className="btn btn-gray mt-8">
+            Changer d'équipe
+          </button>
+
+          {someoneBuzzed && !buzzed && (
+            <div className="mt-8" style={{ fontSize: '0.875rem', opacity: 0.7 }}>
+              En attente de la décision de l'animateur...
+            </div>
+          )}
+
+          {!isPlaying && !someoneBuzzed && !isInCooldown && (
+            <div className="mt-8" style={{ fontSize: '0.875rem', opacity: 0.7 }}>
+              ⏸️ Attendez que l'animateur lance la musique...
+            </div>
+          )}
+        </>
+      )}
+
+      {gameMode === 'quiz' && !isPlaying && (
         <div className="mt-8" style={{ fontSize: '0.875rem', opacity: 0.7 }}>
           ⏸️ Attendez que l'animateur lance la musique...
         </div>

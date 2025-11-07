@@ -11,7 +11,7 @@ import Login from './Login';
  * Étapes :
  * 1. connections : Connexion Firebase + Spotify
  * 2. choice : NEW ou CONTINUER
- * 3. modes : Choix du mode (MP3 / Spotify Auto / Spotify IA) [si NEW]
+ * 3. modes : Choix du mode (MP3 / Spotify Auto / Spotify IA / Quiz) [si NEW]
  * 4. loading : Chargement/création de la playlist
  * 5. ready : Tout prêt, ferme le wizard et lance Master
  */
@@ -26,7 +26,7 @@ export default function MasterWizard({ onComplete }) {
   // États de session
   const [sessionChoice, setSessionChoice] = useState(null); // 'new' | 'continue'
   const [lastSessionId, setLastSessionId] = useState(null);
-  const [gameMode, setGameMode] = useState(null); // 'mp3' | 'spotify-auto' | 'spotify-ai'
+  const [gameMode, setGameMode] = useState(null); // 'mp3' | 'spotify-auto' | 'spotify-ai' | 'quiz'
   const [sessionId, setSessionId] = useState(null);
   const [playlist, setPlaylist] = useState([]);
   const [playlistId, setPlaylistId] = useState(null);
@@ -149,6 +149,8 @@ export default function MasterWizard({ onComplete }) {
       // Selon le mode, charger/créer la playlist
       if (mode === 'spotify-ai') {
         await handleSpotifyAIMode(newSessionId);
+      } else if (mode === 'quiz') {
+        await handleQuizMode(newSessionId);
       } else if (mode === 'spotify-auto') {
         await handleSpotifyAutoMode(newSessionId);
       } else {
@@ -192,6 +194,40 @@ export default function MasterWizard({ onComplete }) {
     } catch (err) {
       console.error('Erreur création playlist IA:', err);
       setError(`Erreur création playlist IA: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleQuizMode = async (sessionId) => {
+    setLoading(true);
+    setError('');
+
+    try {
+      // Créer une playlist vide via n8n pour le mode Quiz
+      const result = await n8nService.createSpotifyPlaylistSimple(
+        `BlindTest-Quiz-${sessionId}`,
+        `Playlist Quiz générée pour la session ${sessionId}`
+      );
+
+      if (result.success && result.playlistId) {
+        // Extraire l'ID pur
+        let extractedId = extractPlaylistId(result.playlistId);
+
+        // Stocker dans Firebase
+        await set(ref(database, `sessions/${sessionId}/playlistId`), extractedId);
+        setPlaylistId(extractedId);
+
+        // En mode Quiz, la playlist sera remplie via le workflow quiz
+        // On passe en ready avec playlist vide
+        setPlaylist([]);
+        setStep('ready');
+      } else {
+        throw new Error('Playlist ID non reçu de n8n');
+      }
+    } catch (err) {
+      console.error('Erreur création playlist Quiz:', err);
+      setError(`Erreur création playlist Quiz: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -549,6 +585,37 @@ export default function MasterWizard({ onComplete }) {
                   Playlist générée automatiquement par IA selon les préférences des joueurs
                 </div>
               </button>
+
+              {/* Mode Quiz */}
+              <button
+                onClick={() => handleSelectMode('quiz')}
+                style={{
+                  padding: '1.5rem',
+                  backgroundColor: 'rgba(251, 191, 36, 0.2)',
+                  border: '2px solid rgba(251, 191, 36, 0.5)',
+                  borderRadius: '0.75rem',
+                  color: 'white',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(251, 191, 36, 0.3)';
+                  e.currentTarget.style.borderColor = '#fbbf24';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(251, 191, 36, 0.2)';
+                  e.currentTarget.style.borderColor = 'rgba(251, 191, 36, 0.5)';
+                }}
+              >
+                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🎯</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                  Mode Quiz
+                </div>
+                <div style={{ fontSize: '0.875rem', opacity: 0.8 }}>
+                  QCM individuel avec 4 réponses par chanson - IA génère les réponses
+                </div>
+              </button>
             </div>
 
             {/* Bouton Retour */}
@@ -576,6 +643,7 @@ export default function MasterWizard({ onComplete }) {
             <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⏳</div>
             <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>
               {gameMode === 'spotify-ai' ? 'Création de la playlist IA...' :
+               gameMode === 'quiz' ? 'Création de la playlist Quiz...' :
                gameMode === 'spotify-auto' ? 'Chargement de la playlist...' :
                'Préparation...'}
             </h2>

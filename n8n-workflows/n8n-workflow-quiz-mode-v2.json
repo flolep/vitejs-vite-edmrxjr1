@@ -1,0 +1,380 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "blindtest-quiz-mode",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "984b509f-1404-449f-8af6-84dfa2828e08",
+      "name": "Quiz Mode Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        144,
+        16
+      ],
+      "webhookId": "GENERATE_NEW_WEBHOOK_ID"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Le webhook reçoit les données d'un seul joueur pour le mode Quiz\nconst input = $json.body;\n\nconsole.log('═══════════════════════════════════════');\nconsole.log('Type du body:', typeof input);\nconsole.log('Body reçu:', input);\n\nlet data;\n\n// Cas 1 : Le body est déjà un objet\nif (typeof input === 'object' && input !== null) {\n  console.log('✅ Body déjà parsé comme objet');\n  data = input;\n}\n// Cas 2 : Le body est une string JSON\nelse if (typeof input === 'string') {\n  console.log('🔄 Body est une string, parsing nécessaire');\n  try {\n    data = JSON.parse(input);\n    console.log('✅ Parsing JSON réussi');\n  } catch (e) {\n    console.log('❌ Erreur parsing:', e.message);\n    throw new Error(`Impossible de parser le JSON: ${e.message}`);\n  }\n}\nelse {\n  throw new Error(`Type de body inattendu: ${typeof input}`);\n}\n\n// Validation pour le mode Quiz\nif (!data.playlistId) {\n  throw new Error('playlistId manquant dans les données');\n}\nif (!data.age) {\n  throw new Error('age manquant');\n}\nif (!Array.isArray(data.genres) || data.genres.length === 0) {\n  throw new Error('genres manquant ou vide');\n}\n\nconsole.log('✅ Données Quiz validées:');\nconsole.log('  PlaylistId:', data.playlistId);\nconsole.log('  Age:', data.age);\nconsole.log('  Genres:', data.genres.join(', '));\nconsole.log('═══════════════════════════════════════');\n\n// Retourner les données parsées\nreturn [{\n  json: {\n    playlistId: data.playlistId,\n    age: data.age,\n    genres: data.genres,\n    preferences: data.genre1Preferences || ''\n  }\n}];"
+      },
+      "id": "57ea619e-0c48-4d2e-be18-368b3cd1578e",
+      "name": "Parse Quiz Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "prompt-1",
+              "name": "prompt",
+              "type": "string",
+              "value": "=You are a music expert creating a QUIZ-MODE blindtest. Generate exactly 10 popular songs with multiple choice questions.\n\nPLAYER PROFILE:\n- Age: {{ $json.age }} years old\n- Favorite Genres: {{ $json.genres.join(\", \") }}\n{{ $json.preferences ? `- Additional Notes: ${$json.preferences}` : '' }}\n\nIMPORTANT INSTRUCTIONS:\n1. Select 10 POPULAR and RECOGNIZABLE songs that match the player's profile\n2. For EACH song, create 3 PLAUSIBLE but INCORRECT answers\n3. Wrong answers must be believable (similar artists, similar song titles, same genre)\n4. Mix different types of wrong answers:\n   - Wrong artist with correct song title\n   - Correct artist with wrong song title  \n   - Completely different but similar-sounding options\n5. Make it challenging but fair - not too easy, not impossible\n6. All songs MUST be available on Spotify\n\nRESPOND WITH ONLY VALID JSON (no markdown, no code blocks, no explanations):\n[\n  {\n    \"artist\": \"Actual Artist Name\",\n    \"song\": \"Actual Song Title\",\n    \"wrongAnswers\": [\n      \"Wrong Answer 1 - Similar Artist\",\n      \"Actual Artist - Wrong Song Title\",\n      \"Completely Wrong but Plausible\"\n    ]\n  },\n  ... (10 songs total)\n]\n\nEXAMPLE FORMAT:\n[\n  {\n    \"artist\": \"Queen\",\n    \"song\": \"Bohemian Rhapsody\",\n    \"wrongAnswers\": [\n      \"Queen - Bohemian Symphony\",\n      \"The Beatles - Bohemian Rhapsody\",\n      \"Queen - Hungarian Rhapsody\"\n    ]\n  }\n]\n\nGenerate the 10 quiz songs now with their wrong answers:"
+            },
+            {
+              "id": "playlistId-1",
+              "name": "playlistId",
+              "type": "string",
+              "value": "={{ $json.playlistId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "68d2b4c4-cc56-4e9b-8bfa-aa76c27fd37c",
+      "name": "Format Quiz Prompt",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        592,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        816,
+        16
+      ],
+      "id": "71b03bbc-3baf-4d03-9220-786a377c9f93",
+      "name": "AI Agent",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-3.5-turbo",
+          "mode": "list",
+          "cachedResultName": "gpt-3.5-turbo"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        720,
+        256
+      ],
+      "id": "4bca67f0-5299-4005-9e9f-2d6d90bd8a0c",
+      "name": "OpenAI Chat Model (GPT-3.5)",
+      "credentials": {
+        "openAiApi": {
+          "id": "ytGgzcq7Rtx4z7WA",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse AI response for Quiz mode\nconst response = $input.item.json;\n\nconsole.log('🎯 Quiz Mode - Received data:', JSON.stringify(response, null, 2));\n\n// If the response is directly an array, use it\nlet songs = Array.isArray(response) ? response : response.output || response.text;\n\n// If still not an array, try parsing as string\nif (typeof songs === 'string') {\n  songs = JSON.parse(songs);\n}\n\n// Final validation\nif (!Array.isArray(songs)) {\n  throw new Error(`Expected array but got: ${typeof songs}`);\n}\n\n// Validate each song has wrongAnswers\nfor (const song of songs) {\n  if (!song.wrongAnswers || !Array.isArray(song.wrongAnswers) || song.wrongAnswers.length !== 3) {\n    throw new Error(`Song \"${song.song}\" is missing 3 wrong answers`);\n  }\n}\n\n// Récupérer le playlistId\nconst playlistId = $('Format Quiz Prompt').first().json.playlistId;\n\nconsole.log(`🎯 Processing ${songs.length} quiz songs`);\nconsole.log(`PlaylistId: ${playlistId}`);\n\n// Return each song with its wrong answers\nreturn songs.map((song, index) => ({\n  json: {\n    artist: song.artist,\n    song: song.song,\n    wrongAnswers: song.wrongAnswers,\n    searchQuery: `${song.song} ${song.artist}`,\n    index: index,\n    playlistId: playlistId\n  }\n}));"
+      },
+      "id": "044a6ce4-9bb7-4ba7-8a6c-4fc8fc32d369",
+      "name": "Parse Quiz Songs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "track",
+        "operation": "search",
+        "query": "={{ $json.searchQuery }}",
+        "limit": 1,
+        "filters": {}
+      },
+      "id": "2dd73eec-ead9-4cd0-b827-419f20df15a0",
+      "name": "Search Song on Spotify",
+      "type": "n8n-nodes-base.spotify",
+      "typeVersion": 1,
+      "position": [
+        1264,
+        16
+      ],
+      "credentials": {
+        "spotifyOAuth2Api": {
+          "id": "XFtc8avtF5O4GuHO",
+          "name": "Spotify account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare Quiz data with shuffled answers\nconst spotifyTrack = $input.item.json;\nconst originalData = $('Parse Quiz Songs').item.json;\n\nif (!spotifyTrack || !spotifyTrack.uri) {\n  console.warn(`⚠️ Song not found on Spotify: ${originalData.song} - ${originalData.artist}`);\n  return null; // Skip this song\n}\n\n// Build the correct answer\nconst correctAnswer = `${spotifyTrack.name} - ${spotifyTrack.artists[0].name}`;\nconst wrongAnswers = originalData.wrongAnswers;\n\n// Create array of all 4 answers\nconst allAnswers = [correctAnswer, ...wrongAnswers];\n\n// Shuffle answers using Fisher-Yates algorithm\nfor (let i = allAnswers.length - 1; i > 0; i--) {\n  const j = Math.floor(Math.random() * (i + 1));\n  [allAnswers[i], allAnswers[j]] = [allAnswers[j], allAnswers[i]];\n}\n\n// Find the index of correct answer after shuffle\nconst correctIndex = allAnswers.indexOf(correctAnswer);\n\nconsole.log(`✅ Quiz Song: ${spotifyTrack.name}`);\nconsole.log(`   Correct answer at index: ${correctIndex}`);\nconsole.log(`   All answers: ${allAnswers.join(' | ')}`);\n\nreturn {\n  json: {\n    uri: spotifyTrack.uri,\n    title: spotifyTrack.name,\n    artist: spotifyTrack.artists[0].name,\n    correctAnswer: correctAnswer,\n    wrongAnswers: wrongAnswers,\n    quizAnswers: allAnswers,\n    quizCorrectIndex: correctIndex,\n    playlistId: originalData.playlistId\n  }\n};"
+      },
+      "id": "prepare-quiz-data",
+      "name": "Prepare Quiz Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1488,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate all quiz songs\nconst allItems = $input.all();\nconst trackUris = [];\nconst quizSongs = [];\n\nconsole.log('🎯 Processing', allItems.length, 'quiz songs');\n\nfor (const item of allItems) {\n  const song = item.json;\n\n  if (song && song.uri) {\n    trackUris.push(song.uri);\n    quizSongs.push({\n      uri: song.uri,\n      title: song.title,\n      artist: song.artist,\n      correctAnswer: song.correctAnswer,\n      wrongAnswers: song.wrongAnswers,\n      quizAnswers: song.quizAnswers,\n      quizCorrectIndex: song.quizCorrectIndex\n    });\n  }\n}\n\nconsole.log('✅ Total quiz songs found:', trackUris.length);\n\nif (trackUris.length === 0) {\n  throw new Error('No valid quiz songs found');\n}\n\n// Create comma-separated string of URIs\nconst trackUrisString = trackUris.join(',');\n\n// Get playlistId\nconst playlistId = $('Parse Quiz Input').first().json.playlistId;\n\nreturn [{\n  json: {\n    trackUris: trackUris,\n    trackUrisString: trackUrisString,\n    quizSongs: quizSongs,\n    totalFound: trackUris.length,\n    playlistId: playlistId\n  }\n}];"
+      },
+      "id": "542bbae3-77e8-456c-9960-30de9f546fd2",
+      "name": "Aggregate Quiz Songs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1712,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "playlist",
+        "id": "={{ $json.playlistId }}",
+        "trackID": "={{ $json.trackUrisString }}",
+        "additionalFields": {}
+      },
+      "id": "4bf63514-ccb0-45c3-85dd-3cb47a33de3a",
+      "name": "Add Songs to Playlist",
+      "type": "n8n-nodes-base.spotify",
+      "typeVersion": 1,
+      "position": [
+        1936,
+        16
+      ],
+      "credentials": {
+        "spotifyOAuth2Api": {
+          "id": "XFtc8avtF5O4GuHO",
+          "name": "Spotify account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "success-1",
+              "name": "success",
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "id": "message-1",
+              "name": "message",
+              "type": "string",
+              "value": "Quiz mode playlist generated successfully!"
+            },
+            {
+              "id": "playlistId-1",
+              "name": "playlistId",
+              "type": "string",
+              "value": "={{ $('Quiz Mode Webhook').first().json.body.playlistId }}"
+            },
+            {
+              "id": "totalSongs-1",
+              "name": "totalSongs",
+              "type": "number",
+              "value": "={{ $node['Aggregate Quiz Songs'].json.totalFound }}"
+            },
+            {
+              "id": "songs-1",
+              "name": "songs",
+              "type": "array",
+              "value": "={{ $node['Aggregate Quiz Songs'].json.quizSongs }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "100bd7ba-0ce4-4424-9eeb-05a8f49133a3",
+      "name": "Format Quiz Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        2160,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "9ecca98e-5a97-4f6b-98ae-9028d662575b",
+      "name": "Send Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2384,
+        16
+      ]
+    }
+  ],
+  "connections": {
+    "Quiz Mode Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Quiz Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Quiz Input": {
+      "main": [
+        [
+          {
+            "node": "Format Quiz Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Quiz Prompt": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse Quiz Songs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model (GPT-3.5)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Quiz Songs": {
+      "main": [
+        [
+          {
+            "node": "Search Song on Spotify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Song on Spotify": {
+      "main": [
+        [
+          {
+            "node": "Prepare Quiz Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Quiz Data": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Quiz Songs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Quiz Songs": {
+      "main": [
+        [
+          {
+            "node": "Add Songs to Playlist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Songs to Playlist": {
+      "main": [
+        [
+          {
+            "node": "Format Quiz Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Quiz Response": {
+      "main": [
+        [
+          {
+            "node": "Send Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "94b9168551008d33a984c826b7246a9b011ffc20d1040c638e77929747a45f99"
+  }
+}
