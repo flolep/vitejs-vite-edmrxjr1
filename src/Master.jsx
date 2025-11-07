@@ -326,9 +326,13 @@ export default function Master({
   useEffect(() => {
     if (!sessionId) return;
 
+    console.log(`🎧 Écoute des préférences pour la session ${sessionId}...`);
+
     const preferencesRef = ref(database, `sessions/${sessionId}/players_preferences`);
     const unsubscribe = onValue(preferencesRef, (snapshot) => {
       const prefsData = snapshot.val();
+      console.log('🔍 Données brutes préférences:', prefsData);
+
       if (prefsData) {
         // Convertir l'objet en tableau
         const prefsArray = Object.entries(prefsData).map(([id, data]) => ({
@@ -336,9 +340,10 @@ export default function Master({
           ...data
         }));
         setPlayersPreferences(prefsArray);
-        console.log(`📋 ${prefsArray.length} joueur(s) ont renseigné leurs préférences`);
+        console.log(`📋 ${prefsArray.length} joueur(s) ont renseigné leurs préférences:`, prefsArray);
       } else {
         setPlayersPreferences([]);
+        console.log('⚠️ Aucune préférence trouvée dans Firebase');
       }
     });
 
