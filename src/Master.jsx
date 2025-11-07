@@ -655,6 +655,81 @@ Continuer ?
     }
   };
 
+  // Génération de playlist en mode Quiz
+  const handleGenerateQuizPlaylist = async () => {
+    if (!sessionId) {
+      alert('Aucune session active.');
+      return;
+    }
+
+    // Récupérer le playlistId depuis Firebase
+    const playlistIdRef = ref(database, `sessions/${sessionId}/playlistId`);
+    const playlistSnapshot = await new Promise((resolve) => {
+      onValue(playlistIdRef, resolve, { onlyOnce: true });
+    });
+
+    const playlistId = playlistSnapshot.val();
+    console.log('🆔 PlaylistId récupéré depuis Firebase:', playlistId);
+
+    if (!playlistId) {
+      alert('Aucune playlist n\'a été créée. Veuillez d\'abord créer une session en mode Quiz.');
+      return;
+    }
+
+    const confirmMessage = `
+🎯 Génération de la playlist Quiz
+
+10 chansons avec 4 réponses QCM chacune seront générées.
+
+Continuer ?
+    `.trim();
+
+    if (!confirm(confirmMessage)) return;
+
+    setIsGeneratingPlaylist(true);
+    setDebugInfo('⏳ Génération de la playlist Quiz en cours...');
+
+    try {
+      console.log('📤 Appel du workflow Quiz n8n...');
+
+      // Profil par défaut pour le Quiz
+      // TODO: Permettre au Master de personnaliser ces paramètres
+      const payload = {
+        playlistId: playlistId,
+        age: 30,
+        genres: ['Pop', 'Rock', 'Hip-Hop'],
+        genre1Preferences: ''
+      };
+
+      console.log('📦 Payload Quiz:', payload);
+
+      // Appel au workflow Quiz n8n
+      const result = await n8nService.fillPlaylistQuizMode(payload);
+
+      console.log('📥 Résultat de n8n:', result);
+
+      if (result.success) {
+        setDebugInfo(`✅ Playlist Quiz générée ! ${result.totalSongs} chansons avec QCM`);
+
+        // Recharger la playlist depuis Spotify
+        if (spotifyToken) {
+          await loadSpotifyPlaylistById(playlistId, spotifyToken);
+        }
+
+        alert(`✅ Playlist Quiz générée avec succès !\n\n🎯 ${result.totalSongs} chansons avec 4 réponses QCM\n\nLa playlist est maintenant prête pour le jeu !`);
+      } else {
+        throw new Error('La génération a échoué');
+      }
+
+    } catch (error) {
+      console.error('❌ Erreur génération playlist Quiz:', error);
+      setDebugInfo('❌ Erreur lors de la génération de la playlist Quiz');
+      alert('❌ Erreur lors de la génération de la playlist Quiz. Voir la console pour plus de détails.');
+    } finally {
+      setIsGeneratingPlaylist(false);
+    }
+  };
+
   // === MODE MP3 ===
   const handleManualAdd = () => {
     const newTrack = {
@@ -1846,6 +1921,138 @@ const loadBuzzStats = (shouldShow = true) => {
                     </div>
                   )}
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* Mode Quiz - Interface de génération */}
+          {gameMode === 'quiz' && (
+            <div>
+              {/* Si pas connecté à Spotify, afficher le bouton de connexion */}
+              {!spotifyToken ? (
+                <>
+                  <button
+                    onClick={handleSpotifyLogin}
+                    className="btn"
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem 1rem',
+                      backgroundColor: 'rgba(16, 185, 129, 0.3)',
+                      border: '1px solid #10b981',
+                      fontSize: '0.9rem',
+                      borderRadius: '0.5rem',
+                      color: 'white',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      marginBottom: '0.75rem'
+                    }}
+                  >
+                    🎵 Se connecter à Spotify
+                  </button>
+                  <p style={{
+                    textAlign: 'center',
+                    opacity: 0.7,
+                    fontSize: '0.85rem',
+                    backgroundColor: 'rgba(251, 191, 36, 0.2)',
+                    padding: '0.75rem',
+                    borderRadius: '0.5rem',
+                    border: '1px solid rgba(251, 191, 36, 0.3)'
+                  }}>
+                    ⚠️ Connectez-vous à Spotify pour générer la playlist Quiz
+                  </p>
+                </>
+              ) : (
+                <>
+                  {/* Panneau de génération Quiz */}
+                  <div style={{
+                    padding: '1rem',
+                    backgroundColor: 'rgba(251, 191, 36, 0.1)',
+                    borderRadius: '0.5rem',
+                    border: '1px solid rgba(251, 191, 36, 0.3)'
+                  }}>
+                    <div style={{
+                      fontSize: '0.9rem',
+                      fontWeight: '600',
+                      marginBottom: '1rem',
+                      color: '#fbbf24'
+                    }}>
+                      🎯 Configuration du Quiz
+                    </div>
+
+                    <div style={{ fontSize: '0.85rem', opacity: 0.8, marginBottom: '1rem' }}>
+                      Le Master génère une playlist de 10 chansons avec 4 réponses (1 bonne + 3 fausses) par chanson.
+                    </div>
+
+                    {playlist.length === 0 ? (
+                      <>
+                        <div style={{
+                          padding: '0.75rem',
+                          backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                          borderRadius: '0.5rem',
+                          marginBottom: '1rem'
+                        }}>
+                          <div style={{ fontSize: '0.85rem', marginBottom: '0.75rem', fontWeight: '500' }}>
+                            📋 Profil du Quiz :
+                          </div>
+                          <div style={{ fontSize: '0.8rem', opacity: 0.7 }}>
+                            • 🎂 Âge : 25-35 ans (par défaut)
+                          </div>
+                          <div style={{ fontSize: '0.8rem', opacity: 0.7 }}>
+                            • 🎵 Genres : Pop, Rock, Hip-Hop
+                          </div>
+                          <div style={{ fontSize: '0.75rem', opacity: 0.6, marginTop: '0.5rem' }}>
+                            💡 Les préférences détaillées des joueurs seront prises en compte pour personnaliser les questions
+                          </div>
+                        </div>
+
+                        {/* Bouton de génération */}
+                        <button
+                          onClick={handleGenerateQuizPlaylist}
+                          disabled={isGeneratingPlaylist}
+                          style={{
+                            width: '100%',
+                            padding: '0.75rem 1rem',
+                            backgroundColor: isGeneratingPlaylist ? 'rgba(107, 114, 128, 0.2)' : 'rgba(251, 191, 36, 0.2)',
+                            border: `1px solid ${isGeneratingPlaylist ? 'rgba(107, 114, 128, 0.5)' : 'rgba(251, 191, 36, 0.5)'}`,
+                            fontSize: '0.9rem',
+                            borderRadius: '0.5rem',
+                            color: 'white',
+                            cursor: isGeneratingPlaylist ? 'not-allowed' : 'pointer',
+                            transition: 'all 0.2s',
+                            fontWeight: '600'
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!isGeneratingPlaylist) {
+                              e.currentTarget.style.backgroundColor = 'rgba(251, 191, 36, 0.3)';
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isGeneratingPlaylist) {
+                              e.currentTarget.style.backgroundColor = 'rgba(251, 191, 36, 0.2)';
+                            }
+                          }}
+                        >
+                          {isGeneratingPlaylist ? '⏳ Génération en cours...' : '🎯 Générer la playlist Quiz'}
+                        </button>
+                      </>
+                    ) : (
+                      <div style={{
+                        padding: '0.75rem',
+                        backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                        borderRadius: '0.5rem',
+                        border: '1px solid rgba(16, 185, 129, 0.3)',
+                        textAlign: 'center'
+                      }}>
+                        <div style={{ fontSize: '0.9rem', fontWeight: '600', color: '#10b981', marginBottom: '0.25rem' }}>
+                          ✅ Playlist Quiz prête !
+                        </div>
+                        <div style={{ fontSize: '0.8rem', opacity: 0.8 }}>
+                          {playlist.length} chansons avec QCM
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
             </div>
           )}
