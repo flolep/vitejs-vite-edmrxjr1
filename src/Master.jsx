@@ -78,6 +78,11 @@ export default function Master({
   const [spotifyPlaylists, setSpotifyPlaylists] = useState([]);
   const [showPlaylistSelector, setShowPlaylistSelector] = useState(false);
   const [spotifyPlayer, setSpotifyPlayer] = useState(null);
+
+  // États préférences joueurs (nouveau flux de génération de playlist)
+  const [playersPreferences, setPlayersPreferences] = useState([]);
+  const [showPreferencesPanel, setShowPreferencesPanel] = useState(false);
+  const [isGeneratingPlaylist, setIsGeneratingPlaylist] = useState(false);
   const [spotifyDeviceId, setSpotifyDeviceId] = useState(null);
   const [isSpotifyMode, setIsSpotifyMode] = useState(false);
   const [spotifyPosition, setSpotifyPosition] = useState(0);
@@ -317,6 +322,29 @@ export default function Master({
     return () => unsubscribe();
   }, [sessionId, spotifyToken, gameMode]);
 
+  // Écouter les préférences des joueurs
+  useEffect(() => {
+    if (!sessionId) return;
+
+    const preferencesRef = ref(database, `sessions/${sessionId}/players_preferences`);
+    const unsubscribe = onValue(preferencesRef, (snapshot) => {
+      const prefsData = snapshot.val();
+      if (prefsData) {
+        // Convertir l'objet en tableau
+        const prefsArray = Object.entries(prefsData).map(([id, data]) => ({
+          id,
+          ...data
+        }));
+        setPlayersPreferences(prefsArray);
+        console.log(`📋 ${prefsArray.length} joueur(s) ont renseigné leurs préférences`);
+      } else {
+        setPlayersPreferences([]);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [sessionId]);
+
   // Mettre à jour le chrono toutes les 100ms quand la musique joue
   useEffect(() => {
     if (!sessionId) return;
@@ -530,6 +558,100 @@ useEffect(() => {
     } catch (error) {
       console.error('Error importing playlist:', error);
       setDebugInfo('❌ Erreur import playlist');
+    }
+  };
+
+  // === NOUVEAU : GÉNÉRATION DE PLAYLIST AVEC TOUTES LES PRÉFÉRENCES ===
+  const handleGeneratePlaylistWithAllPreferences = async () => {
+    if (playersPreferences.length === 0) {
+      alert('Aucun joueur n\'a encore renseigné ses préférences.');
+      return;
+    }
+
+    if (!sessionId) {
+      alert('Aucune session active.');
+      return;
+    }
+
+    // Récupérer le playlistId depuis Firebase
+    const playlistIdRef = ref(database, `sessions/${sessionId}/playlistId`);
+    const playlistSnapshot = await new Promise((resolve) => {
+      onValue(playlistIdRef, resolve, { onlyOnce: true });
+    });
+
+    const playlistId = playlistSnapshot.val();
+    console.log('🆔 PlaylistId récupéré depuis Firebase:', playlistId);
+
+    if (!playlistId) {
+      alert('Aucune playlist n\'a été créée. Veuillez d\'abord créer une session en mode Spotify IA.');
+      return;
+    }
+
+    const confirmMessage = `
+🎵 Génération de la playlist avec les préférences de ${playersPreferences.length} joueur(s)
+
+Continuer ?
+    `.trim();
+
+    if (!confirm(confirmMessage)) return;
+
+    setIsGeneratingPlaylist(true);
+    setDebugInfo('⏳ Génération de la playlist en cours...');
+
+    try {
+      console.log('📤 Envoi de toutes les préférences au workflow n8n...');
+      console.log('Préférences:', playersPreferences);
+
+      // TODO: Appeler le nouveau workflow n8n qui accepte un tableau de préférences
+      // Pour l'instant, nous allons simuler l'envoi groupé
+
+      // Structure attendue par le nouveau workflow n8n (à implémenter côté n8n) :
+      const payload = {
+        playlistId: playlistId,
+        players: playersPreferences.map(pref => ({
+          name: pref.name,
+          age: pref.age,
+          genres: pref.genres,
+          specialPhrase: pref.specialPhrase || ''
+        }))
+      };
+
+      console.log('📦 Payload à envoyer:', payload);
+
+      // ✅ Appel réel à n8n avec le payload groupé
+      const result = await n8nService.generatePlaylistWithAllPreferences(payload);
+
+      console.log('📥 Résultat de n8n:', result);
+
+      if (result.success) {
+        // Signaler que la playlist a été générée
+        const updateRef = ref(database, `sessions/${sessionId}/lastPlaylistUpdate`);
+        await set(updateRef, {
+          timestamp: Date.now(),
+          playerName: 'Master (tous les joueurs)',
+          songsAdded: result.totalSongs || 0,
+          totalPlayers: result.totalPlayers || playersPreferences.length,
+          type: 'batch_generation'
+        });
+
+        setDebugInfo(`✅ Playlist générée ! ${result.totalSongs} chansons pour ${playersPreferences.length} joueur(s)`);
+
+        // Recharger la playlist depuis Spotify
+        if (spotifyToken) {
+          await loadSpotifyPlaylistById(playlistId, spotifyToken);
+        }
+
+        alert(`✅ Playlist générée avec succès !\n\n🎵 ${result.totalSongs} chansons ajoutées\n👥 ${playersPreferences.length} joueur(s) satisfaits\n\nLa playlist est maintenant prête pour le jeu !`);
+      } else {
+        throw new Error('La génération a échoué');
+      }
+
+    } catch (error) {
+      console.error('❌ Erreur génération playlist:', error);
+      setDebugInfo('❌ Erreur lors de la génération de la playlist');
+      alert('❌ Erreur lors de la génération de la playlist. Voir la console pour plus de détails.');
+    } finally {
+      setIsGeneratingPlaylist(false);
     }
   };
 
@@ -1535,31 +1657,137 @@ const loadBuzzStats = (shouldShow = true) => {
                     </>
                   ) : (
                     <>
+                      {/* Bouton pour afficher/masquer le panneau des préférences */}
                       <button
-                        disabled
+                        onClick={() => setShowPreferencesPanel(!showPreferencesPanel)}
                         style={{
                           width: '100%',
                           padding: '0.75rem 1rem',
-                          backgroundColor: 'rgba(236, 72, 153, 0.2)',
-                          border: '1px solid rgba(236, 72, 153, 0.5)',
+                          backgroundColor: showPreferencesPanel ? 'rgba(59, 130, 246, 0.2)' : 'rgba(236, 72, 153, 0.2)',
+                          border: `1px solid ${showPreferencesPanel ? 'rgba(59, 130, 246, 0.5)' : 'rgba(236, 72, 153, 0.5)'}`,
                           fontSize: '0.9rem',
                           borderRadius: '0.5rem',
-                          color: 'rgba(255, 255, 255, 0.5)',
-                          cursor: 'not-allowed',
-                          transition: 'all 0.2s'
+                          color: 'white',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          fontWeight: '500'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = showPreferencesPanel ? 'rgba(59, 130, 246, 0.3)' : 'rgba(236, 72, 153, 0.3)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = showPreferencesPanel ? 'rgba(59, 130, 246, 0.2)' : 'rgba(236, 72, 153, 0.2)';
                         }}
                       >
-                        🤖 Chargement Auto
+                        {showPreferencesPanel ? '🔽' : '▶️'} Préférences des joueurs ({playersPreferences.length})
                       </button>
-                      <p style={{
-                        textAlign: 'center',
-                        marginTop: '0.75rem',
-                        opacity: 0.7,
-                        fontSize: '0.85rem',
-                        marginBottom: playlistUpdates.length > 0 ? '1rem' : 0
-                      }}>
-                        La playlist se remplit automatiquement avec les préférences des joueurs
-                      </p>
+
+                      {/* Panneau des préférences */}
+                      {showPreferencesPanel && (
+                        <div style={{
+                          marginTop: '1rem',
+                          padding: '1rem',
+                          backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                          borderRadius: '0.5rem',
+                          maxHeight: '300px',
+                          overflowY: 'auto'
+                        }}>
+                          {playersPreferences.length === 0 ? (
+                            <div style={{ textAlign: 'center', opacity: 0.6, fontSize: '0.85rem' }}>
+                              En attente des préférences des joueurs...
+                            </div>
+                          ) : (
+                            <>
+                              {playersPreferences.map((pref, index) => (
+                                <div
+                                  key={pref.id}
+                                  style={{
+                                    padding: '0.75rem',
+                                    marginBottom: '0.5rem',
+                                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                    borderRadius: '0.5rem',
+                                    borderLeft: '3px solid #10b981'
+                                  }}
+                                >
+                                  <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    marginBottom: '0.5rem'
+                                  }}>
+                                    {pref.photo && (
+                                      <img
+                                        src={pref.photo}
+                                        alt={pref.name}
+                                        style={{
+                                          width: '32px',
+                                          height: '32px',
+                                          borderRadius: '50%',
+                                          objectFit: 'cover'
+                                        }}
+                                      />
+                                    )}
+                                    <div style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
+                                      {pref.name}
+                                    </div>
+                                    <div style={{
+                                      fontSize: '0.75rem',
+                                      opacity: 0.6,
+                                      marginLeft: 'auto'
+                                    }}>
+                                      {pref.age} ans
+                                    </div>
+                                  </div>
+                                  <div style={{ fontSize: '0.8rem', opacity: 0.8, marginTop: '0.25rem' }}>
+                                    🎵 {pref.genres.join(', ')}
+                                  </div>
+                                  {pref.specialPhrase && (
+                                    <div style={{
+                                      fontSize: '0.75rem',
+                                      opacity: 0.7,
+                                      marginTop: '0.25rem',
+                                      fontStyle: 'italic'
+                                    }}>
+                                      💬 "{pref.specialPhrase}"
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+
+                              {/* Bouton de génération */}
+                              <button
+                                onClick={handleGeneratePlaylistWithAllPreferences}
+                                disabled={isGeneratingPlaylist}
+                                style={{
+                                  width: '100%',
+                                  padding: '0.75rem 1rem',
+                                  marginTop: '0.75rem',
+                                  backgroundColor: isGeneratingPlaylist ? 'rgba(107, 114, 128, 0.2)' : 'rgba(16, 185, 129, 0.2)',
+                                  border: `1px solid ${isGeneratingPlaylist ? 'rgba(107, 114, 128, 0.5)' : 'rgba(16, 185, 129, 0.5)'}`,
+                                  fontSize: '0.9rem',
+                                  borderRadius: '0.5rem',
+                                  color: 'white',
+                                  cursor: isGeneratingPlaylist ? 'not-allowed' : 'pointer',
+                                  transition: 'all 0.2s',
+                                  fontWeight: '600'
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (!isGeneratingPlaylist) {
+                                    e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.3)';
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  if (!isGeneratingPlaylist) {
+                                    e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.2)';
+                                  }
+                                }}
+                              >
+                                {isGeneratingPlaylist ? '⏳ Génération en cours...' : '🎵 Générer la playlist'}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </>
                   )}
 
