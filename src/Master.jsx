@@ -83,7 +83,14 @@ export default function Master({
   const [spotifyPosition, setSpotifyPosition] = useState(0);
   const [lastPlayedTrack, setLastPlayedTrack] = useState(null);
   const [playlistUpdates, setPlaylistUpdates] = useState([]); // Feed des MAJ pour mode IA
-  
+
+  // États Mode Quiz
+  const [quizAnswers, setQuizAnswers] = useState([]); // Les 4 réponses [answer1, answer2, answer3, answer4]
+  const [visibleAnswers, setVisibleAnswers] = useState([true, true, true, true]); // Visibilité des réponses
+  const [quizCorrectIndex, setQuizCorrectIndex] = useState(0); // Index de la bonne réponse (0-3)
+  const [playerScores, setPlayerScores] = useState({}); // { playerId: score } pour le mode Quiz
+  const [quizRevealed, setQuizRevealed] = useState(false); // La réponse a été révélée
+
   const audioRef = useRef(null);
   const buzzerSoundRef = useRef(null);
   const currentChronoRef = useRef(0);
@@ -329,6 +336,46 @@ export default function Master({
       if (interval) clearInterval(interval);
     };
   }, [isPlaying, sessionId]);
+
+  // Mode Quiz : Réinitialiser les réponses quand on change de chanson
+  useEffect(() => {
+    if (gameMode !== 'quiz') return;
+
+    // Réinitialiser les réponses visibles
+    setVisibleAnswers([true, true, true, true]);
+    setQuizRevealed(false);
+
+    // Charger les 4 réponses pour la chanson actuelle depuis la playlist
+    if (playlist[currentTrack] && playlist[currentTrack].quizAnswers) {
+      setQuizAnswers(playlist[currentTrack].quizAnswers);
+      setQuizCorrectIndex(playlist[currentTrack].quizCorrectIndex || 0);
+    }
+  }, [currentTrack, gameMode, playlist]);
+
+  // Mode Quiz : Gérer la disparition progressive des réponses
+  useEffect(() => {
+    if (gameMode !== 'quiz' || !isPlaying) return;
+
+    // À 10 secondes, faire disparaître la 4ème réponse (index 3)
+    if (currentChrono >= 10 && visibleAnswers[3]) {
+      setVisibleAnswers(prev => {
+        const newVisible = [...prev];
+        newVisible[3] = false;
+        return newVisible;
+      });
+      console.log('🎯 Quiz: Réponse 4 disparue à 10s');
+    }
+
+    // À 20 secondes, faire disparaître la 3ème réponse (index 2)
+    if (currentChrono >= 20 && visibleAnswers[2]) {
+      setVisibleAnswers(prev => {
+        const newVisible = [...prev];
+        newVisible[2] = false;
+        return newVisible;
+      });
+      console.log('🎯 Quiz: Réponse 3 disparue à 20s');
+    }
+  }, [currentChrono, gameMode, isPlaying, visibleAnswers]);
 
 // Écouter les buzz
 useEffect(() => {
@@ -1713,7 +1760,79 @@ const loadBuzzStats = (shouldShow = true) => {
           {playlist.length > 0 ? (
             <>
               {/* Scores */}
-              <ScoreDisplay scores={scores} />
+              {gameMode === 'quiz' ? (
+                // Scores individuels pour le Mode Quiz
+                <div style={{
+                  padding: '1.5rem',
+                  backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                  borderRadius: '1rem',
+                  border: '2px solid rgba(251, 146, 60, 0.3)'
+                }}>
+                  <h3 style={{
+                    fontSize: '1.2rem',
+                    fontWeight: '700',
+                    marginBottom: '1rem',
+                    textAlign: 'center',
+                    color: '#fb923c'
+                  }}>
+                    🏆 Scores des joueurs
+                  </h3>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    gap: '1rem'
+                  }}>
+                    {Object.entries(playerScores).length > 0 ? (
+                      Object.entries(playerScores)
+                        .sort(([, a], [, b]) => b - a) // Tri par score décroissant
+                        .map(([playerId, score], index) => (
+                          <div
+                            key={playerId}
+                            style={{
+                              padding: '1rem',
+                              backgroundColor: index === 0
+                                ? 'rgba(251, 191, 36, 0.2)'
+                                : 'rgba(255, 255, 255, 0.05)',
+                              border: index === 0
+                                ? '2px solid #fbbf24'
+                                : '1px solid rgba(255, 255, 255, 0.1)',
+                              borderRadius: '0.5rem',
+                              textAlign: 'center'
+                            }}
+                          >
+                            <div style={{
+                              fontSize: '0.875rem',
+                              opacity: 0.7,
+                              marginBottom: '0.5rem'
+                            }}>
+                              {index === 0 && '👑 '}
+                              {playerId}
+                            </div>
+                            <div style={{
+                              fontSize: '1.5rem',
+                              fontWeight: '700',
+                              color: index === 0 ? '#fbbf24' : '#fff'
+                            }}>
+                              {score} pts
+                            </div>
+                          </div>
+                        ))
+                    ) : (
+                      <div style={{
+                        gridColumn: '1 / -1',
+                        textAlign: 'center',
+                        opacity: 0.6,
+                        fontSize: '0.9rem'
+                      }}>
+                        Aucun score pour l'instant
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                // Scores d'équipes pour les autres modes
+                <ScoreDisplay scores={scores} />
+              )}
 
               {/* Buzz Alert */}
               {buzzedTeam && (
@@ -1743,6 +1862,100 @@ const loadBuzzStats = (shouldShow = true) => {
                 onNext={nextTrack}
                 onReveal={revealAnswer}
               />
+
+              {/* Mode Quiz : Afficher les 4 réponses */}
+              {gameMode === 'quiz' && quizAnswers.length > 0 && (
+                <div style={{
+                  padding: '2rem',
+                  backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                  borderRadius: '1rem',
+                  border: '2px solid rgba(251, 146, 60, 0.3)'
+                }}>
+                  <h3 style={{
+                    fontSize: '1.5rem',
+                    fontWeight: '700',
+                    marginBottom: '1.5rem',
+                    textAlign: 'center',
+                    color: '#fb923c'
+                  }}>
+                    🎯 Quel est le titre de cette chanson ?
+                  </h3>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '1rem'
+                  }}>
+                    {quizAnswers.map((answer, index) => (
+                      <div
+                        key={index}
+                        style={{
+                          padding: '1.5rem',
+                          backgroundColor: visibleAnswers[index]
+                            ? (quizRevealed && index === quizCorrectIndex
+                                ? 'rgba(16, 185, 129, 0.3)'
+                                : 'rgba(255, 255, 255, 0.1)')
+                            : 'rgba(0, 0, 0, 0.5)',
+                          border: visibleAnswers[index]
+                            ? (quizRevealed && index === quizCorrectIndex
+                                ? '2px solid #10b981'
+                                : '2px solid rgba(255, 255, 255, 0.2)')
+                            : '2px dashed rgba(255, 255, 255, 0.1)',
+                          borderRadius: '0.75rem',
+                          textAlign: 'center',
+                          fontSize: '1.1rem',
+                          fontWeight: '600',
+                          opacity: visibleAnswers[index] ? 1 : 0.3,
+                          transition: 'all 0.3s',
+                          position: 'relative'
+                        }}
+                      >
+                        <div style={{
+                          position: 'absolute',
+                          top: '0.5rem',
+                          left: '0.5rem',
+                          fontSize: '0.875rem',
+                          fontWeight: '700',
+                          opacity: 0.6
+                        }}>
+                          {index + 1}
+                        </div>
+                        {visibleAnswers[index] ? (
+                          <div>
+                            {quizRevealed && index === quizCorrectIndex && '✅ '}
+                            {answer}
+                          </div>
+                        ) : (
+                          <div style={{ fontStyle: 'italic', opacity: 0.5 }}>
+                            Réponse disparue
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  {currentChrono >= 30 && !quizRevealed && (
+                    <button
+                      onClick={() => setQuizRevealed(true)}
+                      style={{
+                        marginTop: '1.5rem',
+                        padding: '1rem 2rem',
+                        backgroundColor: 'rgba(251, 146, 60, 0.3)',
+                        border: '2px solid #fb923c',
+                        borderRadius: '0.75rem',
+                        color: 'white',
+                        fontSize: '1.1rem',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        width: '100%',
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseOver={(e) => e.target.style.backgroundColor = 'rgba(251, 146, 60, 0.5)'}
+                      onMouseOut={(e) => e.target.style.backgroundColor = 'rgba(251, 146, 60, 0.3)'}
+                    >
+                      🔍 Révéler la réponse
+                    </button>
+                  )}
+                </div>
+              )}
 
               {/* Debug info */}
               {debugInfo && (
