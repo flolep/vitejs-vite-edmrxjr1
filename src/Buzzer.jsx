@@ -225,50 +225,20 @@ export default function Buzzer() {
     }
   };
 
-  // Vérifier le code de session depuis l'URL ET tenter une reconnexion automatique
+  // Vérifier le code de session depuis l'URL (reconnexion désactivée temporairement)
   useEffect(() => {
     const init = async () => {
-      // 1. Vérifier d'abord s'il y a des données de session sauvegardées
-      const storedData = loadFromLocalStorage();
+      // Vérifier l'URL pour le sessionId
+      const urlParams = new URLSearchParams(window.location.search);
+      const sessionParam = urlParams.get('session');
 
-      if (storedData) {
-        console.log('📦 Données de session trouvées dans localStorage');
-
-        // Vérifier si l'URL contient un sessionId différent
-        const urlParams = new URLSearchParams(window.location.search);
-        const sessionParam = urlParams.get('session');
-
-        if (sessionParam && sessionParam !== storedData.sessionId) {
-          // Nouvelle session dans l'URL, on oublie l'ancienne
-          console.log('🔄 Nouvelle session détectée dans l\'URL, abandon de l\'ancienne');
-          clearLocalStorage();
-          setSessionId(sessionParam);
-          verifySession(sessionParam);
-        } else {
-          // Tenter la reconnexion automatique
-          const success = await attemptAutoReconnect(storedData);
-
-          if (!success) {
-            // Reconnexion échouée, retour au début
-            console.log('❌ Reconnexion échouée, retour au début');
-
-            // Si on a un sessionId dans l'URL, l'utiliser
-            if (sessionParam) {
-              setSessionId(sessionParam);
-              verifySession(sessionParam);
-            }
-          }
-        }
-      } else {
-        // Pas de données sauvegardées, vérifier l'URL normalement
-        const urlParams = new URLSearchParams(window.location.search);
-        const sessionParam = urlParams.get('session');
-
-        if (sessionParam) {
-          setSessionId(sessionParam);
-          verifySession(sessionParam);
-        }
+      if (sessionParam) {
+        setSessionId(sessionParam);
+        verifySession(sessionParam);
       }
+
+      // RECONNEXION AUTOMATIQUE DÉSACTIVÉE pour débugger
+      // TODO: Réactiver après avoir corrigé le bug
     };
 
     init();
@@ -889,25 +859,25 @@ const loadPersonalStats = () => {
 
   // ========== ÉCRANS ==========
 
-  // ÉCRAN -1 : Reconnexion en cours
-  if (isReconnecting) {
-    return (
-      <div className="bg-gradient flex-center">
-        <div className="text-center" style={{ maxWidth: '500px', width: '100%', padding: '2rem' }}>
-          <h1 className="title">🎵 BLIND TEST 🎵</h1>
-          <div style={{ fontSize: '4rem', marginBottom: '2rem', animation: 'pulse 1.5s infinite' }}>
-            🔄
-          </div>
-          <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>
-            Reconnexion en cours...
-          </h2>
-          <p style={{ fontSize: '1rem', opacity: 0.7 }}>
-            Nous restaurons votre session
-          </p>
-        </div>
-      </div>
-    );
-  }
+  // ÉCRAN -1 : Reconnexion en cours (DÉSACTIVÉ temporairement)
+  // if (isReconnecting) {
+  //   return (
+  //     <div className="bg-gradient flex-center">
+  //       <div className="text-center" style={{ maxWidth: '500px', width: '100%', padding: '2rem' }}>
+  //         <h1 className="title">🎵 BLIND TEST 🎵</h1>
+  //         <div style={{ fontSize: '4rem', marginBottom: '2rem', animation: 'pulse 1.5s infinite' }}>
+  //           🔄
+  //         </div>
+  //         <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>
+  //           Reconnexion en cours...
+  //         </h2>
+  //         <p style={{ fontSize: '1rem', opacity: 0.7 }}>
+  //           Nous restaurons votre session
+  //         </p>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   // ÉCRAN 0 : Saisie du code de session
   if (step === 'session') {
