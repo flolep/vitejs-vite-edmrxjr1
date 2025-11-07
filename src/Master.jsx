@@ -655,6 +655,107 @@ Continuer ?
     }
   };
 
+  // Génération de playlist en mode Quiz
+  const handleGenerateQuizPlaylist = async () => {
+    if (playersPreferences.length === 0) {
+      alert('Aucun joueur n\'a encore renseigné ses préférences.');
+      return;
+    }
+
+    if (!sessionId) {
+      alert('Aucune session active.');
+      return;
+    }
+
+    // Récupérer le playlistId depuis Firebase
+    const playlistIdRef = ref(database, `sessions/${sessionId}/playlistId`);
+    const playlistSnapshot = await new Promise((resolve) => {
+      onValue(playlistIdRef, resolve, { onlyOnce: true });
+    });
+
+    const playlistId = playlistSnapshot.val();
+    console.log('🆔 PlaylistId récupéré depuis Firebase:', playlistId);
+
+    if (!playlistId) {
+      alert('Aucune playlist n\'a été créée. Veuillez d\'abord créer une session en mode Quiz.');
+      return;
+    }
+
+    const confirmMessage = `
+🎯 Génération de la playlist Quiz avec les préférences de ${playersPreferences.length} joueur(s)
+
+10 chansons avec 4 réponses QCM chacune seront générées.
+
+Continuer ?
+    `.trim();
+
+    if (!confirm(confirmMessage)) return;
+
+    setIsGeneratingPlaylist(true);
+    setDebugInfo('⏳ Génération de la playlist Quiz en cours...');
+
+    try {
+      console.log('📤 Appel du workflow Quiz n8n...');
+      console.log('Préférences des joueurs:', playersPreferences);
+
+      // Agréger les préférences de tous les joueurs
+      const allGenres = [...new Set(playersPreferences.flatMap(p => p.genres))];
+      const avgAge = Math.round(playersPreferences.reduce((sum, p) => sum + p.age, 0) / playersPreferences.length);
+      const allPhrases = playersPreferences
+        .filter(p => p.specialPhrase)
+        .map(p => `${p.name}: ${p.specialPhrase}`)
+        .join('; ');
+
+      // TODO: Le workflow Quiz actuel n'accepte qu'UN profil.
+      // Il faudrait créer un workflow qui accepte plusieurs joueurs OU
+      // modifier le workflow batch pour générer des QCM.
+      // Pour l'instant, on agrège les préférences en un seul profil.
+      const payload = {
+        playlistId: playlistId,
+        age: avgAge,
+        genres: allGenres.slice(0, 3), // Limite à 3 genres principaux
+        genre1Preferences: allPhrases || `Préférences de ${playersPreferences.length} joueurs`
+      };
+
+      console.log('📦 Payload Quiz (agrégé):', payload);
+
+      // Appel au workflow Quiz n8n
+      const result = await n8nService.fillPlaylistQuizMode(payload);
+
+      console.log('📥 Résultat de n8n:', result);
+
+      if (result.success) {
+        // Signaler que la playlist a été générée
+        const updateRef = ref(database, `sessions/${sessionId}/lastPlaylistUpdate`);
+        await set(updateRef, {
+          timestamp: Date.now(),
+          playerName: 'Master (Quiz)',
+          songsAdded: result.totalSongs || 0,
+          totalPlayers: playersPreferences.length,
+          type: 'quiz_generation'
+        });
+
+        setDebugInfo(`✅ Playlist Quiz générée ! ${result.totalSongs} chansons avec QCM`);
+
+        // Recharger la playlist depuis Spotify
+        if (spotifyToken) {
+          await loadSpotifyPlaylistById(playlistId, spotifyToken);
+        }
+
+        alert(`✅ Playlist Quiz générée avec succès !\n\n🎯 ${result.totalSongs} chansons avec 4 réponses QCM\n👥 Basée sur les préférences de ${playersPreferences.length} joueur(s)\n\nLa playlist est maintenant prête pour le jeu !`);
+      } else {
+        throw new Error('La génération a échoué');
+      }
+
+    } catch (error) {
+      console.error('❌ Erreur génération playlist Quiz:', error);
+      setDebugInfo('❌ Erreur lors de la génération de la playlist Quiz');
+      alert('❌ Erreur lors de la génération de la playlist Quiz. Voir la console pour plus de détails.');
+    } finally {
+      setIsGeneratingPlaylist(false);
+    }
+  };
+
   // === MODE MP3 ===
   const handleManualAdd = () => {
     const newTrack = {
@@ -1846,6 +1947,180 @@ const loadBuzzStats = (shouldShow = true) => {
                     </div>
                   )}
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* Mode Quiz - Interface de génération */}
+          {gameMode === 'quiz' && (
+            <div>
+              {/* Si pas connecté à Spotify, afficher le bouton de connexion */}
+              {!spotifyToken ? (
+                <>
+                  <button
+                    onClick={handleSpotifyLogin}
+                    className="btn"
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem 1rem',
+                      backgroundColor: 'rgba(16, 185, 129, 0.3)',
+                      border: '1px solid #10b981',
+                      fontSize: '0.9rem',
+                      borderRadius: '0.5rem',
+                      color: 'white',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      marginBottom: '0.75rem'
+                    }}
+                  >
+                    🎵 Se connecter à Spotify
+                  </button>
+                  <p style={{
+                    textAlign: 'center',
+                    opacity: 0.7,
+                    fontSize: '0.85rem',
+                    backgroundColor: 'rgba(251, 191, 36, 0.2)',
+                    padding: '0.75rem',
+                    borderRadius: '0.5rem',
+                    border: '1px solid rgba(251, 191, 36, 0.3)'
+                  }}>
+                    ⚠️ Connectez-vous à Spotify pour générer la playlist Quiz
+                  </p>
+                </>
+              ) : (
+                <>
+                  {/* Bouton pour afficher/masquer le panneau des préférences */}
+                  <button
+                    onClick={() => setShowPreferencesPanel(!showPreferencesPanel)}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem 1rem',
+                      backgroundColor: showPreferencesPanel ? 'rgba(59, 130, 246, 0.2)' : 'rgba(251, 191, 36, 0.2)',
+                      border: `1px solid ${showPreferencesPanel ? 'rgba(59, 130, 246, 0.5)' : 'rgba(251, 191, 36, 0.5)'}`,
+                      fontSize: '0.9rem',
+                      borderRadius: '0.5rem',
+                      color: 'white',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      fontWeight: '500'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = showPreferencesPanel ? 'rgba(59, 130, 246, 0.3)' : 'rgba(251, 191, 36, 0.3)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = showPreferencesPanel ? 'rgba(59, 130, 246, 0.2)' : 'rgba(251, 191, 36, 0.2)';
+                    }}
+                  >
+                    {showPreferencesPanel ? '🔽' : '▶️'} Préférences des joueurs ({playersPreferences.length})
+                  </button>
+
+                  {/* Panneau des préférences */}
+                  {showPreferencesPanel && (
+                    <div style={{
+                      marginTop: '1rem',
+                      padding: '1rem',
+                      backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                      borderRadius: '0.5rem',
+                      maxHeight: '300px',
+                      overflowY: 'auto'
+                    }}>
+                      {playersPreferences.length === 0 ? (
+                        <div style={{ textAlign: 'center', opacity: 0.6, fontSize: '0.85rem' }}>
+                          En attente des préférences des joueurs...
+                        </div>
+                      ) : (
+                        <>
+                          {playersPreferences.map((pref, index) => (
+                            <div
+                              key={pref.id}
+                              style={{
+                                padding: '0.75rem',
+                                marginBottom: '0.5rem',
+                                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                borderRadius: '0.5rem',
+                                borderLeft: '3px solid #fbbf24'
+                              }}
+                            >
+                              <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                marginBottom: '0.5rem'
+                              }}>
+                                {pref.photo && (
+                                  <img
+                                    src={pref.photo}
+                                    alt={pref.name}
+                                    style={{
+                                      width: '32px',
+                                      height: '32px',
+                                      borderRadius: '50%',
+                                      objectFit: 'cover'
+                                    }}
+                                  />
+                                )}
+                                <div style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
+                                  {pref.name}
+                                </div>
+                                <div style={{
+                                  fontSize: '0.75rem',
+                                  opacity: 0.6,
+                                  marginLeft: 'auto'
+                                }}>
+                                  {pref.age} ans
+                                </div>
+                              </div>
+                              <div style={{ fontSize: '0.8rem', opacity: 0.8, marginTop: '0.25rem' }}>
+                                🎵 {pref.genres.join(', ')}
+                              </div>
+                              {pref.specialPhrase && (
+                                <div style={{
+                                  fontSize: '0.75rem',
+                                  opacity: 0.7,
+                                  marginTop: '0.25rem',
+                                  fontStyle: 'italic'
+                                }}>
+                                  💬 "{pref.specialPhrase}"
+                                </div>
+                              )}
+                            </div>
+                          ))}
+
+                          {/* Bouton de génération Quiz */}
+                          <button
+                            onClick={handleGenerateQuizPlaylist}
+                            disabled={isGeneratingPlaylist}
+                            style={{
+                              width: '100%',
+                              padding: '0.75rem 1rem',
+                              marginTop: '0.75rem',
+                              backgroundColor: isGeneratingPlaylist ? 'rgba(107, 114, 128, 0.2)' : 'rgba(251, 191, 36, 0.2)',
+                              border: `1px solid ${isGeneratingPlaylist ? 'rgba(107, 114, 128, 0.5)' : 'rgba(251, 191, 36, 0.5)'}`,
+                              fontSize: '0.9rem',
+                              borderRadius: '0.5rem',
+                              color: 'white',
+                              cursor: isGeneratingPlaylist ? 'not-allowed' : 'pointer',
+                              transition: 'all 0.2s',
+                              fontWeight: '600'
+                            }}
+                            onMouseEnter={(e) => {
+                              if (!isGeneratingPlaylist) {
+                                e.currentTarget.style.backgroundColor = 'rgba(251, 191, 36, 0.3)';
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!isGeneratingPlaylist) {
+                                e.currentTarget.style.backgroundColor = 'rgba(251, 191, 36, 0.2)';
+                              }
+                            }}
+                          >
+                            {isGeneratingPlaylist ? '⏳ Génération en cours...' : '🎯 Générer la playlist Quiz'}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}

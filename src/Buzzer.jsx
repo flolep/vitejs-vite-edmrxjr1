@@ -134,7 +134,12 @@ export default function Buzzer() {
       const sessionRef = ref(database, `sessions/${storedData.sessionId}`);
 
       return new Promise((resolve) => {
-        onValue(sessionRef, async (snapshot) => {
+        let unsubscribeSession = null;
+
+        unsubscribeSession = onValue(sessionRef, async (snapshot) => {
+          // Détacher immédiatement le listener pour éviter les fuites
+          if (unsubscribeSession) unsubscribeSession();
+
           if (!snapshot.exists() || !snapshot.val().active) {
             console.log('❌ Session expirée ou inactive');
             clearLocalStorage();
@@ -150,7 +155,12 @@ export default function Buzzer() {
             const teamKey = `team${storedData.team}`;
             const playerRef = ref(database, `sessions/${storedData.sessionId}/players_session/${teamKey}/${storedData.playerFirebaseKey}`);
 
-            onValue(playerRef, async (playerSnapshot) => {
+            let unsubscribePlayer = null;
+
+            unsubscribePlayer = onValue(playerRef, async (playerSnapshot) => {
+              // Détacher immédiatement le listener
+              if (unsubscribePlayer) unsubscribePlayer();
+
               if (!playerSnapshot.exists()) {
                 // Le joueur n'existe plus, il faut le recréer
                 console.log('⚠️ Joueur non trouvé dans l\'équipe, recréation...');
@@ -173,6 +183,7 @@ export default function Buzzer() {
                   console.log('✅ Joueur recréé dans l\'équipe');
                 } catch (err) {
                   console.error('❌ Erreur recréation joueur:', err);
+                  setIsReconnecting(false);
                   resolve(false);
                   return;
                 }
@@ -196,7 +207,7 @@ export default function Buzzer() {
               console.log('✅ Reconnexion automatique réussie !');
               setIsReconnecting(false);
               resolve(true);
-            }, { onlyOnce: true });
+            });
           } else {
             // Pas d'équipe, on revient à l'étape de sélection d'équipe
             setSessionId(storedData.sessionId);
@@ -213,7 +224,7 @@ export default function Buzzer() {
             setIsReconnecting(false);
             resolve(true);
           }
-        }, { onlyOnce: true });
+        });
       });
     } catch (err) {
       console.error('❌ Erreur reconnexion automatique:', err);
