@@ -124,27 +124,30 @@ class PlayerAdapter {
 ## Modes de jeu
 
 ### Mode Équipe (actuel)
-- Buzzer par équipe
-- Scoring par temps de réponse
-- Cooldown après N bonnes réponses
-- Système de bonus personnel (mode IA)
+- **Gameplay** : Buzzer par équipe (team1 vs team2)
+- **Scoring** : Points par temps de réponse (2500→0)
+- **Cooldown** : Après N bonnes réponses consécutives
+- **Bonus** : Bonus personnel en mode Spotify-IA (+500 pts)
+- **Compatible avec** : MP3, Spotify-auto, Spotify-IA
 
-### Mode Quiz (à créer)
-- Questions à choix multiples ?
-- Pas de buzzer ?
-- Scoring différent ?
-- **À définir avec l'équipe**
+### Mode Quiz
+- **Gameplay** : QCM avec 4 réponses proposées
+- **Joueurs** : Individuels (pas d'équipes)
+- **Interaction** : Chaque joueur buzze sur la réponse qu'il pense correcte (A/B/C/D)
+- **Scoring** : Points par rapidité de réponse
+- **Affichage** : Classement individuel en temps réel sur TV
+- **Compatible avec** : Spotify-IA uniquement
 
 ## Combinaisons possibles
 
-| Source de musique | Mode de jeu | Exemple d'usage |
-|------------------|-------------|-----------------|
-| MP3 | Équipe | Blind test classique avec fichiers locaux |
-| MP3 | Quiz | Questions sur des extraits MP3 |
-| Spotify Auto | Équipe | Blind test avec playlist Spotify |
-| Spotify Auto | Quiz | Quiz musical avec Spotify |
-| Spotify IA | Équipe | Blind test collaboratif avec génération IA |
-| Spotify IA | Quiz | Quiz sur préférences musicales des joueurs |
+| Source de musique | Mode de jeu | Valide | Notes |
+|------------------|-------------|--------|-------|
+| MP3 | Équipe | ✅ | Blind test classique avec fichiers locaux |
+| MP3 | Quiz | ❌ | Mode Quiz réservé à Spotify-IA |
+| Spotify Auto | Équipe | ✅ | Blind test avec playlist Spotify |
+| Spotify Auto | Quiz | ❌ | Mode Quiz réservé à Spotify-IA |
+| Spotify IA | Équipe | ✅ | Blind test collaboratif avec génération IA |
+| Spotify IA | Quiz | ✅ | Quiz musical avec classement temps réel |
 
 ## Migration progressive
 

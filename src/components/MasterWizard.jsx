@@ -11,13 +11,14 @@ import Login from './Login';
  * Étapes :
  * 1. connections : Connexion Firebase + Spotify
  * 2. choice : NEW ou CONTINUER
- * 3. modes : Choix du mode (MP3 / Spotify Auto / Spotify IA) [si NEW]
- * 4. loading : Chargement/création de la playlist
- * 5. ready : Tout prêt, ferme le wizard et lance Master
+ * 3. source : Choix de la source de musique (MP3 / Spotify Auto / Spotify IA) [si NEW]
+ * 4. gamemode : Choix du mode de jeu (Équipe / Quiz) [seulement si Spotify-IA]
+ * 5. loading : Chargement/création de la playlist
+ * 6. ready : Tout prêt, ferme le wizard et lance Master
  */
 export default function MasterWizard({ onComplete }) {
   // États d'étapes
-  const [step, setStep] = useState('connections'); // 'connections' | 'choice' | 'modes' | 'loading' | 'ready'
+  const [step, setStep] = useState('connections'); // 'connections' | 'choice' | 'source' | 'gamemode' | 'loading' | 'ready'
 
   // États de connexion
   const [user, setUser] = useState(null);
@@ -26,7 +27,9 @@ export default function MasterWizard({ onComplete }) {
   // États de session
   const [sessionChoice, setSessionChoice] = useState(null); // 'new' | 'continue'
   const [lastSessionId, setLastSessionId] = useState(null);
-  const [gameMode, setGameMode] = useState(null); // 'mp3' | 'spotify-auto' | 'spotify-ai'
+  const [musicSource, setMusicSource] = useState(null); // 'mp3' | 'spotify-auto' | 'spotify-ai'
+  const [playMode, setPlayMode] = useState(null); // 'team' | 'quiz'
+  const [gameMode, setGameMode] = useState(null); // Combinaison finale (ex: 'mp3-team', 'spotify-ai-quiz')
   const [sessionId, setSessionId] = useState(null);
   const [playlist, setPlaylist] = useState([]);
   const [playlistId, setPlaylistId] = useState(null);
@@ -80,7 +83,7 @@ export default function MasterWizard({ onComplete }) {
 
   const handleNewSession = () => {
     setSessionChoice('new');
-    setStep('modes');
+    setStep('source');
   };
 
   const handleContinueSession = async () => {
@@ -99,7 +102,11 @@ export default function MasterWizard({ onComplete }) {
       onValue(sessionRef, (snapshot) => {
         const sessionData = snapshot.val();
         if (sessionData && sessionData.active !== false) {
-          setGameMode(sessionData.gameMode || 'mp3');
+          // Charger le mode de jeu (ancien format ou nouveau)
+          const legacyMode = sessionData.gameMode; // 'mp3', 'spotify-auto', 'spotify-ai'
+          setMusicSource(sessionData.musicSource || legacyMode || 'mp3');
+          setPlayMode(sessionData.playMode || 'team');
+          setGameMode(`${sessionData.musicSource || legacyMode}-${sessionData.playMode || 'team'}`);
 
           // Charger la playlist selon le mode
           if (sessionData.playlistId && spotifyToken) {
@@ -119,10 +126,33 @@ export default function MasterWizard({ onComplete }) {
     }
   };
 
-  // ========== ÉTAPE 3 : CHOIX DES MODES ==========
+  // ========== ÉTAPE 3 : CHOIX DE LA SOURCE ==========
 
-  const handleSelectMode = async (mode) => {
-    setGameMode(mode);
+  const handleSelectSource = async (source) => {
+    setMusicSource(source);
+
+    // Si MP3 ou Spotify-auto, forcer le mode Équipe et passer directement au loading
+    if (source === 'mp3' || source === 'spotify-auto') {
+      setPlayMode('team');
+      setGameMode(`${source}-team`);
+      await createSession(source, 'team');
+    } else {
+      // Si Spotify-IA, demander le mode de jeu
+      setStep('gamemode');
+    }
+  };
+
+  // ========== ÉTAPE 4 : CHOIX DU MODE DE JEU ==========
+
+  const handleSelectPlayMode = async (mode) => {
+    setPlayMode(mode);
+    setGameMode(`${musicSource}-${mode}`);
+    await createSession(musicSource, mode);
+  };
+
+  // ========== CRÉATION DE SESSION ==========
+
+  const createSession = async (source, playModeParam) => {
     setStep('loading');
 
     // Créer une nouvelle session
@@ -135,7 +165,9 @@ export default function MasterWizard({ onComplete }) {
       updates[`sessions/${newSessionId}/createdBy`] = user.uid;
       updates[`sessions/${newSessionId}/createdAt`] = Date.now();
       updates[`sessions/${newSessionId}/active`] = true;
-      updates[`sessions/${newSessionId}/gameMode`] = mode;
+      updates[`sessions/${newSessionId}/musicSource`] = source; // Source de musique
+      updates[`sessions/${newSessionId}/playMode`] = playModeParam; // Mode de jeu
+      updates[`sessions/${newSessionId}/gameMode`] = `${source}-${playModeParam}`; // Mode combiné (rétrocompatibilité)
       updates[`sessions/${newSessionId}/scores`] = { team1: 0, team2: 0 };
       updates[`sessions/${newSessionId}/chrono`] = 0;
       updates[`sessions/${newSessionId}/isPlaying`] = false;
@@ -146,10 +178,10 @@ export default function MasterWizard({ onComplete }) {
       await update(ref(database), updates);
       localStorage.setItem('lastSessionId', newSessionId);
 
-      // Selon le mode, charger/créer la playlist
-      if (mode === 'spotify-ai') {
+      // Selon la source, charger/créer la playlist
+      if (source === 'spotify-ai') {
         await handleSpotifyAIMode(newSessionId);
-      } else if (mode === 'spotify-auto') {
+      } else if (source === 'spotify-auto') {
         await handleSpotifyAutoMode(newSessionId);
       } else {
         // Mode MP3 → Playlist vide, on passe direct à ready
@@ -242,6 +274,8 @@ export default function MasterWizard({ onComplete }) {
       // Appeler le callback parent pour lancer Master
       console.log('🎯 onComplete appelé avec:', {
         sessionId,
+        musicSource,
+        playMode,
         gameMode,
         playlistId,
         playlist: playlist.length + ' morceaux',
@@ -250,13 +284,15 @@ export default function MasterWizard({ onComplete }) {
 
       onComplete({
         sessionId,
+        musicSource,
+        playMode,
         gameMode,
         playlistId,
         playlist,
         spotifyToken
       });
     }
-  }, [step, sessionId, gameMode, playlistId, playlist, spotifyToken, onComplete]);
+  }, [step, sessionId, musicSource, playMode, gameMode, playlistId, playlist, spotifyToken, onComplete]);
 
   // ========== RENDU DES ÉTAPES ==========
 
@@ -446,20 +482,20 @@ export default function MasterWizard({ onComplete }) {
           </>
         )}
 
-        {/* ÉTAPE 3 : CHOIX DES MODES */}
-        {step === 'modes' && (
+        {/* ÉTAPE 3 : CHOIX DE LA SOURCE */}
+        {step === 'source' && (
           <>
             <h2 style={{ fontSize: '1.75rem', marginBottom: '1rem', textAlign: 'center' }}>
-              🎮 Choisissez le mode de jeu
+              🎵 Source de musique
             </h2>
             <p style={{ textAlign: 'center', opacity: 0.8, marginBottom: '2rem', fontSize: '0.95rem' }}>
-              Comment souhaitez-vous créer votre playlist ?
+              Comment souhaitez-vous charger votre playlist ?
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {/* Mode MP3 */}
+              {/* Source MP3 */}
               <button
-                onClick={() => handleSelectMode('mp3')}
+                onClick={() => handleSelectSource('mp3')}
                 style={{
                   padding: '1.5rem',
                   backgroundColor: 'rgba(124, 58, 237, 0.2)',
@@ -481,16 +517,16 @@ export default function MasterWizard({ onComplete }) {
               >
                 <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📁</div>
                 <div style={{ fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
-                  Mode MP3
+                  MP3 Local
                 </div>
                 <div style={{ fontSize: '0.875rem', opacity: 0.8 }}>
-                  Chargez vos propres fichiers MP3 manuellement
+                  Chargez vos propres fichiers MP3 manuellement • Mode Équipe uniquement
                 </div>
               </button>
 
-              {/* Mode Spotify Autonome */}
+              {/* Source Spotify Autonome */}
               <button
-                onClick={() => handleSelectMode('spotify-auto')}
+                onClick={() => handleSelectSource('spotify-auto')}
                 style={{
                   padding: '1.5rem',
                   backgroundColor: 'rgba(16, 185, 129, 0.2)',
@@ -512,16 +548,16 @@ export default function MasterWizard({ onComplete }) {
               >
                 <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🎵</div>
                 <div style={{ fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
-                  Mode Spotify - Autonome
+                  Spotify Autonome
                 </div>
                 <div style={{ fontSize: '0.875rem', opacity: 0.8 }}>
-                  Importez une de vos playlists Spotify existantes
+                  Importez une de vos playlists Spotify • Mode Équipe uniquement
                 </div>
               </button>
 
-              {/* Mode Spotify IA */}
+              {/* Source Spotify IA */}
               <button
-                onClick={() => handleSelectMode('spotify-ai')}
+                onClick={() => handleSelectSource('spotify-ai')}
                 style={{
                   padding: '1.5rem',
                   backgroundColor: 'rgba(236, 72, 153, 0.2)',
@@ -543,10 +579,10 @@ export default function MasterWizard({ onComplete }) {
               >
                 <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🤖</div>
                 <div style={{ fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
-                  Mode Spotify - IA
+                  Spotify IA
                 </div>
                 <div style={{ fontSize: '0.875rem', opacity: 0.8 }}>
-                  Playlist générée automatiquement par IA selon les préférences des joueurs
+                  Playlist générée par IA • Compatible Équipe ET Quiz
                 </div>
               </button>
             </div>
@@ -570,13 +606,106 @@ export default function MasterWizard({ onComplete }) {
           </>
         )}
 
-        {/* ÉTAPE 4 : CHARGEMENT */}
+        {/* ÉTAPE 4 : CHOIX DU MODE DE JEU (Spotify-IA uniquement) */}
+        {step === 'gamemode' && (
+          <>
+            <h2 style={{ fontSize: '1.75rem', marginBottom: '1rem', textAlign: 'center' }}>
+              🎮 Mode de jeu
+            </h2>
+            <p style={{ textAlign: 'center', opacity: 0.8, marginBottom: '2rem', fontSize: '0.95rem' }}>
+              Comment souhaitez-vous jouer ?
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {/* Mode Équipe */}
+              <button
+                onClick={() => handleSelectPlayMode('team')}
+                style={{
+                  padding: '1.5rem',
+                  backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                  border: '2px solid rgba(59, 130, 246, 0.5)',
+                  borderRadius: '0.75rem',
+                  color: 'white',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.3)';
+                  e.currentTarget.style.borderColor = '#3b82f6';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.2)';
+                  e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.5)';
+                }}
+              >
+                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>👥</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                  Mode Équipe
+                </div>
+                <div style={{ fontSize: '0.875rem', opacity: 0.8 }}>
+                  Buzzer par équipe • Scoring par rapidité • Bonus personnel
+                </div>
+              </button>
+
+              {/* Mode Quiz */}
+              <button
+                onClick={() => handleSelectPlayMode('quiz')}
+                style={{
+                  padding: '1.5rem',
+                  backgroundColor: 'rgba(251, 191, 36, 0.2)',
+                  border: '2px solid rgba(251, 191, 36, 0.5)',
+                  borderRadius: '0.75rem',
+                  color: 'white',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(251, 191, 36, 0.3)';
+                  e.currentTarget.style.borderColor = '#fbbf24';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(251, 191, 36, 0.2)';
+                  e.currentTarget.style.borderColor = 'rgba(251, 191, 36, 0.5)';
+                }}
+              >
+                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🎯</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                  Mode Quiz
+                </div>
+                <div style={{ fontSize: '0.875rem', opacity: 0.8 }}>
+                  QCM avec 4 réponses • Classement individuel temps réel
+                </div>
+              </button>
+            </div>
+
+            {/* Bouton Retour */}
+            <button
+              onClick={() => setStep('source')}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                backgroundColor: 'rgba(156, 163, 175, 0.3)',
+                border: '1px solid #9ca3af',
+                borderRadius: '0.5rem',
+                color: 'white',
+                cursor: 'pointer',
+                marginTop: '1rem'
+              }}
+            >
+              ← Retour
+            </button>
+          </>
+        )}
+
+        {/* ÉTAPE 5 : CHARGEMENT */}
         {step === 'loading' && (
           <div style={{ textAlign: 'center', padding: '2rem' }}>
             <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⏳</div>
             <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>
-              {gameMode === 'spotify-ai' ? 'Création de la playlist IA...' :
-               gameMode === 'spotify-auto' ? 'Chargement de la playlist...' :
+              {musicSource === 'spotify-ai' ? 'Création de la playlist IA...' :
+               musicSource === 'spotify-auto' ? 'Chargement de la playlist...' :
                'Préparation...'}
             </h2>
             {loading && (
