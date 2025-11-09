@@ -543,115 +543,50 @@ export default function Buzzer() {
     }
   };
 
-  // NOUVEAU : Sauvegarder les préférences du joueur dans Firebase (sans générer la playlist)
-  const savePreferencesToFirebase = async () => {
-    try {
-      console.log('💾 Sauvegarde des préférences dans Firebase...');
-
-      // Validation des données
-      if (!sessionId) {
-        throw new Error('Session ID manquant');
-      }
-      if (!playerName && !selectedPlayer?.name) {
-        throw new Error('Nom du joueur manquant');
-      }
-      if (!playerAge || isNaN(parseInt(playerAge))) {
-        throw new Error('Âge invalide');
-      }
-      if (!selectedGenres || selectedGenres.length === 0) {
-        throw new Error('Aucun genre sélectionné');
-      }
-
-      const playerId = selectedPlayer?.id || `temp_${playerName}`;
-      const preferencesRef = ref(database, `sessions/${sessionId}/players_preferences/${playerId}`);
-
-      const preferencesData = {
-        id: playerId,
-        name: selectedPlayer?.name || playerName,
-        photo: selectedPlayer?.photo || photoData || null,
-        age: parseInt(playerAge),
-        genres: selectedGenres,
-        specialPhrase: specialPhrase || '',
-        timestamp: Date.now(),
-        ready: true  // Marquer le joueur comme prêt
-      };
-
-      console.log('📦 Données à sauvegarder:', preferencesData);
-      await set(preferencesRef, preferencesData);
-      console.log('✅ Préférences sauvegardées dans Firebase');
-
-      return true; // Succès
-
-    } catch (err) {
-      console.error('❌ Erreur sauvegarde préférences:', err);
-      console.error('❌ Détails de l\'erreur:', err.message);
-      throw err; // Propager l'erreur pour affichage détaillé
-    }
-  };
-
-  // Envoyer les données au workflow n8n pour remplir la playlist avec l'IA
-  // Cette fonction est appelée automatiquement après la sauvegarde des préférences
+  // Les joueurs n'écrivent JAMAIS dans Firebase directement (sécurité)
+  // Le workflow n8n se charge de tout via Firebase Admin SDK
   const sendToN8nWorkflow = async () => {
     if (!playlistId) {
       console.warn('⚠️ Pas de playlistId disponible, skip n8n');
-      return false;
+      throw new Error('ID de playlist manquant');
     }
 
     try {
       console.log('📤 Envoi des préférences au workflow n8n (AI Playlist Generator)...');
 
+      const playerId = selectedPlayer?.id || `temp_${playerName}`;
+      const playerNameValue = selectedPlayer?.name || playerName;
+
       // Appeler le workflow AI via n8nService
+      // n8n va :
+      // 1. Générer les chansons avec l'IA
+      // 2. Les ajouter à la playlist Spotify
+      // 3. Mettre à jour Firebase (lastPlaylistUpdate, playerSongs) via son Admin SDK
       const result = await n8nService.fillPlaylistWithAI({
         playlistId: playlistId,
+        sessionId: sessionId, // Passer le sessionId à n8n
+        playerId: playerId,
+        playerName: playerNameValue,
         age: parseInt(playerAge),
         genres: selectedGenres, // Array de 3 genres
-        genre1Preferences: specialPhrase || '', // Utiliser la phrase spéciale comme préférence globale
+        genre1Preferences: specialPhrase || '',
         genre2Preferences: '',
         genre3Preferences: ''
       });
 
       console.log('✅ Playlist remplie avec succès:', result);
       console.log(`🎵 ${result.totalSongs} chansons ajoutées à la playlist`);
-
-      // Signaler à Firebase que la playlist a été mise à jour
-      // Cela permettra au Master de rafraîchir automatiquement la playlist
-      if (sessionId) {
-        const updateRef = ref(database, `sessions/${sessionId}/lastPlaylistUpdate`);
-        await set(updateRef, {
-          timestamp: Date.now(),
-          playerName: selectedPlayer?.name || playerName,
-          songsAdded: result.totalSongs || 10
-        });
-        console.log('✅ Mise à jour signalée à Firebase pour rafraîchissement automatique');
-
-        // Stocker l'association joueur → chansons pour le système de bonus personnel
-        // Chaque chanson issue des préférences du joueur donnera +500 points s'il la trouve
-        if (result.songs && result.songs.length > 0) {
-          const playerId = selectedPlayer?.id || `temp_${playerName}`;
-          const playerSongsRef = ref(database, `sessions/${sessionId}/playerSongs/${playerId}`);
-
-          // Extraire les URIs des chansons
-          const songUris = result.songs.map(song => song.uri);
-
-          await set(playerSongsRef, {
-            playerName: selectedPlayer?.name || playerName,
-            uris: songUris,
-            addedAt: Date.now()
-          });
-
-          console.log(`✅ ${songUris.length} chansons associées à ${selectedPlayer?.name || playerName} pour le bonus personnel`);
-        }
-      }
+      console.log('📝 n8n a mis à jour Firebase avec lastPlaylistUpdate et playerSongs');
 
       return true; // Succès
 
     } catch (err) {
       console.error('❌ Erreur appel workflow n8n:', err);
-      return false; // Échec
+      throw err; // Propager l'erreur
     }
   };
 
-  // NOUVEAU : Valider les préférences
+  // Valider les préférences et envoyer à n8n
   const handleSubmitPreferences = async () => {
     // Validation
     if (!playerAge || selectedGenres.length === 0) {
@@ -660,30 +595,28 @@ export default function Buzzer() {
     }
 
     setIsSearching(true);
-    setError(''); // Effacer les erreurs précédentes
+    setError('');
 
     try {
-      // ✅ Sauvegarder les préférences dans Firebase
-      await savePreferencesToFirebase();
-
-      // ✅ Appeler n8n pour générer les chansons et mettre à jour lastPlaylistUpdate
+      // ✅ Envoyer directement à n8n (sécurisé)
+      // n8n gère la génération de playlist ET l'écriture dans Firebase
       await sendToN8nWorkflow();
 
-      // ✅ Sauvegarder les préférences localement
+      // ✅ Sauvegarder les préférences localement uniquement
       saveToLocalStorage({
         playerAge,
         selectedGenres,
         specialPhrase
       });
 
-      console.log('✅ Préférences sauvegardées et joueur marqué comme prêt');
+      console.log('✅ Préférences envoyées à n8n avec succès');
 
       // Passer à l'étape suivante
       setStep('team');
 
     } catch (err) {
       console.error('❌ Erreur lors de la soumission des préférences:', err);
-      setError(`❌ Erreur: ${err.message || 'Problème de connexion'}`);
+      setError(`❌ Erreur: ${err.message || 'Impossible de contacter le serveur'}`);
     } finally {
       setIsSearching(false);
     }
