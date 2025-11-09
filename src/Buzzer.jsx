@@ -51,6 +51,34 @@ export default function Buzzer() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
+  const buzzerSoundRef = useRef(null); // Pour le son synthétique du buzzer
+
+  // Créer le son de buzzer synthétique
+  useEffect(() => {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+    const playBuzzerSound = () => {
+      const now = audioContext.currentTime;
+      const osc1 = audioContext.createOscillator();
+      const gain1 = audioContext.createGain();
+
+      osc1.connect(gain1);
+      gain1.connect(audioContext.destination);
+
+      osc1.frequency.setValueAtTime(800, now);
+      osc1.frequency.exponentialRampToValueAtTime(400, now + 0.1);
+      osc1.type = 'sawtooth';
+
+      gain1.gain.setValueAtTime(0, now);
+      gain1.gain.linearRampToValueAtTime(0.5, now + 0.01);
+      gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+
+      osc1.start(now);
+      osc1.stop(now + 0.3);
+    };
+
+    buzzerSoundRef.current = { play: playBuzzerSound };
+  }, []);
 
   // Vérifier le code de session depuis l'URL
   useEffect(() => {
@@ -441,6 +469,11 @@ const handleBuzz = async () => {
   setBuzzed(true);
   setBuzzerEnabled(false);
 
+  // Jouer le son du buzzer
+  if (buzzerSoundRef.current) {
+    buzzerSoundRef.current.play();
+  }
+
   const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
   await set(buzzRef, {
     type: 'BUZZ',
@@ -453,6 +486,7 @@ const handleBuzz = async () => {
     timestamp: Date.now()
   });
 
+  // Vibration en plus du son
   if (navigator.vibrate) {
     navigator.vibrate(200);
   }
