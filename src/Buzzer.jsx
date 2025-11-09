@@ -531,9 +531,8 @@ export default function Buzzer() {
     }
   };
 
-  // ANCIEN : Envoyer les données au workflow n8n pour remplir la playlist avec l'IA
-  // ⚠️ CETTE FONCTION N'EST PLUS UTILISÉE PAR LES JOUEURS
-  // Elle est conservée pour référence mais sera remplacée par une fonction côté Master
+  // Envoyer les données au workflow n8n pour remplir la playlist avec l'IA
+  // Cette fonction est appelée automatiquement après la sauvegarde des préférences
   const sendToN8nWorkflow = async () => {
     if (!playlistId) {
       console.warn('⚠️ Pas de playlistId disponible, skip n8n');
@@ -614,8 +613,12 @@ export default function Buzzer() {
     setError(''); // Effacer les erreurs précédentes
 
     // ✅ NOUVEAU FLUX : Sauvegarder les préférences dans Firebase
-    // La génération de playlist sera déclenchée par l'animateur plus tard
     const success = await savePreferencesToFirebase();
+
+    // ✅ Appeler n8n pour générer les chansons et mettre à jour lastPlaylistUpdate
+    if (success) {
+      await sendToN8nWorkflow();
+    }
 
     setIsSearching(false);
 
