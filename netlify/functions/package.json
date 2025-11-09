@@ -1,0 +1,9 @@
+{
+  "name": "netlify-functions",
+  "version": "1.0.0",
+  "description": "Netlify Functions pour l'application Blindtest",
+  "private": true,
+  "dependencies": {
+    "firebase-admin": "^12.8.0"
+  }
+}
