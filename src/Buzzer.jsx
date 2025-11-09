@@ -548,6 +548,20 @@ export default function Buzzer() {
     try {
       console.log('💾 Sauvegarde des préférences dans Firebase...');
 
+      // Validation des données
+      if (!sessionId) {
+        throw new Error('Session ID manquant');
+      }
+      if (!playerName && !selectedPlayer?.name) {
+        throw new Error('Nom du joueur manquant');
+      }
+      if (!playerAge || isNaN(parseInt(playerAge))) {
+        throw new Error('Âge invalide');
+      }
+      if (!selectedGenres || selectedGenres.length === 0) {
+        throw new Error('Aucun genre sélectionné');
+      }
+
       const playerId = selectedPlayer?.id || `temp_${playerName}`;
       const preferencesRef = ref(database, `sessions/${sessionId}/players_preferences/${playerId}`);
 
@@ -562,14 +576,16 @@ export default function Buzzer() {
         ready: true  // Marquer le joueur comme prêt
       };
 
+      console.log('📦 Données à sauvegarder:', preferencesData);
       await set(preferencesRef, preferencesData);
-      console.log('✅ Préférences sauvegardées dans Firebase:', preferencesData);
+      console.log('✅ Préférences sauvegardées dans Firebase');
 
       return true; // Succès
 
     } catch (err) {
       console.error('❌ Erreur sauvegarde préférences:', err);
-      return false; // Échec
+      console.error('❌ Détails de l\'erreur:', err.message);
+      throw err; // Propager l'erreur pour affichage détaillé
     }
   };
 
@@ -646,28 +662,30 @@ export default function Buzzer() {
     setIsSearching(true);
     setError(''); // Effacer les erreurs précédentes
 
-    // ✅ Sauvegarder les préférences dans Firebase
-    const success = await savePreferencesToFirebase();
+    try {
+      // ✅ Sauvegarder les préférences dans Firebase
+      await savePreferencesToFirebase();
 
-    // ✅ Appeler n8n pour générer les chansons et mettre à jour lastPlaylistUpdate
-    if (success) {
+      // ✅ Appeler n8n pour générer les chansons et mettre à jour lastPlaylistUpdate
       await sendToN8nWorkflow();
-    }
 
-    setIsSearching(false);
-
-    // Passer à l'étape suivante si la sauvegarde a réussi
-    if (success) {
-      setStep('team');
       // ✅ Sauvegarder les préférences localement
       saveToLocalStorage({
         playerAge,
         selectedGenres,
         specialPhrase
       });
+
       console.log('✅ Préférences sauvegardées et joueur marqué comme prêt');
-    } else {
-      setError('❌ Erreur lors de la sauvegarde de vos préférences. Veuillez réessayer.');
+
+      // Passer à l'étape suivante
+      setStep('team');
+
+    } catch (err) {
+      console.error('❌ Erreur lors de la soumission des préférences:', err);
+      setError(`❌ Erreur: ${err.message || 'Problème de connexion'}`);
+    } finally {
+      setIsSearching(false);
     }
   };
 
