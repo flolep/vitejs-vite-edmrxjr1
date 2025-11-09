@@ -152,14 +152,13 @@ export const n8nService = {
   },
 
   /**
+   * ⚠️ DÉPRÉCIÉ: Utilisé uniquement pour le mode individuel (ancien workflow)
+   * Préférez generatePlaylistWithAllPreferences() pour générer avec tous les joueurs
+   *
    * Remplit une playlist Spotify avec des chansons générées par IA
-   * Basé sur les préférences du joueur (âge, genres musicaux, etc.)
-   * ⚠️ SÉCURITÉ: Le workflow n8n DOIT écrire dans Firebase avec Firebase Admin SDK
+   * Basé sur les préférences d'UN SEUL joueur (âge, genres musicaux, etc.)
    * @param {object} params - Les paramètres
    * @param {string} params.playlistId - ID de la playlist à remplir (créée précédemment)
-   * @param {string} params.sessionId - ID de la session Firebase (pour écrire lastPlaylistUpdate)
-   * @param {string} params.playerId - ID du joueur (pour écrire playerSongs)
-   * @param {string} params.playerName - Nom du joueur (pour afficher dans lastPlaylistUpdate)
    * @param {number} params.age - Âge du joueur
    * @param {array} params.genres - Liste de 3 genres musicaux favoris (ex: ["Pop", "Rock", "Electronic"])
    * @param {string} params.genre1Preferences - Préférences détaillées pour le genre 1 (optionnel)
@@ -169,9 +168,6 @@ export const n8nService = {
    */
   async fillPlaylistWithAI({
     playlistId,
-    sessionId,
-    playerId,
-    playerName,
     age,
     genres,
     genre1Preferences = '',
@@ -181,9 +177,6 @@ export const n8nService = {
     try {
       const payload = {
         playlistId: playlistId,
-        sessionId: sessionId,
-        playerId: playerId,
-        playerName: playerName,
         age: age,
         genres: genres,
         genre1Preferences: genre1Preferences,

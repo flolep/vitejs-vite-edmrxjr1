@@ -43,6 +43,18 @@
         "songDuration": {
           ".read": "root.child('sessions').child($sessionId).child('active').val() === true",
           ".write": "auth != null && root.child('sessions').child($sessionId).child('createdBy').val() === auth.uid"
+        },
+        "players_preferences": {
+          ".read": "root.child('sessions').child($sessionId).child('active').val() === true",
+          ".write": "root.child('sessions').child($sessionId).child('active').val() === true"
+        },
+        "lastPlaylistUpdate": {
+          ".read": "root.child('sessions').child($sessionId).child('active').val() === true",
+          ".write": "auth != null && root.child('sessions').child($sessionId).child('createdBy').val() === auth.uid"
+        },
+        "playerSongs": {
+          ".read": "root.child('sessions').child($sessionId).child('active').val() === true",
+          ".write": "auth != null && root.child('sessions').child($sessionId).child('createdBy').val() === auth.uid"
         }
       }
     }

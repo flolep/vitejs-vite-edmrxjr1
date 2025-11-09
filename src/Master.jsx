@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { database, auth } from './firebase';
 import { ref, onValue, set, update } from 'firebase/database';
 import { spotifyService } from './spotifyService';
+import { n8nService } from './n8nService';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { QRCodeSVG } from 'qrcode.react';
 import { deactivatePreviousSession } from './utils/sessionCleanup';
@@ -66,6 +67,10 @@ export default function Master({
 
   // États Spotify
   const [playerAdapter, setPlayerAdapter] = useState(null);
+
+  // États préférences joueurs (mode Spotify IA)
+  const [playersPreferences, setPlayersPreferences] = useState([]);
+  const [isGeneratingPlaylist, setIsGeneratingPlaylist] = useState(false);
 
   // Déterminer le token initial
   const getInitialToken = () => {
@@ -175,6 +180,28 @@ export default function Master({
     }
   }, [musicSource, spotifyAIMode.playlist]);
 
+  // Écouter les préférences des joueurs en mode Spotify IA
+  useEffect(() => {
+    if (!sessionId || musicSource !== 'spotify-ai') return;
+
+    const preferencesRef = ref(database, `sessions/${sessionId}/players_preferences`);
+    const unsubscribe = onValue(preferencesRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const preferencesList = Object.entries(data).map(([id, prefs]) => ({
+          id,
+          ...prefs
+        }));
+        setPlayersPreferences(preferencesList);
+        console.log('📋 Préférences des joueurs:', preferencesList.length, 'joueur(s)');
+      } else {
+        setPlayersPreferences([]);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [sessionId, musicSource]);
+
   // Créer le player adapter selon le mode
   useEffect(() => {
     if (musicSource === 'mp3') {
@@ -198,6 +225,44 @@ export default function Master({
   }, [musicSource, spotifyToken, spotifyAutoMode.spotifyDeviceId, spotifyAIMode.spotifyDeviceId]);
 
   // === ACTIONS ===
+
+  const handleGeneratePlaylistWithAllPreferences = async () => {
+    if (!initialPlaylistId || playersPreferences.length === 0) {
+      setDebugInfo('❌ Aucun joueur prêt ou playlist manquante');
+      return;
+    }
+
+    setIsGeneratingPlaylist(true);
+    setDebugInfo('🎵 Génération de la playlist avec toutes les préférences...');
+
+    try {
+      // Formater les préférences pour n8n
+      const players = playersPreferences.map(pref => ({
+        name: pref.name,
+        age: pref.age,
+        genres: pref.genres,
+        specialPhrase: pref.specialPhrase || ''
+      }));
+
+      console.log('📤 Appel n8n avec', players.length, 'joueur(s)');
+
+      const result = await n8nService.generatePlaylistWithAllPreferences({
+        playlistId: initialPlaylistId,
+        players: players
+      });
+
+      console.log('✅ Playlist générée:', result);
+      setDebugInfo(`✅ ${result.totalSongs} chansons ajoutées pour ${result.totalPlayers} joueurs !`);
+
+      // La playlist se rechargera automatiquement via useSpotifyAIMode
+
+    } catch (error) {
+      console.error('❌ Erreur génération playlist:', error);
+      setDebugInfo(`❌ Erreur: ${error.message}`);
+    } finally {
+      setIsGeneratingPlaylist(false);
+    }
+  };
 
   const togglePlay = async () => {
     if (!sessionId || !playerAdapter) {
@@ -641,6 +706,59 @@ export default function Master({
             >
               🎵 Charger Playlist
             </button>
+          )}
+
+          {musicSource === 'spotify-ai' && playersPreferences.length > 0 && (
+            <div style={{
+              marginBottom: '1rem',
+              padding: '0.75rem',
+              backgroundColor: 'rgba(0, 0, 0, 0.3)',
+              borderRadius: '0.5rem'
+            }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+                👥 Préférences des joueurs ({playersPreferences.length})
+              </div>
+              <div style={{ maxHeight: '200px', overflowY: 'auto', marginBottom: '0.75rem' }}>
+                {playersPreferences.map((pref, index) => (
+                  <div key={pref.id} style={{
+                    fontSize: '0.8rem',
+                    padding: '0.5rem',
+                    marginBottom: '0.5rem',
+                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    borderRadius: '0.375rem'
+                  }}>
+                    <div style={{ fontWeight: '500', color: '#ec4899', marginBottom: '0.25rem' }}>
+                      {pref.photo && <span style={{ marginRight: '0.25rem' }}>{pref.photo}</span>}
+                      {pref.name}
+                    </div>
+                    <div style={{ fontSize: '0.7rem', opacity: 0.7 }}>
+                      {pref.age} ans • {pref.genres.join(', ')}
+                    </div>
+                    {pref.specialPhrase && (
+                      <div style={{ fontSize: '0.7rem', opacity: 0.6, fontStyle: 'italic', marginTop: '0.25rem' }}>
+                        "{pref.specialPhrase}"
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={handleGeneratePlaylistWithAllPreferences}
+                disabled={isGeneratingPlaylist}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  backgroundColor: isGeneratingPlaylist ? 'rgba(156, 163, 175, 0.3)' : 'rgba(16, 185, 129, 0.3)',
+                  border: isGeneratingPlaylist ? '1px solid #9ca3af' : '1px solid #10b981',
+                  borderRadius: '0.5rem',
+                  color: 'white',
+                  cursor: isGeneratingPlaylist ? 'not-allowed' : 'pointer',
+                  fontWeight: '500'
+                }}
+              >
+                {isGeneratingPlaylist ? '⏳ Génération en cours...' : '🎵 Générer la playlist'}
+              </button>
+            </div>
           )}
 
           {musicSource === 'spotify-ai' && spotifyAIMode.playlistUpdates.length > 0 && (

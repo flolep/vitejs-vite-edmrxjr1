@@ -543,50 +543,38 @@ export default function Buzzer() {
     }
   };
 
-  // Les joueurs n'écrivent JAMAIS dans Firebase directement (sécurité)
-  // Le workflow n8n se charge de tout via Firebase Admin SDK
-  const sendToN8nWorkflow = async () => {
-    if (!playlistId) {
-      console.warn('⚠️ Pas de playlistId disponible, skip n8n');
-      throw new Error('ID de playlist manquant');
-    }
-
+  // Sauvegarder les préférences du joueur dans Firebase
+  // Le Master verra ces préférences et pourra générer la playlist avec TOUTES les préférences
+  const savePreferencesToFirebase = async () => {
     try {
-      console.log('📤 Envoi des préférences au workflow n8n (AI Playlist Generator)...');
+      console.log('💾 Sauvegarde des préférences dans Firebase...');
 
       const playerId = selectedPlayer?.id || `temp_${playerName}`;
-      const playerNameValue = selectedPlayer?.name || playerName;
+      const preferencesRef = ref(database, `sessions/${sessionId}/players_preferences/${playerId}`);
 
-      // Appeler le workflow AI via n8nService
-      // n8n va :
-      // 1. Générer les chansons avec l'IA
-      // 2. Les ajouter à la playlist Spotify
-      // 3. Mettre à jour Firebase (lastPlaylistUpdate, playerSongs) via son Admin SDK
-      const result = await n8nService.fillPlaylistWithAI({
-        playlistId: playlistId,
-        sessionId: sessionId, // Passer le sessionId à n8n
-        playerId: playerId,
-        playerName: playerNameValue,
+      const preferencesData = {
+        id: playerId,
+        name: selectedPlayer?.name || playerName,
+        photo: selectedPlayer?.photo || photoData || null,
         age: parseInt(playerAge),
-        genres: selectedGenres, // Array de 3 genres
-        genre1Preferences: specialPhrase || '',
-        genre2Preferences: '',
-        genre3Preferences: ''
-      });
+        genres: selectedGenres,
+        specialPhrase: specialPhrase || '',
+        timestamp: Date.now(),
+        ready: true
+      };
 
-      console.log('✅ Playlist remplie avec succès:', result);
-      console.log(`🎵 ${result.totalSongs} chansons ajoutées à la playlist`);
-      console.log('📝 n8n a mis à jour Firebase avec lastPlaylistUpdate et playerSongs');
+      await set(preferencesRef, preferencesData);
+      console.log('✅ Préférences sauvegardées dans Firebase:', preferencesData);
 
-      return true; // Succès
+      return true;
 
     } catch (err) {
-      console.error('❌ Erreur appel workflow n8n:', err);
-      throw err; // Propager l'erreur
+      console.error('❌ Erreur sauvegarde préférences:', err);
+      throw err;
     }
   };
 
-  // Valider les préférences et envoyer à n8n
+  // Valider les préférences
   const handleSubmitPreferences = async () => {
     // Validation
     if (!playerAge || selectedGenres.length === 0) {
@@ -598,25 +586,24 @@ export default function Buzzer() {
     setError('');
 
     try {
-      // ✅ Envoyer directement à n8n (sécurisé)
-      // n8n gère la génération de playlist ET l'écriture dans Firebase
-      await sendToN8nWorkflow();
+      // Sauvegarder dans Firebase
+      await savePreferencesToFirebase();
 
-      // ✅ Sauvegarder les préférences localement uniquement
+      // Sauvegarder localement
       saveToLocalStorage({
         playerAge,
         selectedGenres,
         specialPhrase
       });
 
-      console.log('✅ Préférences envoyées à n8n avec succès');
+      console.log('✅ Préférences enregistrées. Le Master génèrera la playlist quand tous les joueurs seront prêts.');
 
       // Passer à l'étape suivante
       setStep('team');
 
     } catch (err) {
       console.error('❌ Erreur lors de la soumission des préférences:', err);
-      setError(`❌ Erreur: ${err.message || 'Impossible de contacter le serveur'}`);
+      setError(`❌ Erreur: ${err.message || 'Impossible de sauvegarder'}`);
     } finally {
       setIsSearching(false);
     }
