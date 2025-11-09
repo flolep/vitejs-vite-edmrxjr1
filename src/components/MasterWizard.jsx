@@ -5,6 +5,7 @@ import { ref, set, update, onValue } from 'firebase/database';
 import { spotifyService } from '../spotifyService';
 import { n8nService } from '../n8nService';
 import { prepareNewSession } from '../utils/sessionCleanup';
+import { useSpotifyTokenRefresh } from '../hooks/useSpotifyTokenRefresh';
 import Login from './Login';
 
 /**
@@ -23,8 +24,16 @@ export default function MasterWizard({ onComplete }) {
 
   // États de connexion
   const [user, setUser] = useState(null);
-  const [spotifyToken, setSpotifyToken] = useState(null);
   const [checkingSpotify, setCheckingSpotify] = useState(true);
+  const [initialToken, setInitialToken] = useState(null);
+
+  // Hook de rafraîchissement automatique du token Spotify
+  const { token: spotifyToken, isRefreshing: tokenRefreshing, error: tokenError } = useSpotifyTokenRefresh(
+    initialToken,
+    (newToken) => {
+      console.log('🔄 Token Spotify rafraîchi automatiquement dans Wizard');
+    }
+  );
 
   // États de session
   const [sessionChoice, setSessionChoice] = useState(null); // 'new' | 'continue'
@@ -70,7 +79,7 @@ export default function MasterWizard({ onComplete }) {
         console.log('✅ [WIZARD] Token Spotify valide trouvé');
         const remainingMinutes = Math.floor((expiry - now) / 1000 / 60);
         console.log(`✅ [WIZARD] Token valide encore ${remainingMinutes} minutes`);
-        setSpotifyToken(token);
+        setInitialToken(token);
       } else {
         console.log('⚠️ [WIZARD] Token Spotify expiré, nettoyage...');
         sessionStorage.removeItem('spotify_access_token');
