@@ -85,7 +85,7 @@ export default function Master({
   const [playlistUpdates, setPlaylistUpdates] = useState([]); // Feed des MAJ pour mode IA
   
   const audioRef = useRef(null);
-  const buzzerSoundRef = useRef(null);
+  const buzzerSoundRef = useRef(null); // Pour le son synthétique du buzzer
   const currentChronoRef = useRef(0);
 
   // Gestion de l'authentification
@@ -2239,7 +2239,6 @@ const loadBuzzStats = (shouldShow = true) => {
 
       {/* Audio caché */}
       <audio ref={audioRef} style={{ display: 'none' }} />
-      <audio ref={buzzerSoundRef} src="/buzzer.mp3" preload="auto" style={{ display: 'none' }} />
     </div>
   );
 }
