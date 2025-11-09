@@ -543,28 +543,41 @@ export default function Buzzer() {
     }
   };
 
-  // Sauvegarder les préférences du joueur dans Firebase
+  // Sauvegarder les préférences via fonction Netlify (sécurisé avec Firebase Admin SDK)
   // Le Master verra ces préférences et pourra générer la playlist avec TOUTES les préférences
   const savePreferencesToFirebase = async () => {
     try {
-      console.log('💾 Sauvegarde des préférences dans Firebase...');
+      console.log('💾 Sauvegarde des préférences via Netlify...');
 
       const playerId = selectedPlayer?.id || `temp_${playerName}`;
-      const preferencesRef = ref(database, `sessions/${sessionId}/players_preferences/${playerId}`);
 
       const preferencesData = {
-        id: playerId,
         name: selectedPlayer?.name || playerName,
         photo: selectedPlayer?.photo || photoData || null,
         age: parseInt(playerAge),
         genres: selectedGenres,
-        specialPhrase: specialPhrase || '',
-        timestamp: Date.now(),
-        ready: true
+        specialPhrase: specialPhrase || ''
       };
 
-      await set(preferencesRef, preferencesData);
-      console.log('✅ Préférences sauvegardées dans Firebase:', preferencesData);
+      const response = await fetch('/.netlify/functions/save-player-preferences', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          sessionId,
+          playerId,
+          preferences: preferencesData
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Erreur serveur');
+      }
+
+      const result = await response.json();
+      console.log('✅ Préférences sauvegardées:', result);
 
       return true;
 

@@ -46,7 +46,7 @@
         },
         "players_preferences": {
           ".read": "root.child('sessions').child($sessionId).child('active').val() === true",
-          ".write": "root.child('sessions').child($sessionId).child('active').val() === true"
+          ".write": false
         },
         "lastPlaylistUpdate": {
           ".read": "root.child('sessions').child($sessionId).child('active').val() === true",
