@@ -543,99 +543,51 @@ export default function Buzzer() {
     }
   };
 
-  // NOUVEAU : Sauvegarder les préférences du joueur dans Firebase (sans générer la playlist)
+  // Sauvegarder les préférences via fonction Netlify (sécurisé avec Firebase Admin SDK)
+  // Le Master verra ces préférences et pourra générer la playlist avec TOUTES les préférences
   const savePreferencesToFirebase = async () => {
     try {
-      console.log('💾 Sauvegarde des préférences dans Firebase...');
+      console.log('💾 Sauvegarde des préférences via Netlify...');
 
       const playerId = selectedPlayer?.id || `temp_${playerName}`;
-      const preferencesRef = ref(database, `sessions/${sessionId}/players_preferences/${playerId}`);
 
       const preferencesData = {
-        id: playerId,
         name: selectedPlayer?.name || playerName,
         photo: selectedPlayer?.photo || photoData || null,
         age: parseInt(playerAge),
         genres: selectedGenres,
-        specialPhrase: specialPhrase || '',
-        timestamp: Date.now(),
-        ready: true  // Marquer le joueur comme prêt
+        specialPhrase: specialPhrase || ''
       };
 
-      await set(preferencesRef, preferencesData);
-      console.log('✅ Préférences sauvegardées dans Firebase:', preferencesData);
+      const response = await fetch('/.netlify/functions/save-player-preferences', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          sessionId,
+          playerId,
+          preferences: preferencesData
+        })
+      });
 
-      return true; // Succès
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Erreur serveur');
+      }
+
+      const result = await response.json();
+      console.log('✅ Préférences sauvegardées:', result);
+
+      return true;
 
     } catch (err) {
       console.error('❌ Erreur sauvegarde préférences:', err);
-      return false; // Échec
+      throw err;
     }
   };
 
-  // Envoyer les données au workflow n8n pour remplir la playlist avec l'IA
-  // Cette fonction est appelée automatiquement après la sauvegarde des préférences
-  const sendToN8nWorkflow = async () => {
-    if (!playlistId) {
-      console.warn('⚠️ Pas de playlistId disponible, skip n8n');
-      return false;
-    }
-
-    try {
-      console.log('📤 Envoi des préférences au workflow n8n (AI Playlist Generator)...');
-
-      // Appeler le workflow AI via n8nService
-      const result = await n8nService.fillPlaylistWithAI({
-        playlistId: playlistId,
-        age: parseInt(playerAge),
-        genres: selectedGenres, // Array de 3 genres
-        genre1Preferences: specialPhrase || '', // Utiliser la phrase spéciale comme préférence globale
-        genre2Preferences: '',
-        genre3Preferences: ''
-      });
-
-      console.log('✅ Playlist remplie avec succès:', result);
-      console.log(`🎵 ${result.totalSongs} chansons ajoutées à la playlist`);
-
-      // Signaler à Firebase que la playlist a été mise à jour
-      // Cela permettra au Master de rafraîchir automatiquement la playlist
-      if (sessionId) {
-        const updateRef = ref(database, `sessions/${sessionId}/lastPlaylistUpdate`);
-        await set(updateRef, {
-          timestamp: Date.now(),
-          playerName: selectedPlayer?.name || playerName,
-          songsAdded: result.totalSongs || 10
-        });
-        console.log('✅ Mise à jour signalée à Firebase pour rafraîchissement automatique');
-
-        // Stocker l'association joueur → chansons pour le système de bonus personnel
-        // Chaque chanson issue des préférences du joueur donnera +500 points s'il la trouve
-        if (result.songs && result.songs.length > 0) {
-          const playerId = selectedPlayer?.id || `temp_${playerName}`;
-          const playerSongsRef = ref(database, `sessions/${sessionId}/playerSongs/${playerId}`);
-
-          // Extraire les URIs des chansons
-          const songUris = result.songs.map(song => song.uri);
-
-          await set(playerSongsRef, {
-            playerName: selectedPlayer?.name || playerName,
-            uris: songUris,
-            addedAt: Date.now()
-          });
-
-          console.log(`✅ ${songUris.length} chansons associées à ${selectedPlayer?.name || playerName} pour le bonus personnel`);
-        }
-      }
-
-      return true; // Succès
-
-    } catch (err) {
-      console.error('❌ Erreur appel workflow n8n:', err);
-      return false; // Échec
-    }
-  };
-
-  // NOUVEAU : Valider les préférences
+  // Valider les préférences
   const handleSubmitPreferences = async () => {
     // Validation
     if (!playerAge || selectedGenres.length === 0) {
@@ -644,30 +596,29 @@ export default function Buzzer() {
     }
 
     setIsSearching(true);
-    setError(''); // Effacer les erreurs précédentes
+    setError('');
 
-    // ✅ Sauvegarder les préférences dans Firebase
-    const success = await savePreferencesToFirebase();
+    try {
+      // Sauvegarder dans Firebase
+      await savePreferencesToFirebase();
 
-    // ✅ Appeler n8n pour générer les chansons et mettre à jour lastPlaylistUpdate
-    if (success) {
-      await sendToN8nWorkflow();
-    }
-
-    setIsSearching(false);
-
-    // Passer à l'étape suivante si la sauvegarde a réussi
-    if (success) {
-      setStep('team');
-      // ✅ Sauvegarder les préférences localement
+      // Sauvegarder localement
       saveToLocalStorage({
         playerAge,
         selectedGenres,
         specialPhrase
       });
-      console.log('✅ Préférences sauvegardées et joueur marqué comme prêt');
-    } else {
-      setError('❌ Erreur lors de la sauvegarde de vos préférences. Veuillez réessayer.');
+
+      console.log('✅ Préférences enregistrées. Le Master génèrera la playlist quand tous les joueurs seront prêts.');
+
+      // Passer à l'étape suivante
+      setStep('team');
+
+    } catch (err) {
+      console.error('❌ Erreur lors de la soumission des préférences:', err);
+      setError(`❌ Erreur: ${err.message || 'Impossible de sauvegarder'}`);
+    } finally {
+      setIsSearching(false);
     }
   };
 

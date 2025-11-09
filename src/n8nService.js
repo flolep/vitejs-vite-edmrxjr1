@@ -152,8 +152,11 @@ export const n8nService = {
   },
 
   /**
+   * ⚠️ DÉPRÉCIÉ: Utilisé uniquement pour le mode individuel (ancien workflow)
+   * Préférez generatePlaylistWithAllPreferences() pour générer avec tous les joueurs
+   *
    * Remplit une playlist Spotify avec des chansons générées par IA
-   * Basé sur les préférences du joueur (âge, genres musicaux, etc.)
+   * Basé sur les préférences d'UN SEUL joueur (âge, genres musicaux, etc.)
    * @param {object} params - Les paramètres
    * @param {string} params.playlistId - ID de la playlist à remplir (créée précédemment)
    * @param {number} params.age - Âge du joueur
