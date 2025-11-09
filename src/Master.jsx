@@ -594,17 +594,67 @@ const togglePlay = async () => {
   }
   
   if (isSpotifyMode) {
-    console.log('🔍 Debug Play - Token:', !!spotifyToken, 'DeviceId:', spotifyDeviceId);
+    console.log('🔍 Debug Play - Token:', !!spotifyToken, 'DeviceId:', spotifyDeviceId, 'Player:', !!spotifyPlayer);
 
-    if (!spotifyToken || !spotifyDeviceId) {
+    if (!spotifyToken) {
       setDebugInfo('⚠️ Spotify non connecté - Veuillez vous reconnecter à Spotify pour lire cette playlist');
-      console.error('❌ Manque token ou deviceId:', { token: !!spotifyToken, deviceId: spotifyDeviceId });
+      console.error('❌ Token Spotify manquant');
 
       // Réinitialiser isPlaying dans Firebase pour éviter un état incohérent
       const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
       set(playingRef, false);
       setIsPlaying(false);
       return;
+    }
+
+    // Si le player n'est pas initialisé ou le deviceId manque, essayer de le réinitialiser
+    if (!spotifyPlayer || !spotifyDeviceId) {
+      console.log('⚠️ Player ou deviceId manquant, tentative de réinitialisation...');
+      setDebugInfo('⏳ Initialisation du player Spotify...');
+
+      try {
+        let newDeviceId = null;
+
+        const player = await spotifyService.initPlayer(
+          spotifyToken,
+          (deviceId) => {
+            console.log('✅ Device ID reçu:', deviceId);
+            newDeviceId = deviceId;
+            setSpotifyDeviceId(deviceId);
+          },
+          (state) => {
+            if (state) {
+              setSongDuration(state.duration / 1000);
+              setSpotifyPosition(state.position);
+            }
+          }
+        );
+        setSpotifyPlayer(player);
+
+        // Attendre que le player soit prêt (max 5 secondes)
+        const startTime = Date.now();
+        while (!newDeviceId && (Date.now() - startTime) < 5000) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
+        // Vérifier que le deviceId a bien été défini
+        if (!newDeviceId) {
+          setDebugInfo('❌ Impossible d\'initialiser le player Spotify. Rafraîchissez la page et reconnectez-vous.');
+          const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
+          set(playingRef, false);
+          setIsPlaying(false);
+          return;
+        }
+
+        setDebugInfo('✅ Player Spotify initialisé');
+      } catch (error) {
+        console.error('❌ Erreur initialisation player:', error);
+        setDebugInfo('❌ Erreur initialisation Spotify. Rafraîchissez la page et reconnectez-vous.');
+        const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
+        set(playingRef, false);
+        setIsPlaying(false);
+        return;
+      }
     }
 
     try {
