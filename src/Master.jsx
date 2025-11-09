@@ -117,7 +117,7 @@ export default function Master({
     buzzedPlayerKey,
     setBuzzedTeam,
     clearBuzz
-  } = useBuzzer(sessionId, isPlaying, currentTrack, playlist, currentChronoRef, updateIsPlaying);
+  } = useBuzzer(sessionId, isPlaying, currentTrack, playlist, currentChronoRef, updateIsPlaying, playerAdapter);
 
   const {
     calculatePoints,
