@@ -74,7 +74,7 @@ export default function Buzzer() {
         selectedGenres: data.selectedGenres || selectedGenres,
         specialPhrase: data.specialPhrase || specialPhrase,
         photoData: data.photoData || photoData,
-        preferencesSubmitted: data.preferencesSubmitted !== undefined ? data.preferencesSubmitted : existingData.preferencesSubmitted || false,
+        gameAlreadyStarted: data.gameAlreadyStarted !== undefined ? data.gameAlreadyStarted : existingData.gameAlreadyStarted || false,
         timestamp: Date.now()
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
@@ -217,7 +217,7 @@ export default function Buzzer() {
     }
   };
 
-  // Vérifier le code de session depuis l'URL (reconnexion désactivée temporairement)
+  // Vérifier le code de session depuis l'URL et gérer la reconnexion
   useEffect(() => {
     const init = async () => {
       // Vérifier l'URL pour le sessionId
@@ -225,31 +225,59 @@ export default function Buzzer() {
       const sessionParam = urlParams.get('session');
 
       if (sessionParam) {
-        setSessionId(sessionParam);
-        verifySession(sessionParam);
-      }
+        // Vérifier localStorage : si session différente, nettoyer
+        const storedData = loadFromLocalStorage();
+        if (storedData && storedData.sessionId && storedData.sessionId !== sessionParam) {
+          console.log('🔄 Nouvelle session détectée, nettoyage du localStorage');
+          clearLocalStorage();
+        }
 
-      // RECONNEXION AUTOMATIQUE DÉSACTIVÉE pour débugger
-      // TODO: Réactiver après avoir corrigé le bug
+        setSessionId(sessionParam);
+        await verifySession(sessionParam);
+
+        // Tenter reconnexion automatique si même session
+        if (storedData && storedData.sessionId === sessionParam) {
+          const reconnected = await attemptAutoReconnect(storedData);
+          if (reconnected) {
+            console.log('✅ Reconnexion automatique réussie');
+            return; // Skip le reste du flux
+          }
+        }
+      }
     };
 
     init();
   }, []);
 
-  // Fonction pour vérifier si la session existe
+  // Fonction pour vérifier si la session existe et si la partie a démarré
   const verifySession = async (id) => {
     const sessionRef = ref(database, `sessions/${id}`);
-    onValue(sessionRef, (snapshot) => {
-      if (snapshot.exists() && snapshot.val().active) {
-        setSessionValid(true);
-        setStep('name');
-        // Sauvegarder le sessionId
-        saveToLocalStorage({ sessionId: id });
-      } else {
-        setSessionValid(false);
-        setError('Code de session invalide ou expiré');
-      }
-    }, { onlyOnce: true });
+    return new Promise((resolve) => {
+      onValue(sessionRef, (snapshot) => {
+        if (snapshot.exists() && snapshot.val().active) {
+          setSessionValid(true);
+
+          const sessionData = snapshot.val();
+          const gameStarted = sessionData.isPlaying === true || (sessionData.currentTrack && sessionData.currentTrack > 0);
+
+          if (gameStarted) {
+            console.log('⚡ La partie a déjà démarré, skip préférences');
+            // Stocker dans localStorage que la partie a démarré
+            saveToLocalStorage({ sessionId: id, gameAlreadyStarted: true });
+          } else {
+            console.log('⏸️ La partie n\'a pas encore démarré');
+            saveToLocalStorage({ sessionId: id, gameAlreadyStarted: false });
+          }
+
+          setStep('name');
+          resolve(true);
+        } else {
+          setSessionValid(false);
+          setError('Code de session invalide ou expiré');
+          resolve(false);
+        }
+      }, { onlyOnce: true });
+    });
   };
 
   // Fonction pour valider le code de session entré manuellement
@@ -398,7 +426,7 @@ export default function Buzzer() {
     } catch (err) {
       console.error('Erreur recherche:', err);
       setError('Erreur lors de la recherche. Continuons sans photo.');
-      setStep('preferences');
+      goToNextStep();
     } finally {
       setIsSearching(false);
     }
@@ -407,7 +435,7 @@ export default function Buzzer() {
   // NOUVEAU : Sélectionner un joueur existant
   const handleSelectPlayer = (player) => {
     setSelectedPlayer(player);
-    setStep('preferences');
+    goToNextStep();
     // Sauvegarder le joueur sélectionné
     saveToLocalStorage({ selectedPlayer: player, playerName: player.name });
   };
@@ -431,7 +459,7 @@ export default function Buzzer() {
     } catch (err) {
       console.error('Erreur caméra:', err);
       setError('Impossible d\'accéder à la caméra. Continuons sans photo.');
-      setTimeout(() => setStep('preferences'), 2000);
+      setTimeout(() => goToNextStep(), 2000);
     }
   };
 
@@ -476,7 +504,7 @@ export default function Buzzer() {
       };
 
       setSelectedPlayer(newPlayer);
-      setStep('preferences');
+      goToNextStep();
 
       // Sauvegarder le nouveau joueur
       saveToLocalStorage({ selectedPlayer: newPlayer, playerName, photoData });
@@ -486,7 +514,7 @@ export default function Buzzer() {
       setTimeout(() => {
         const fallbackPlayer = { name: playerName };
         setSelectedPlayer(fallbackPlayer);
-        setStep('preferences');
+        goToNextStep();
         // Sauvegarder quand même
         saveToLocalStorage({ selectedPlayer: fallbackPlayer, playerName, photoData });
       }, 2000);
@@ -499,6 +527,20 @@ export default function Buzzer() {
   const retakeSelfie = () => {
     setPhotoData(null);
     startCamera();
+  };
+
+  // Helper : Décider de l'étape suivante selon si la partie a démarré
+  const goToNextStep = () => {
+    const storedData = loadFromLocalStorage();
+    const gameAlreadyStarted = storedData?.gameAlreadyStarted === true;
+
+    if (gameAlreadyStarted) {
+      console.log('⚡ Partie démarrée → skip préférences, accès direct au choix d\'équipe');
+      setStep('team');
+    } else {
+      console.log('⏸️ Partie non démarrée → demande des préférences');
+      setStep('preferences');
+    }
   };
 
   // NOUVEAU : Sauvegarder les préférences du joueur dans Firebase (sans générer la playlist)
@@ -601,18 +643,10 @@ export default function Buzzer() {
       return;
     }
 
-    // ✅ GARDE-FOU : Vérifier si les préférences ont déjà été soumises
-    const storedData = loadFromLocalStorage();
-    if (storedData && storedData.preferencesSubmitted) {
-      console.log('⚠️ Préférences déjà soumises, passage direct à l\'équipe');
-      setStep('team');
-      return;
-    }
-
     setIsSearching(true);
     setError(''); // Effacer les erreurs précédentes
 
-    // ✅ NOUVEAU FLUX : Sauvegarder les préférences dans Firebase
+    // ✅ Sauvegarder les préférences dans Firebase
     const success = await savePreferencesToFirebase();
 
     // ✅ Appeler n8n pour générer les chansons et mettre à jour lastPlaylistUpdate
@@ -625,12 +659,11 @@ export default function Buzzer() {
     // Passer à l'étape suivante si la sauvegarde a réussi
     if (success) {
       setStep('team');
-      // ✅ Sauvegarder les préférences localement ET marquer comme soumises
+      // ✅ Sauvegarder les préférences localement
       saveToLocalStorage({
         playerAge,
         selectedGenres,
-        specialPhrase,
-        preferencesSubmitted: true  // Flag pour éviter la double soumission
+        specialPhrase
       });
       console.log('✅ Préférences sauvegardées et joueur marqué comme prêt');
     } else {
