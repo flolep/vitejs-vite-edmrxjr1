@@ -250,6 +250,11 @@ export default function MasterWizard({ onComplete }) {
         `Playlist IA générée pour la session ${sessionId}`
       );
 
+      console.log('🔍 Structure complète de la réponse n8n:', JSON.stringify(result, null, 2));
+      console.log('🔍 result.success =', result.success);
+      console.log('🔍 result.playlistId =', result.playlistId);
+      console.log('🔍 Toutes les clés:', Object.keys(result));
+
       if (result.success && result.playlistId) {
         // Extraire l'ID pur
         let extractedId = extractPlaylistId(result.playlistId);
