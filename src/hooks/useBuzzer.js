@@ -6,7 +6,7 @@ import { ref, set, remove, onValue } from 'firebase/database';
  * Hook pour gérer le système de buzzer
  * Logique commune à tous les modes
  */
-export function useBuzzer(sessionId, isPlaying, currentTrack, playlist, currentChronoRef) {
+export function useBuzzer(sessionId, isPlaying, currentTrack, playlist, currentChronoRef, updateIsPlaying) {
   const [buzzedTeam, setBuzzedTeam] = useState(null);
   const [buzzedPlayerKey, setBuzzedPlayerKey] = useState(null);
   const buzzerSoundRef = useRef(null);
@@ -53,6 +53,11 @@ export function useBuzzer(sessionId, isPlaying, currentTrack, playlist, currentC
         setBuzzedTeam(team);
         setBuzzedPlayerKey(buzzData.playerFirebaseKey || null);
 
+        // ✅ ARRÊTER LA MUSIQUE ET LE CHRONO
+        if (updateIsPlaying) {
+          updateIsPlaying(false);
+        }
+
         if (buzzerSoundRef.current) {
           buzzerSoundRef.current.play();
         }
@@ -80,7 +85,7 @@ export function useBuzzer(sessionId, isPlaying, currentTrack, playlist, currentC
     });
 
     return () => unsubscribe();
-  }, [isPlaying, currentTrack, sessionId, playlist, currentChronoRef]);
+  }, [isPlaying, currentTrack, sessionId, playlist, currentChronoRef, updateIsPlaying]);
 
   const clearBuzz = () => {
     setBuzzedTeam(null);
