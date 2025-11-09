@@ -349,24 +349,6 @@ export default function Buzzer() {
           songsAdded: result.totalSongs || 10
         });
         console.log('✅ Mise à jour signalée à Firebase pour rafraîchissement automatique');
-
-        // Stocker l'association joueur → chansons pour le système de bonus personnel
-        // Chaque chanson issue des préférences du joueur donnera +500 points s'il la trouve
-        if (result.songs && result.songs.length > 0) {
-          const playerId = selectedPlayer?.id || `temp_${playerName}`;
-          const playerSongsRef = ref(database, `sessions/${sessionId}/playerSongs/${playerId}`);
-
-          // Extraire les URIs des chansons
-          const songUris = result.songs.map(song => song.uri);
-
-          await set(playerSongsRef, {
-            playerName: selectedPlayer?.name || playerName,
-            uris: songUris,
-            addedAt: Date.now()
-          });
-
-          console.log(`✅ ${songUris.length} chansons associées à ${selectedPlayer?.name || playerName} pour le bonus personnel`);
-        }
       }
 
       return true; // Succès

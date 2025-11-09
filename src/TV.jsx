@@ -167,11 +167,6 @@ export default function TV() {
   // État pour le QR Code
   const [showQRCode, setShowQRCode] = useState(false);
 
-  // NOUVEAU : État pour le bonus personnel
-  const [personalBonus, setPersonalBonus] = useState(null);
-  // Référence pour tracker les popups déjà affichées (évite les re-déclenchements)
-  const displayedBonusTracksRef = useRef(new Set());
-
   // Vérifier le code de session depuis l'URL
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -182,13 +177,6 @@ export default function TV() {
     }
   }, []);
 
-  // Réinitialiser le tracker des popups bonus à chaque nouvelle session
-  useEffect(() => {
-    if (sessionId) {
-      displayedBonusTracksRef.current.clear();
-      console.log(`🔄 Tracker de popup bonus réinitialisé pour la session ${sessionId}`);
-    }
-  }, [sessionId]);
 
   // Fonction pour vérifier si la session existe
   const verifySession = async (id) => {
@@ -310,43 +298,6 @@ export default function TV() {
       const songData = snapshot.val();
       if (songData) {
         setCurrentSong(songData);
-
-        // Si une chanson est révélée, vérifier s'il y a un bonus personnel
-        if (songData.revealed && songData.number) {
-          const trackIndex = songData.number - 1;
-
-          // ✅ Vérifier si on a déjà affiché la popup pour cette chanson
-          if (displayedBonusTracksRef.current.has(trackIndex)) {
-            console.log(`ℹ️ Popup bonus déjà affichée pour la chanson #${trackIndex}, skip`);
-            return;
-          }
-
-          const buzzTimesRef = ref(database, `sessions/${sessionId}/buzz_times/${trackIndex}`);
-          onValue(buzzTimesRef, (buzzSnapshot) => {
-            const buzzes = buzzSnapshot.val();
-            if (buzzes && Array.isArray(buzzes) && buzzes.length > 0) {
-              // Vérifier le dernier buzz (celui qui a été validé)
-              const lastBuzz = buzzes[buzzes.length - 1];
-              if (lastBuzz.hasPersonalBonus && lastBuzz.correct) {
-                // ✅ Marquer cette chanson comme déjà affichée
-                displayedBonusTracksRef.current.add(trackIndex);
-                console.log(`🎯 Popup bonus affichée pour ${lastBuzz.playerName} - chanson #${trackIndex}`);
-
-                setPersonalBonus({
-                  playerName: lastBuzz.playerName,
-                  basePoints: lastBuzz.basePoints,
-                  bonusPoints: lastBuzz.bonusPoints,
-                  totalPoints: lastBuzz.points
-                });
-
-                // Effacer le bonus après 5 secondes
-                setTimeout(() => setPersonalBonus(null), 5000);
-              } else {
-                setPersonalBonus(null);
-              }
-            }
-          }, { onlyOnce: true });
-        }
       }
     });
     return () => unsubscribe();
@@ -1022,65 +973,6 @@ return (
       </div>
     )}
 
-    {/* ===== BONUS PERSONNEL (popup temporaire) ===== */}
-    {personalBonus && (
-      <div style={{
-        position: 'fixed',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        backgroundColor: 'rgba(251, 191, 36, 0.98)',
-        borderRadius: '3rem',
-        padding: '4rem',
-        textAlign: 'center',
-        border: '5px solid #fbbf24',
-        boxShadow: '0 0 80px rgba(251, 191, 36, 0.9)',
-        zIndex: 1000,
-        animation: 'pulse 0.5s infinite',
-        minWidth: '600px'
-      }}>
-        <div style={{
-          fontSize: '4rem',
-          marginBottom: '1rem'
-        }}>
-          🎯
-        </div>
-        <div style={{
-          fontSize: '3rem',
-          fontWeight: 'bold',
-          color: '#1f2937',
-          marginBottom: '1rem'
-        }}>
-          BONUS PERSONNEL !
-        </div>
-        <div style={{
-          fontSize: '2rem',
-          color: '#1f2937',
-          marginBottom: '1.5rem'
-        }}>
-          {personalBonus.playerName} a trouvé sa propre chanson !
-        </div>
-        <div style={{
-          fontSize: '2.5rem',
-          color: '#1f2937',
-          marginBottom: '0.5rem'
-        }}>
-          {personalBonus.basePoints} pts + <span style={{
-            fontSize: '3.5rem',
-            fontWeight: 'bold',
-            color: '#16a34a'
-          }}>500 pts</span>
-        </div>
-        <div style={{
-          fontSize: '4rem',
-          fontWeight: 'bold',
-          color: '#16a34a',
-          marginTop: '1rem'
-        }}>
-          = {personalBonus.totalPoints} pts
-        </div>
-      </div>
-    )}
 
     {/* Modale QR Code */}
     {showQRCode && sessionId && (
