@@ -167,6 +167,14 @@ export default function Master({
     }, { onlyOnce: true });
   }, [initialSessionId, user, spotifyToken]);
 
+  // Synchroniser la playlist du mode Spotify IA avec la playlist globale
+  useEffect(() => {
+    if (musicSource === 'spotify-ai' && spotifyAIMode.playlist && spotifyAIMode.playlist.length > 0) {
+      console.log('🔄 [MASTER] Synchronisation de la playlist Spotify IA:', spotifyAIMode.playlist.length, 'chansons');
+      setPlaylist(spotifyAIMode.playlist);
+    }
+  }, [musicSource, spotifyAIMode.playlist]);
+
   // Créer le player adapter selon le mode
   useEffect(() => {
     if (musicSource === 'mp3') {

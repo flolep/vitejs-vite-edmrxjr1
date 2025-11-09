@@ -7,11 +7,12 @@ import { database } from '../firebase';
  * Hook pour gérer le mode Spotify IA
  * Logique spécifique à la génération automatique de playlist par IA
  */
-export function useSpotifyAIMode(spotifyToken, sessionId, gameMode) {
+export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
   const [playlistUpdates, setPlaylistUpdates] = useState([]);
   const [spotifyPlayer, setSpotifyPlayer] = useState(null);
   const [spotifyDeviceId, setSpotifyDeviceId] = useState(null);
   const [songDuration, setSongDuration] = useState(0);
+  const [playlist, setPlaylist] = useState([]);
 
   // Initialiser le player Spotify
   const initSpotifyPlayer = async () => {
@@ -53,7 +54,9 @@ export function useSpotifyAIMode(spotifyToken, sessionId, gameMode) {
 
   // Écouter les mises à jour de la playlist et rafraîchir automatiquement
   useEffect(() => {
-    if (!sessionId || !spotifyToken || gameMode !== 'spotify-ai') return;
+    if (!sessionId || !spotifyToken || musicSource !== 'spotify-ai') return;
+
+    console.log('🎧 [SPOTIFY-AI] Écoute des mises à jour activée pour la session', sessionId);
 
     const updateRef = ref(database, `sessions/${sessionId}/lastPlaylistUpdate`);
     const playlistIdRef = ref(database, `sessions/${sessionId}/playlistId`);
@@ -61,14 +64,17 @@ export function useSpotifyAIMode(spotifyToken, sessionId, gameMode) {
     let lastTimestamp = null;
     let isFirstCallback = true;
 
-    const unsubscribe = onValue(updateRef, (snapshot) => {
+    const unsubscribe = onValue(updateRef, async (snapshot) => {
       const updateData = snapshot.val();
+
+      console.log('🔔 [SPOTIFY-AI] Événement reçu de Firebase:', updateData);
 
       // Le premier callback représente l'état initial
       if (isFirstCallback) {
         isFirstCallback = false;
         if (updateData?.timestamp) {
           lastTimestamp = updateData.timestamp;
+          console.log('⏭️ [SPOTIFY-AI] Premier callback ignoré (état initial)');
           return;
         }
       }
@@ -79,6 +85,8 @@ export function useSpotifyAIMode(spotifyToken, sessionId, gameMode) {
         if (lastTimestamp === null || updateData.timestamp > lastTimestamp) {
           lastTimestamp = updateData.timestamp;
 
+          console.log('🆕 [SPOTIFY-AI] Nouvelle mise à jour détectée:', updateData.playerName, '+', updateData.songsAdded, 'chansons');
+
           // Ajouter au feed des mises à jour
           setPlaylistUpdates(prev => [{
             playerName: updateData.playerName,
@@ -87,20 +95,31 @@ export function useSpotifyAIMode(spotifyToken, sessionId, gameMode) {
             time: new Date(updateData.timestamp).toLocaleTimeString()
           }, ...prev].slice(0, 10)); // Garder les 10 dernières MAJ
 
-          // Récupérer l'ID de playlist et recharger
-          onValue(playlistIdRef, (playlistSnapshot) => {
-            const playlistId = playlistSnapshot.val();
-            if (playlistId) {
-              // On va laisser le composant parent gérer le rechargement
-              // pour éviter la duplication de logique
+          // Récupérer l'ID de playlist et recharger automatiquement
+          const playlistSnapshot = await new Promise((resolve) => {
+            onValue(playlistIdRef, resolve, { onlyOnce: true });
+          });
+
+          const playlistId = playlistSnapshot.val();
+          if (playlistId) {
+            console.log('🔄 [SPOTIFY-AI] Rechargement de la playlist:', playlistId);
+            try {
+              const tracks = await spotifyService.getPlaylistTracks(spotifyToken, playlistId);
+              console.log('✅ [SPOTIFY-AI] Playlist rechargée:', tracks.length, 'chansons');
+              setPlaylist(tracks);
+            } catch (error) {
+              console.error('❌ [SPOTIFY-AI] Erreur rechargement playlist:', error);
             }
-          }, { onlyOnce: true });
+          }
         }
       }
     });
 
-    return () => unsubscribe();
-  }, [sessionId, spotifyToken, gameMode]);
+    return () => {
+      console.log('🔇 [SPOTIFY-AI] Arrêt de l\'écoute des mises à jour');
+      unsubscribe();
+    };
+  }, [sessionId, spotifyToken, musicSource]);
 
   // Vérifier le bonus personnel pour un joueur
   const checkPersonalBonus = async (currentSongUri, buzzData) => {
@@ -136,6 +155,7 @@ export function useSpotifyAIMode(spotifyToken, sessionId, gameMode) {
     spotifyPlayer,
     spotifyDeviceId,
     songDuration,
+    playlist,
     loadPlaylistById,
     checkPersonalBonus,
     initSpotifyPlayer
