@@ -23,6 +23,7 @@ export default function MasterWizard({ onComplete }) {
   // États de connexion
   const [user, setUser] = useState(null);
   const [spotifyToken, setSpotifyToken] = useState(null);
+  const [checkingSpotify, setCheckingSpotify] = useState(true);
 
   // États de session
   const [sessionChoice, setSessionChoice] = useState(null); // 'new' | 'continue'
@@ -52,15 +53,33 @@ export default function MasterWizard({ onComplete }) {
   useEffect(() => {
     console.log('🔍 [WIZARD] useEffect chargement token');
     console.log('🔍 [WIZARD] sessionStorage keys:', Object.keys(sessionStorage));
+    setCheckingSpotify(true);
+
     const token = sessionStorage.getItem('spotify_access_token');
+    const tokenExpiry = sessionStorage.getItem('spotify_token_expiry');
+
     console.log('🔍 [WIZARD] Token lu depuis sessionStorage:', token ? token.substring(0, 20) + '...' : 'AUCUN');
 
     if (token) {
-      console.log('✅ [WIZARD] setSpotifyToken appelé');
-      setSpotifyToken(token);
+      // Vérifier si le token est expiré
+      const now = Date.now();
+      const expiry = tokenExpiry ? parseInt(tokenExpiry) : 0;
+
+      if (expiry > now) {
+        console.log('✅ [WIZARD] Token Spotify valide trouvé');
+        const remainingMinutes = Math.floor((expiry - now) / 1000 / 60);
+        console.log(`✅ [WIZARD] Token valide encore ${remainingMinutes} minutes`);
+        setSpotifyToken(token);
+      } else {
+        console.log('⚠️ [WIZARD] Token Spotify expiré, nettoyage...');
+        sessionStorage.removeItem('spotify_access_token');
+        sessionStorage.removeItem('spotify_token_expiry');
+      }
     } else {
       console.log('❌ [WIZARD] Pas de token dans sessionStorage');
     }
+
+    setCheckingSpotify(false);
   }, []);
 
   // Récupérer la dernière session depuis localStorage
@@ -78,6 +97,14 @@ export default function MasterWizard({ onComplete }) {
   };
 
   const canProceedFromConnections = user && spotifyToken;
+
+  // Passer automatiquement à l'étape suivante si déjà connecté
+  useEffect(() => {
+    if (step === 'connections' && user && spotifyToken) {
+      console.log('✅ [WIZARD] Connexions déjà établies, passage automatique à l\'étape choix');
+      setStep('choice');
+    }
+  }, [step, user, spotifyToken]);
 
   // ========== ÉTAPE 2 : NEW OU CONTINUER ==========
 
@@ -357,10 +384,16 @@ export default function MasterWizard({ onComplete }) {
               border: spotifyToken ? '2px solid #10b981' : '2px solid #10b981'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
-                <div style={{ fontSize: '2rem' }}>{spotifyToken ? '✅' : '🎵'}</div>
+                <div style={{ fontSize: '2rem' }}>
+                  {checkingSpotify ? '⏳' : spotifyToken ? '✅' : '🎵'}
+                </div>
                 <h3 style={{ fontSize: '1.25rem', margin: 0 }}>Connexion Spotify</h3>
               </div>
-              {!spotifyToken ? (
+              {checkingSpotify ? (
+                <p style={{ margin: 0, opacity: 0.7, fontSize: '0.9rem' }}>
+                  🔍 Vérification de la connexion existante...
+                </p>
+              ) : !spotifyToken ? (
                 <button
                   onClick={handleSpotifyLogin}
                   style={{
