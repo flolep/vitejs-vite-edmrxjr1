@@ -71,12 +71,16 @@ exports.handler = async (event, context) => {
     });
 
     const responseText = await response.text();
+    console.log(`📥 Réponse brute de n8n (${endpoint}):`, responseText);
+    console.log(`📏 Longueur de la réponse:`, responseText.length);
     let data;
 
     // Parser la réponse (gérer JSON et texte)
     try {
       data = JSON.parse(responseText);
+      console.log(`✅ JSON parsé avec succès:`, data);
     } catch (e) {
+      console.log(`⚠️ Échec du parsing JSON, erreur:`, e.message);
       data = { raw: responseText };
     }
 
