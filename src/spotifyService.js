@@ -62,6 +62,41 @@ export const spotifyService = {
     }
   },
 
+  // Rafraîchir le token avec le refresh_token
+  async refreshAccessToken(refreshToken) {
+    try {
+      console.log('🔄 refreshAccessToken appelé');
+      console.log('🔄 Refresh token:', refreshToken ? refreshToken.substring(0, 20) + '...' : 'MANQUANT');
+
+      const response = await fetch('/.netlify/functions/spotify-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          refreshToken,
+          grantType: 'refresh_token'
+        })
+      });
+
+      console.log('🔄 Réponse fonction Netlify:', response.status, response.statusText);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Erreur refresh token:', response.status, errorText);
+        throw new Error(`Failed to refresh token: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log('🔄 Token rafraîchi avec succès');
+      console.log('🔄 Nouveau access_token:', data.access_token ? data.access_token.substring(0, 20) + '...' : 'MANQUANT');
+      console.log('🔄 Expires in:', data.expires_in, 'secondes');
+
+      return data;
+    } catch (error) {
+      console.error('❌ Error refreshing access token:', error);
+      throw error;
+    }
+  },
+
   // Récupérer les playlists de l'utilisateur
   async getUserPlaylists(accessToken) {
     const response = await fetch('https://api.spotify.com/v1/me/playlists?limit=50', {
