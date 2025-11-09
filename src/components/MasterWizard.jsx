@@ -4,6 +4,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { ref, set, update, onValue } from 'firebase/database';
 import { spotifyService } from '../spotifyService';
 import { n8nService } from '../n8nService';
+import { prepareNewSession } from '../utils/sessionCleanup';
 import Login from './Login';
 
 /**
@@ -182,6 +183,11 @@ export default function MasterWizard({ onComplete }) {
   const createSession = async (source, playModeParam) => {
     setStep('loading');
 
+    // Nettoyer l'ancienne session si elle existe
+    if (lastSessionId) {
+      await prepareNewSession(lastSessionId, false);
+    }
+
     // Créer une nouvelle session
     const newSessionId = Math.random().toString(36).substring(2, 8).toUpperCase();
     setSessionId(newSessionId);
@@ -204,6 +210,8 @@ export default function MasterWizard({ onComplete }) {
 
       await update(ref(database), updates);
       localStorage.setItem('lastSessionId', newSessionId);
+
+      console.log(`✅ Nouvelle session ${newSessionId} créée avec succès`);
 
       // Selon la source, charger/créer la playlist
       if (source === 'spotify-ai') {

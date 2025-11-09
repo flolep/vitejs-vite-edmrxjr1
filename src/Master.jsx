@@ -4,6 +4,7 @@ import { ref, onValue, set, update } from 'firebase/database';
 import { spotifyService } from './spotifyService';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { QRCodeSVG } from 'qrcode.react';
+import { deactivatePreviousSession } from './utils/sessionCleanup';
 
 // Import des hooks
 import { useGameSession } from './hooks/useGameSession';
@@ -429,17 +430,21 @@ export default function Master({
     }, { onlyOnce: true });
   };
 
-  const endGame = () => {
+  const endGame = async () => {
+    // Marquer la partie comme terminée
     const gameStatusRef = ref(database, `sessions/${sessionId}/game_status`);
-    set(gameStatusRef, {
+    await set(gameStatusRef, {
       ended: true,
       winner: scores.team1 > scores.team2 ? 'team1' : scores.team2 > scores.team1 ? 'team2' : 'draw',
       final_scores: scores,
       timestamp: Date.now()
     });
 
+    // Désactiver la session (mais conserver les données)
+    await deactivatePreviousSession(sessionId);
+
     setShowEndGameConfirm(false);
-    setDebugInfo('🎉 Partie terminée !');
+    setDebugInfo('🎉 Partie terminée ! Session désactivée.');
   };
 
   const handleLogout = async () => {
