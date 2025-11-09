@@ -597,8 +597,13 @@ const togglePlay = async () => {
     console.log('🔍 Debug Play - Token:', !!spotifyToken, 'DeviceId:', spotifyDeviceId);
 
     if (!spotifyToken || !spotifyDeviceId) {
-      setDebugInfo('❌ Player Spotify non initialisé');
+      setDebugInfo('⚠️ Spotify non connecté - Veuillez vous reconnecter à Spotify pour lire cette playlist');
       console.error('❌ Manque token ou deviceId:', { token: !!spotifyToken, deviceId: spotifyDeviceId });
+
+      // Réinitialiser isPlaying dans Firebase pour éviter un état incohérent
+      const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
+      set(playingRef, false);
+      setIsPlaying(false);
       return;
     }
 
