@@ -1,23 +1,38 @@
 const admin = require('firebase-admin');
 
+// Variable pour tracker l'état d'initialisation
+let initError = null;
+
 // Initialiser Firebase Admin une seule fois
 if (!admin.apps.length) {
   try {
+    // Vérifier que les variables d'environnement sont présentes
+    if (!process.env.VITE_FIREBASE_PROJECT_ID || !process.env.FIREBASE_ADMIN_CLIENT_EMAIL || !process.env.FIREBASE_ADMIN_PRIVATE_KEY) {
+      throw new Error('Variables d\'environnement Firebase Admin manquantes');
+    }
+
     admin.initializeApp({
       credential: admin.credential.cert({
         projectId: process.env.VITE_FIREBASE_PROJECT_ID,
         clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, '\n')
+        privateKey: process.env.FIREBASE_ADMIN_PRIVATE_KEY.replace(/\\n/g, '\n')
       }),
       databaseURL: process.env.VITE_FIREBASE_DATABASE_URL
     });
     console.log('✅ Firebase Admin initialisé');
   } catch (error) {
     console.error('❌ Erreur initialisation Firebase Admin:', error);
+    initError = error;
   }
 }
 
-const db = admin.database();
+// Fonction pour obtenir la base de données
+function getDatabase() {
+  if (initError) {
+    throw new Error(`Firebase Admin non initialisé: ${initError.message}`);
+  }
+  return admin.database();
+}
 
 exports.handler = async (event) => {
   // CORS headers
@@ -38,6 +53,19 @@ exports.handler = async (event) => {
       statusCode: 405,
       headers,
       body: JSON.stringify({ error: 'Method not allowed' })
+    };
+  }
+
+  // Vérifier que Firebase Admin est initialisé
+  if (initError) {
+    console.error('❌ Firebase Admin non disponible:', initError.message);
+    return {
+      statusCode: 503,
+      headers,
+      body: JSON.stringify({
+        error: 'Service non disponible',
+        details: 'Configuration Firebase Admin manquante. Vérifiez les variables d\'environnement: FIREBASE_ADMIN_CLIENT_EMAIL, FIREBASE_ADMIN_PRIVATE_KEY, VITE_FIREBASE_PROJECT_ID, VITE_FIREBASE_DATABASE_URL'
+      })
     };
   }
 
@@ -89,6 +117,7 @@ exports.handler = async (event) => {
     }
 
     // Vérifier que la session est active
+    const db = getDatabase();
     const sessionRef = db.ref(`sessions/${sessionId}`);
     const sessionSnapshot = await sessionRef.once('value');
     const sessionData = sessionSnapshot.val();
