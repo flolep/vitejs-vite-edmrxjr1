@@ -128,7 +128,7 @@ export default function Master({
   } = useScoring(sessionId, currentTrack, currentChrono, songDuration);
 
   // Hooks spécifiques par mode
-  const mp3Mode = useMP3Mode(playlist, setPlaylist);
+  const mp3Mode = useMP3Mode(playlist, setPlaylist, sessionId);
 
   const spotifyAutoMode = useSpotifyAutoMode(spotifyToken, sessionId);
 
@@ -396,6 +396,11 @@ export default function Master({
     clearBuzz();
     resetChrono();
 
+    // Écrire la durée de la chanson dans Firebase
+    const duration = playlist[newTrackIndex]?.duration || 30;
+    const durationRef = ref(database, `sessions/${sessionId}/songDuration`);
+    set(durationRef, duration);
+
     if (playMode === 'quiz') {
       quizMode.resetQuiz();
     }
@@ -427,6 +432,11 @@ export default function Master({
     setBuzzedTeam(null);
     clearBuzz();
     resetChrono();
+
+    // Écrire la durée de la chanson dans Firebase
+    const duration = playlist[newTrackIndex]?.duration || 30;
+    const durationRef = ref(database, `sessions/${sessionId}/songDuration`);
+    set(durationRef, duration);
 
     if (playMode === 'quiz') {
       quizMode.resetQuiz();
