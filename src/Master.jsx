@@ -188,12 +188,16 @@ export default function Master({
     const unsubscribe = onValue(preferencesRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        const preferencesList = Object.entries(data).map(([id, prefs]) => ({
-          id,
-          ...prefs
-        }));
+        // Filtrer uniquement les joueurs qui sont prêts (ready: true)
+        const preferencesList = Object.entries(data)
+          .filter(([_, prefs]) => prefs.ready === true)
+          .map(([id, prefs]) => ({
+            id,
+            ...prefs
+          }));
         setPlayersPreferences(preferencesList);
-        console.log('📋 Préférences des joueurs:', preferencesList.length, 'joueur(s)');
+        console.log('📋 Préférences des joueurs prêts:', preferencesList.length, 'joueur(s)');
+        console.log('📋 Détail des joueurs:', preferencesList.map(p => p.name).join(', '));
       } else {
         setPlayersPreferences([]);
       }
@@ -244,6 +248,7 @@ export default function Master({
     }));
 
     console.log('📤 Appel n8n avec', players.length, 'joueur(s)');
+    console.log('📤 Détail des joueurs envoyés à n8n:', JSON.stringify(players, null, 2));
 
     // ⚡ Lancer la génération en arrière-plan sans attendre la réponse
     // Cela évite les timeouts de Netlify Functions (10-26 secondes max)
