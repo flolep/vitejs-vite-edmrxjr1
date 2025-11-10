@@ -43,7 +43,7 @@ export function calculatePoints(chrono, songDuration) {
  * Hook pour gérer le système de scoring
  * Logique commune de calcul et attribution des points
  */
-export function useScoring(sessionId, currentTrack, currentChrono, songDuration) {
+export function useScoring(sessionId, currentTrack, currentChrono, songDuration, cooldownConfig = {}) {
 
   /**
    * Ajoute des points à une équipe et enregistre le buzz comme correct
@@ -69,9 +69,9 @@ export function useScoring(sessionId, currentTrack, currentChrono, songDuration)
     // Marquer le dernier buzz comme correct
     await markBuzzAsCorrect(points, hasPersonalBonus, bonusPlayerName);
 
-    // Mettre à jour les stats du joueur
+    // Mettre à jour les stats du joueur avec la config du cooldown
     if (buzzData?.playerFirebaseKey) {
-      await updatePlayerStats(team, buzzData.playerFirebaseKey, true);
+      await updatePlayerStats(team, buzzData.playerFirebaseKey, true, cooldownConfig);
     }
 
     return { newScores, points, hasPersonalBonus, bonusPlayerName };

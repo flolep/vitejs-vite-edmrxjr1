@@ -125,7 +125,10 @@ export default function Master({
     addPointsToTeam,
     markBuzzAsWrong,
     updatePlayerStats
-  } = useScoring(sessionId, currentTrack, currentChrono, songDuration);
+  } = useScoring(sessionId, currentTrack, currentChrono, songDuration, {
+    threshold: cooldownThreshold,
+    duration: cooldownDuration
+  });
 
   // Hooks spécifiques par mode
   const mp3Mode = useMP3Mode(playlist, setPlaylist, sessionId);
