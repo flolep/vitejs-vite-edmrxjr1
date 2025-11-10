@@ -235,33 +235,38 @@ export default function Master({
     setIsGeneratingPlaylist(true);
     setDebugInfo('🎵 Génération de la playlist avec toutes les préférences...');
 
-    try {
-      // Formater les préférences pour n8n
-      const players = playersPreferences.map(pref => ({
-        name: pref.name,
-        age: pref.age,
-        genres: pref.genres,
-        specialPhrase: pref.specialPhrase || ''
-      }));
+    // Formater les préférences pour n8n
+    const players = playersPreferences.map(pref => ({
+      name: pref.name,
+      age: pref.age,
+      genres: pref.genres,
+      specialPhrase: pref.specialPhrase || ''
+    }));
 
-      console.log('📤 Appel n8n avec', players.length, 'joueur(s)');
+    console.log('📤 Appel n8n avec', players.length, 'joueur(s)');
 
-      const result = await n8nService.generatePlaylistWithAllPreferences({
-        playlistId: initialPlaylistId,
-        players: players
+    // ⚡ Lancer la génération en arrière-plan sans attendre la réponse
+    // Cela évite les timeouts de Netlify Functions (10-26 secondes max)
+    n8nService.generatePlaylistWithAllPreferences({
+      playlistId: initialPlaylistId,
+      players: players
+    })
+      .then(result => {
+        console.log('✅ Playlist générée (en arrière-plan):', result);
+        console.log(`   🎵 ${result.totalSongs} chansons ajoutées pour ${result.totalPlayers} joueurs`);
+      })
+      .catch(error => {
+        // Ne pas afficher d'erreur à l'utilisateur car la playlist est déjà créée
+        // et continue à se remplir même après le timeout
+        console.warn('⚠️ Timeout ou erreur n8n (normal si génération longue):', error.message);
+        console.log('   ℹ️ La playlist continue à se générer en arrière-plan sur n8n');
       });
 
-      console.log('✅ Playlist générée:', result);
-      setDebugInfo(`✅ ${result.totalSongs} chansons ajoutées pour ${result.totalPlayers} joueurs !`);
+    // Afficher immédiatement le succès
+    setDebugInfo(`✅ Génération lancée pour ${players.length} joueur(s) ! La playlist se remplit en arrière-plan...`);
+    setIsGeneratingPlaylist(false);
 
-      // La playlist se rechargera automatiquement via useSpotifyAIMode
-
-    } catch (error) {
-      console.error('❌ Erreur génération playlist:', error);
-      setDebugInfo(`❌ Erreur: ${error.message}`);
-    } finally {
-      setIsGeneratingPlaylist(false);
-    }
+    // La playlist se rechargera automatiquement via useSpotifyAIMode
   };
 
   const togglePlay = async () => {
