@@ -266,7 +266,35 @@ export default function Master({
     setDebugInfo(`✅ Génération lancée pour ${players.length} joueur(s) ! La playlist se remplit en arrière-plan...`);
     setIsGeneratingPlaylist(false);
 
-    // La playlist se rechargera automatiquement via useSpotifyAIMode
+    // ⏰ Polling automatique pour recharger la playlist
+    // S'arrête automatiquement quand des chansons sont détectées
+    let pollAttempts = 0;
+    const maxPollAttempts = 10; // 10 tentatives = 2min30
+    const pollInterval = 15000; // 15 secondes
+
+    const pollPlaylist = setInterval(async () => {
+      pollAttempts++;
+      console.log(`🔄 Tentative ${pollAttempts}/${maxPollAttempts} de rechargement de la playlist...`);
+
+      try {
+        const tracks = await spotifyAIMode.loadPlaylistById(initialPlaylistId, setPlaylist);
+
+        if (tracks && tracks.length > 0) {
+          console.log(`✅ Playlist rechargée avec succès : ${tracks.length} chansons détectées`);
+          setDebugInfo(`✅ Playlist mise à jour : ${tracks.length} chansons disponibles !`);
+          clearInterval(pollPlaylist);
+        } else if (pollAttempts >= maxPollAttempts) {
+          console.log('⏱️ Arrêt du polling : nombre max de tentatives atteint');
+          setDebugInfo('⏱️ Génération en cours... Rafraîchissez manuellement si besoin');
+          clearInterval(pollPlaylist);
+        }
+      } catch (error) {
+        console.error('❌ Erreur lors du rechargement:', error);
+        if (pollAttempts >= maxPollAttempts) {
+          clearInterval(pollPlaylist);
+        }
+      }
+    }, pollInterval);
   };
 
   const togglePlay = async () => {
