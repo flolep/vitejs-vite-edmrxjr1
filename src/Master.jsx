@@ -456,6 +456,43 @@ export default function Master({
     }
   };
 
+  const jumpToTrack = (trackIndex) => {
+    if (trackIndex < 0 || trackIndex >= playlist.length) return;
+    if (trackIndex === currentTrack) return;
+
+    if (playerAdapter) {
+      playerAdapter.pause().catch(console.error);
+    }
+
+    updateCurrentTrack(trackIndex);
+    updateIsPlaying(false);
+    setBuzzedTeam(null);
+    clearBuzz();
+    resetChrono();
+
+    // Écrire la durée de la chanson dans Firebase
+    const duration = playlist[trackIndex]?.duration || 30;
+    const durationRef = ref(database, `sessions/${sessionId}/songDuration`);
+    set(durationRef, duration);
+
+    if (playMode === 'quiz') {
+      quizMode.resetQuiz();
+    }
+
+    updateCurrentSong({
+      title: '',
+      artist: '',
+      imageUrl: null,
+      revealed: false,
+      number: trackIndex + 1
+    });
+
+    // Charger l'audio en mode MP3
+    if (musicSource === 'mp3' && playerAdapter) {
+      playerAdapter.loadTrack(playlist[trackIndex]);
+    }
+  };
+
   const revealAnswer = async () => {
     // Marquer le buzz comme incorrect
     await markBuzzAsWrong();
@@ -872,12 +909,27 @@ export default function Master({
                 {playlist.map((track, index) => (
                   <div
                     key={index}
+                    onClick={() => jumpToTrack(index)}
                     style={{
                       padding: '0.6rem',
                       marginBottom: '0.4rem',
                       backgroundColor: index === currentTrack ? 'rgba(124, 58, 237, 0.4)' : 'rgba(255, 255, 255, 0.05)',
                       borderRadius: '0.5rem',
-                      opacity: track.revealed ? 0.4 : 1
+                      opacity: track.revealed ? 0.4 : 1,
+                      cursor: 'pointer',
+                      transition: 'transform 0.15s ease, opacity 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (index !== currentTrack) {
+                        e.currentTarget.style.backgroundColor = 'rgba(124, 58, 237, 0.2)';
+                        e.currentTarget.style.transform = 'translateX(4px)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (index !== currentTrack) {
+                        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                        e.currentTarget.style.transform = 'translateX(0)';
+                      }
                     }}
                   >
                     <div style={{ fontWeight: '500' }}>
