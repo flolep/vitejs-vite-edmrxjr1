@@ -71,6 +71,7 @@ export default function Master({
   // États préférences joueurs (mode Spotify IA)
   const [playersPreferences, setPlayersPreferences] = useState([]);
   const [isGeneratingPlaylist, setIsGeneratingPlaylist] = useState(false);
+  const [playlistPollAttempt, setPlaylistPollAttempt] = useState(0);
 
   // Déterminer le token initial
   const getInitialToken = () => {
@@ -269,7 +270,8 @@ export default function Master({
 
     // Afficher immédiatement le succès
     setDebugInfo(`✅ Génération lancée pour ${players.length} joueur(s) ! La playlist se remplit en arrière-plan...`);
-    setIsGeneratingPlaylist(false);
+    setPlaylistPollAttempt(0);
+    // On garde isGeneratingPlaylist à true pendant le polling
 
     // ⏰ Polling automatique pour recharger la playlist
     // S'arrête automatiquement quand des chansons sont détectées
@@ -279,6 +281,7 @@ export default function Master({
 
     const pollPlaylist = setInterval(async () => {
       pollAttempts++;
+      setPlaylistPollAttempt(pollAttempts);
       console.log(`🔄 Tentative ${pollAttempts}/${maxPollAttempts} de rechargement de la playlist...`);
 
       try {
@@ -287,15 +290,21 @@ export default function Master({
         if (tracks && tracks.length > 0) {
           console.log(`✅ Playlist rechargée avec succès : ${tracks.length} chansons détectées`);
           setDebugInfo(`✅ Playlist mise à jour : ${tracks.length} chansons disponibles !`);
+          setIsGeneratingPlaylist(false);
+          setPlaylistPollAttempt(0);
           clearInterval(pollPlaylist);
         } else if (pollAttempts >= maxPollAttempts) {
           console.log('⏱️ Arrêt du polling : nombre max de tentatives atteint');
           setDebugInfo('⏱️ Génération en cours... Rafraîchissez manuellement si besoin');
+          setIsGeneratingPlaylist(false);
+          setPlaylistPollAttempt(0);
           clearInterval(pollPlaylist);
         }
       } catch (error) {
         console.error('❌ Erreur lors du rechargement:', error);
         if (pollAttempts >= maxPollAttempts) {
+          setIsGeneratingPlaylist(false);
+          setPlaylistPollAttempt(0);
           clearInterval(pollPlaylist);
         }
       }
@@ -806,7 +815,10 @@ export default function Master({
                   fontWeight: '500'
                 }}
               >
-                {isGeneratingPlaylist ? '⏳ Génération en cours...' : '🎵 Générer la playlist'}
+                {isGeneratingPlaylist
+                  ? `⏳ Génération en cours... ${playlistPollAttempt > 0 ? `(vérification ${playlistPollAttempt}/10)` : ''}`
+                  : '🎵 Générer la playlist'
+                }
               </button>
             </div>
           )}
