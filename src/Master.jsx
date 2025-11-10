@@ -732,9 +732,21 @@ export default function Master({
                     backgroundColor: 'rgba(255, 255, 255, 0.05)',
                     borderRadius: '0.375rem'
                   }}>
-                    <div style={{ fontWeight: '500', color: '#ec4899', marginBottom: '0.25rem' }}>
-                      {pref.photo && <span style={{ marginRight: '0.25rem' }}>{pref.photo}</span>}
-                      {pref.name}
+                    <div style={{ fontWeight: '500', color: '#ec4899', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      {pref.photo && (
+                        <img
+                          src={pref.photo}
+                          alt={pref.name}
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            objectFit: 'cover',
+                            border: '2px solid #ec4899'
+                          }}
+                        />
+                      )}
+                      <span>{pref.name}</span>
                     </div>
                     <div style={{ fontSize: '0.7rem', opacity: 0.7 }}>
                       {pref.age} ans • {pref.genres.join(', ')}
