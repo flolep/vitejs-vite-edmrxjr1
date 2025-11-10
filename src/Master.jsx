@@ -312,8 +312,55 @@ export default function Master({
   };
 
   const togglePlay = async () => {
-    if (!sessionId || !playerAdapter) {
-      setDebugInfo('❌ Aucune session ou player non initialisé');
+    if (!sessionId) {
+      setDebugInfo('❌ Aucune session');
+      return;
+    }
+
+    // Vérification spécifique pour Spotify
+    if ((musicSource === 'spotify-auto' || musicSource === 'spotify-ai') && !spotifyToken) {
+      setDebugInfo('⚠️ Spotify non connecté - Veuillez vous reconnecter à Spotify pour lire cette playlist');
+      console.error('❌ Token Spotify manquant');
+      updateIsPlaying(false);
+      return;
+    }
+
+    // Si en mode Spotify et player/deviceId manquant, tenter réinitialisation
+    if ((musicSource === 'spotify-auto' || musicSource === 'spotify-ai') && !playerAdapter) {
+      console.log('⚠️ Player non initialisé, tentative de réinitialisation...');
+      setDebugInfo('⏳ Initialisation du player Spotify...');
+
+      try {
+        // Réinitialiser le player selon le mode
+        if (musicSource === 'spotify-auto') {
+          await spotifyAutoMode.initSpotifyPlayer();
+        } else if (musicSource === 'spotify-ai') {
+          await spotifyAIMode.initSpotifyPlayer();
+        }
+
+        // Attendre que le playerAdapter soit créé (max 5 secondes)
+        const startTime = Date.now();
+        while (!playerAdapter && (Date.now() - startTime) < 5000) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
+        if (!playerAdapter) {
+          setDebugInfo('❌ Impossible d\'initialiser le player Spotify. Rafraîchissez la page et reconnectez-vous.');
+          updateIsPlaying(false);
+          return;
+        }
+
+        setDebugInfo('✅ Player Spotify initialisé');
+      } catch (error) {
+        console.error('❌ Erreur initialisation player:', error);
+        setDebugInfo('❌ Erreur initialisation Spotify. Rafraîchissez la page et reconnectez-vous.');
+        updateIsPlaying(false);
+        return;
+      }
+    }
+
+    if (!playerAdapter) {
+      setDebugInfo('❌ Player non initialisé');
       return;
     }
 
@@ -354,6 +401,8 @@ export default function Master({
     } catch (error) {
       console.error('Erreur lecture:', error);
       setDebugInfo(`❌ Erreur: ${error.message}`);
+      // Réinitialiser isPlaying en cas d'erreur
+      updateIsPlaying(false);
     }
   };
 
@@ -534,23 +583,8 @@ export default function Master({
   };
 
   const addPoint = async (team) => {
-    // Vérifier le bonus personnel en mode IA
-    let bonusInfo = null;
-    if (musicSource === 'spotify-ai') {
-      const currentSongUri = playlist[currentTrack]?.spotifyUri;
-      const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
-      const buzzSnapshot = await new Promise((resolve) => {
-        onValue(buzzRef, resolve, { onlyOnce: true });
-      });
-      const buzzData = buzzSnapshot.val();
-
-      if (currentSongUri && buzzData) {
-        bonusInfo = await spotifyAIMode.checkPersonalBonus(currentSongUri, buzzData);
-      }
-    }
-
-    // Ajouter les points
-    const result = await addPointsToTeam(team, scores, playlist, { team }, bonusInfo);
+    // Ajouter les points (sans bonus personnel)
+    const result = await addPointsToTeam(team, scores, playlist, { team });
 
     updateScores(result.newScores);
 
@@ -568,10 +602,7 @@ export default function Master({
     });
 
     const teamName = team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2';
-    const bonusText = result.hasPersonalBonus
-      ? ` (dont 🎯 BONUS PERSONNEL +500 pour ${result.bonusPlayerName})`
-      : '';
-    setDebugInfo(`✅ ${result.points} points pour ${teamName}${bonusText}`);
+    setDebugInfo(`✅ ${result.points} points pour ${teamName}`);
   };
 
   const loadBuzzStats = (shouldShow = true) => {
