@@ -188,12 +188,16 @@ export default function Master({
     const unsubscribe = onValue(preferencesRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        const preferencesList = Object.entries(data).map(([id, prefs]) => ({
-          id,
-          ...prefs
-        }));
+        // Filtrer uniquement les joueurs qui sont prêts (ready: true)
+        const preferencesList = Object.entries(data)
+          .filter(([_, prefs]) => prefs.ready === true)
+          .map(([id, prefs]) => ({
+            id,
+            ...prefs
+          }));
         setPlayersPreferences(preferencesList);
-        console.log('📋 Préférences des joueurs:', preferencesList.length, 'joueur(s)');
+        console.log('📋 Préférences des joueurs prêts:', preferencesList.length, 'joueur(s)');
+        console.log('📋 Détail des joueurs:', preferencesList.map(p => p.name).join(', '));
       } else {
         setPlayersPreferences([]);
       }
@@ -235,33 +239,67 @@ export default function Master({
     setIsGeneratingPlaylist(true);
     setDebugInfo('🎵 Génération de la playlist avec toutes les préférences...');
 
-    try {
-      // Formater les préférences pour n8n
-      const players = playersPreferences.map(pref => ({
-        name: pref.name,
-        age: pref.age,
-        genres: pref.genres,
-        specialPhrase: pref.specialPhrase || ''
-      }));
+    // Formater les préférences pour n8n
+    const players = playersPreferences.map(pref => ({
+      name: pref.name,
+      age: pref.age,
+      genres: pref.genres,
+      specialPhrase: pref.specialPhrase || ''
+    }));
 
-      console.log('📤 Appel n8n avec', players.length, 'joueur(s)');
+    console.log('📤 Appel n8n avec', players.length, 'joueur(s)');
+    console.log('📤 Détail des joueurs envoyés à n8n:', JSON.stringify(players, null, 2));
 
-      const result = await n8nService.generatePlaylistWithAllPreferences({
-        playlistId: initialPlaylistId,
-        players: players
+    // ⚡ Lancer la génération en arrière-plan sans attendre la réponse
+    // Cela évite les timeouts de Netlify Functions (10-26 secondes max)
+    n8nService.generatePlaylistWithAllPreferences({
+      playlistId: initialPlaylistId,
+      players: players
+    })
+      .then(result => {
+        console.log('✅ Playlist générée (en arrière-plan):', result);
+        console.log(`   🎵 ${result.totalSongs} chansons ajoutées pour ${result.totalPlayers} joueurs`);
+      })
+      .catch(error => {
+        // Ne pas afficher d'erreur à l'utilisateur car la playlist est déjà créée
+        // et continue à se remplir même après le timeout
+        console.warn('⚠️ Timeout ou erreur n8n (normal si génération longue):', error.message);
+        console.log('   ℹ️ La playlist continue à se générer en arrière-plan sur n8n');
       });
 
-      console.log('✅ Playlist générée:', result);
-      setDebugInfo(`✅ ${result.totalSongs} chansons ajoutées pour ${result.totalPlayers} joueurs !`);
+    // Afficher immédiatement le succès
+    setDebugInfo(`✅ Génération lancée pour ${players.length} joueur(s) ! La playlist se remplit en arrière-plan...`);
+    setIsGeneratingPlaylist(false);
 
-      // La playlist se rechargera automatiquement via useSpotifyAIMode
+    // ⏰ Polling automatique pour recharger la playlist
+    // S'arrête automatiquement quand des chansons sont détectées
+    let pollAttempts = 0;
+    const maxPollAttempts = 10; // 10 tentatives = 2min30
+    const pollInterval = 15000; // 15 secondes
 
-    } catch (error) {
-      console.error('❌ Erreur génération playlist:', error);
-      setDebugInfo(`❌ Erreur: ${error.message}`);
-    } finally {
-      setIsGeneratingPlaylist(false);
-    }
+    const pollPlaylist = setInterval(async () => {
+      pollAttempts++;
+      console.log(`🔄 Tentative ${pollAttempts}/${maxPollAttempts} de rechargement de la playlist...`);
+
+      try {
+        const tracks = await spotifyAIMode.loadPlaylistById(initialPlaylistId, setPlaylist);
+
+        if (tracks && tracks.length > 0) {
+          console.log(`✅ Playlist rechargée avec succès : ${tracks.length} chansons détectées`);
+          setDebugInfo(`✅ Playlist mise à jour : ${tracks.length} chansons disponibles !`);
+          clearInterval(pollPlaylist);
+        } else if (pollAttempts >= maxPollAttempts) {
+          console.log('⏱️ Arrêt du polling : nombre max de tentatives atteint');
+          setDebugInfo('⏱️ Génération en cours... Rafraîchissez manuellement si besoin');
+          clearInterval(pollPlaylist);
+        }
+      } catch (error) {
+        console.error('❌ Erreur lors du rechargement:', error);
+        if (pollAttempts >= maxPollAttempts) {
+          clearInterval(pollPlaylist);
+        }
+      }
+    }, pollInterval);
   };
 
   const togglePlay = async () => {
@@ -727,9 +765,21 @@ export default function Master({
                     backgroundColor: 'rgba(255, 255, 255, 0.05)',
                     borderRadius: '0.375rem'
                   }}>
-                    <div style={{ fontWeight: '500', color: '#ec4899', marginBottom: '0.25rem' }}>
-                      {pref.photo && <span style={{ marginRight: '0.25rem' }}>{pref.photo}</span>}
-                      {pref.name}
+                    <div style={{ fontWeight: '500', color: '#ec4899', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      {pref.photo && (
+                        <img
+                          src={pref.photo}
+                          alt={pref.name}
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            objectFit: 'cover',
+                            border: '2px solid #ec4899'
+                          }}
+                        />
+                      )}
+                      <span>{pref.name}</span>
                     </div>
                     <div style={{ fontSize: '0.7rem', opacity: 0.7 }}>
                       {pref.age} ans • {pref.genres.join(', ')}
