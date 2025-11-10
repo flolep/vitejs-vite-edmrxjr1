@@ -586,8 +586,15 @@ export default function Master({
   };
 
   const addPoint = async (team) => {
+    // Récupérer les données du buzz pour avoir le playerFirebaseKey
+    const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
+    const buzzSnapshot = await new Promise((resolve) => {
+      onValue(buzzRef, resolve, { onlyOnce: true });
+    });
+    const buzzData = buzzSnapshot.val();
+
     // Ajouter les points (sans bonus personnel)
-    const result = await addPointsToTeam(team, scores, playlist, { team });
+    const result = await addPointsToTeam(team, scores, playlist, buzzData || { team });
 
     updateScores(result.newScores);
 
