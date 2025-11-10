@@ -684,7 +684,14 @@ const selectTeam = async (teamNumber) => {
 };
 
 const handleBuzz = async () => {
-  if (!buzzerEnabled || someoneBuzzed || !isPlaying) return;
+  // Vérifier le cooldown AVANT de buzzer
+  const isInCooldown = cooldownEnd && cooldownEnd > Date.now();
+  if (!buzzerEnabled || someoneBuzzed || !isPlaying || isInCooldown) {
+    if (isInCooldown) {
+      console.log('🔥 Buzz bloqué : cooldown actif');
+    }
+    return;
+  }
 
   setBuzzed(true);
   setBuzzerEnabled(false);
