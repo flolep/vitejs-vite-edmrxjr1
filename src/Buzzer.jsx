@@ -254,23 +254,30 @@ export default function Buzzer() {
 
       if (sessionParam) {
         // Vérifier localStorage : si session différente, nettoyer
-        const storedData = loadFromLocalStorage();
+        let storedData = loadFromLocalStorage();
         if (storedData && storedData.sessionId && storedData.sessionId !== sessionParam) {
           console.log('🔄 Nouvelle session détectée, nettoyage du localStorage');
           clearLocalStorage();
+          storedData = null; // Clear the reference
         }
 
         setSessionId(sessionParam);
-        await verifySession(sessionParam);
 
-        // Tenter reconnexion automatique si même session
+        // ✅ TENTER RECONNEXION D'ABORD (avant verifySession)
+        // Si nous avons des données pour cette session, essayer de se reconnecter
         if (storedData && storedData.sessionId === sessionParam) {
+          console.log('🔄 Données de session trouvées, tentative de reconnexion...');
           const reconnected = await attemptAutoReconnect(storedData);
           if (reconnected) {
             console.log('✅ Reconnexion automatique réussie');
-            return; // Skip le reste du flux
+            return; // Skip verifySession et le reste du flux
           }
+          console.log('⚠️ Reconnexion échouée, redémarrage du flux');
+          // localStorage est déjà nettoyé par attemptAutoReconnect en cas d'échec
         }
+
+        // Seulement vérifier la session si on ne reconnecte pas, ou si la reconnexion a échoué
+        await verifySession(sessionParam);
       }
     };
 
@@ -651,35 +658,63 @@ export default function Buzzer() {
   };
 
 const selectTeam = async (teamNumber) => {
-  setTeam(teamNumber);
-  setStep('game');
-
   const teamKey = `team${teamNumber}`;
-  const newPlayerKey = `player_${Date.now()}`; // ✅ Clé unique
-  const playerRef = ref(database, `sessions/${sessionId}/players_session/${teamKey}/${newPlayerKey}`);
+  const playersRef = ref(database, `sessions/${sessionId}/players_session/${teamKey}`);
 
   try {
+    // ✅ VÉRIFIER SI UN JOUEUR AVEC LE MÊME NOM EXISTE DÉJÀ
+    const snapshot = await new Promise((resolve) => {
+      onValue(playersRef, resolve, { onlyOnce: true });
+    });
+
+    const existingPlayers = snapshot.val() || {};
+    const currentPlayerName = selectedPlayer?.name || playerName;
+
+    // Chercher un joueur existant avec le même nom
+    let existingPlayerKey = null;
+    for (const [key, player] of Object.entries(existingPlayers)) {
+      if (player.name === currentPlayerName) {
+        existingPlayerKey = key;
+        console.log('⚠️ Joueur existant trouvé:', currentPlayerName, 'clé:', key);
+        break;
+      }
+    }
+
+    // Si un joueur existe déjà, réutiliser sa clé
+    const playerKey = existingPlayerKey || `player_${Date.now()}`;
+    const playerRef = ref(database, `sessions/${sessionId}/players_session/${teamKey}/${playerKey}`);
+
     const playerData = {
       id: selectedPlayer?.id || `temp_${playerName}`,
-      name: selectedPlayer?.name || playerName,
+      name: currentPlayerName,
       photo: selectedPlayer?.photo || photoData || null,
       status: 'idle',
       cooldownEnd: null,
       hasCooldownPending: false,
-      buzzCount: 0,
-      correctCount: 0,
-      consecutiveCorrect: 0,
-      joinedAt: Date.now()
+      buzzCount: existingPlayerKey ? existingPlayers[existingPlayerKey].buzzCount || 0 : 0,
+      correctCount: existingPlayerKey ? existingPlayers[existingPlayerKey].correctCount || 0 : 0,
+      consecutiveCorrect: 0, // Reset streak when rejoining
+      joinedAt: existingPlayerKey ? existingPlayers[existingPlayerKey].joinedAt : Date.now()
     };
 
     await set(playerRef, playerData);
-    setPlayerFirebaseKey(newPlayerKey); // ✅ Stocker la clé
-    console.log('✅ Joueur enregistré:', playerData.name, 'dans', teamKey, 'clé:', newPlayerKey);
+    setPlayerFirebaseKey(playerKey);
+    setTeam(teamNumber);
+    setStep('game');
+
+    if (existingPlayerKey) {
+      console.log('✅ Joueur reconnecté:', playerData.name, 'dans', teamKey, 'clé:', playerKey);
+    } else {
+      console.log('✅ Nouveau joueur enregistré:', playerData.name, 'dans', teamKey, 'clé:', playerKey);
+    }
 
     // Sauvegarder l'équipe et la clé Firebase
-    saveToLocalStorage({ team: teamNumber, playerFirebaseKey: newPlayerKey });
+    saveToLocalStorage({ team: teamNumber, playerFirebaseKey: playerKey });
   } catch (error) {
     console.error('❌ Erreur enregistrement joueur:', error);
+    // En cas d'erreur, continuer quand même
+    setTeam(teamNumber);
+    setStep('game');
   }
 };
 
