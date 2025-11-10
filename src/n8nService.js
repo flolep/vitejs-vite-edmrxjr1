@@ -152,8 +152,11 @@ export const n8nService = {
   },
 
   /**
+   * ⚠️ DÉPRÉCIÉ: Utilisé uniquement pour le mode individuel (ancien workflow)
+   * Préférez generatePlaylistWithAllPreferences() pour générer avec tous les joueurs
+   *
    * Remplit une playlist Spotify avec des chansons générées par IA
-   * Basé sur les préférences du joueur (âge, genres musicaux, etc.)
+   * Basé sur les préférences d'UN SEUL joueur (âge, genres musicaux, etc.)
    * @param {object} params - Les paramètres
    * @param {string} params.playlistId - ID de la playlist à remplir (créée précédemment)
    * @param {number} params.age - Âge du joueur
@@ -205,6 +208,161 @@ export const n8nService = {
       return data;
     } catch (error) {
       console.error('❌ Erreur remplissage playlist IA:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Génère une playlist Quiz avec questions à choix multiples
+   * Chaque chanson est accompagnée de 3 mauvaises réponses (faux titre ou artiste)
+   * @param {object} params - Les paramètres
+   * @param {string} params.playlistId - ID de la playlist à remplir
+   * @param {number} params.age - Âge du joueur
+   * @param {array} params.genres - Liste de 3 genres musicaux favoris
+   * @param {string} params.genre1Preferences - Préférences détaillées (optionnel)
+   * @param {string} params.genre2Preferences - Préférences détaillées (optionnel)
+   * @param {string} params.genre3Preferences - Préférences détaillées (optionnel)
+   * @returns {Promise<{success: boolean, playlistId: string, totalSongs: number, songs: array}>}
+   */
+  async fillPlaylistQuizMode({
+    playlistId,
+    age,
+    genres,
+    genre1Preferences = '',
+    genre2Preferences = '',
+    genre3Preferences = ''
+  }) {
+    try {
+      const payload = {
+        playlistId: playlistId,
+        age: age,
+        genres: genres,
+        genre1Preferences: genre1Preferences,
+        genre2Preferences: genre2Preferences,
+        genre3Preferences: genre3Preferences
+      };
+
+      console.log('🎯 Génération playlist Quiz via n8n:', payload);
+
+      const response = await fetch(N8N_PROXY_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          endpoint: 'blindtest-quiz-mode',
+          payload: payload
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`n8n proxy error: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ Playlist Quiz générée:', data);
+
+      // Format attendu de la réponse:
+      // {
+      //   success: true,
+      //   playlistId: "xxx",
+      //   totalSongs: 10,
+      //   songs: [
+      //     {
+      //       uri: "spotify:track:xxx",
+      //       title: "Song Title",
+      //       artist: "Artist Name",
+      //       correctAnswer: "Song Title - Artist Name",
+      //       wrongAnswers: ["Wrong 1", "Wrong 2", "Wrong 3"],
+      //       allAnswers: ["Correct", "Wrong 1", "Wrong 2", "Wrong 3"] // Mélangées
+      //     }
+      //   ]
+      // }
+
+      return data;
+    } catch (error) {
+      console.error('❌ Erreur génération playlist Quiz:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * 🆕 NOUVEAU : Génère une playlist avec toutes les préférences de tous les joueurs
+   * Envoie toutes les préférences en une seule fois à n8n pour une génération globale
+   * @param {object} params - Les paramètres
+   * @param {string} params.playlistId - ID de la playlist à remplir (créée précédemment)
+   * @param {array} params.players - Tableau des joueurs avec leurs préférences
+   *   Chaque joueur doit avoir : { name, age, genres, specialPhrase }
+   * @returns {Promise<{success: boolean, playlistId: string, totalSongs: number, totalPlayers: number, songs: array}>}
+   *
+   * Exemple d'utilisation :
+   * await n8nService.generatePlaylistWithAllPreferences({
+   *   playlistId: "spotify_playlist_id",
+   *   players: [
+   *     { name: "John", age: 25, genres: ["Pop", "Rock"], specialPhrase: "J'aime danser" },
+   *     { name: "Marie", age: 30, genres: ["Jazz", "Soul"], specialPhrase: "Smooth vibes" }
+   *   ]
+   * });
+   */
+  async generatePlaylistWithAllPreferences({ playlistId, players }) {
+    try {
+      // Validation
+      if (!playlistId) {
+        throw new Error('playlistId est requis');
+      }
+
+      if (!Array.isArray(players) || players.length === 0) {
+        throw new Error('players doit être un tableau non vide');
+      }
+
+      // Valider chaque joueur
+      players.forEach((player, index) => {
+        if (!player.name) {
+          throw new Error(`Le joueur ${index + 1} doit avoir un nom`);
+        }
+        if (!player.age || typeof player.age !== 'number') {
+          throw new Error(`Le joueur ${index + 1} (${player.name}) doit avoir un âge valide`);
+        }
+        if (!Array.isArray(player.genres) || player.genres.length === 0) {
+          throw new Error(`Le joueur ${index + 1} (${player.name}) doit avoir au moins un genre`);
+        }
+      });
+
+      const payload = {
+        playlistId: playlistId,
+        players: players
+      };
+
+      console.log('🎵 Génération playlist GROUPÉE via n8n:');
+      console.log(`   📊 ${players.length} joueur(s)`);
+      console.log(`   🎼 Genres: ${[...new Set(players.flatMap(p => p.genres))].join(', ')}`);
+      console.log(`   👥 Âges: ${Math.min(...players.map(p => p.age))}-${Math.max(...players.map(p => p.age))} ans`);
+
+      const response = await fetch(N8N_PROXY_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          endpoint: 'blindtest-batch-playlist',
+          payload: payload
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`n8n proxy error: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ Playlist générée avec succès:');
+      console.log(`   🎵 ${data.totalSongs} chansons ajoutées`);
+      console.log(`   👥 ${data.totalPlayers} joueurs satisfaits`);
+
+      return data;
+    } catch (error) {
+      console.error('❌ Erreur génération playlist groupée:', error);
       throw error;
     }
   }

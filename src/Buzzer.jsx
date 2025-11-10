@@ -25,6 +25,7 @@ export default function Buzzer() {
   const [isSearching, setIsSearching] = useState(false);
   const [photoData, setPhotoData] = useState(null);
   const [error, setError] = useState('');
+  const [isReconnecting, setIsReconnecting] = useState(false);
 
   // NOUVEAUX états pour préférences joueur
   const [playerAge, setPlayerAge] = useState('');
@@ -34,7 +35,7 @@ export default function Buzzer() {
 
   // Changement d'équipe - NOUVEAU
   const [playerFirebaseKey, setPlayerFirebaseKey] = useState(null);
-  
+
   // Cooldown states
   const [cooldownEnd, setCooldownEnd] = useState(null);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
@@ -80,28 +81,231 @@ export default function Buzzer() {
     buzzerSoundRef.current = { play: playBuzzerSound };
   }, []);
 
-  // Vérifier le code de session depuis l'URL
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const sessionParam = urlParams.get('session');
-    if (sessionParam) {
-      setSessionId(sessionParam);
-      verifySession(sessionParam);
+  // ========== FONCTIONS LOCALSTORAGE ==========
+
+  const STORAGE_KEY = 'buzzer_session_data';
+
+  // Sauvegarder l'état dans localStorage
+  const saveToLocalStorage = (data) => {
+    try {
+      // Récupérer les données existantes pour préserver certains flags
+      const existing = localStorage.getItem(STORAGE_KEY);
+      const existingData = existing ? JSON.parse(existing) : {};
+
+      const toSave = {
+        sessionId: data.sessionId || sessionId,
+        playerName: data.playerName || playerName,
+        selectedPlayer: data.selectedPlayer || selectedPlayer,
+        team: data.team !== undefined ? data.team : team,
+        playerFirebaseKey: data.playerFirebaseKey || playerFirebaseKey,
+        playerAge: data.playerAge || playerAge,
+        selectedGenres: data.selectedGenres || selectedGenres,
+        specialPhrase: data.specialPhrase || specialPhrase,
+        photoData: data.photoData || photoData,
+        gameAlreadyStarted: data.gameAlreadyStarted !== undefined ? data.gameAlreadyStarted : existingData.gameAlreadyStarted || false,
+        timestamp: Date.now()
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+      console.log('✅ Session sauvegardée dans localStorage');
+    } catch (err) {
+      console.error('❌ Erreur sauvegarde localStorage:', err);
     }
+  };
+
+  // Charger l'état depuis localStorage
+  const loadFromLocalStorage = () => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const data = JSON.parse(stored);
+        // Vérifier que les données ne sont pas trop anciennes (3h max)
+        const age = Date.now() - (data.timestamp || 0);
+        if (age > 3 * 60 * 60 * 1000) {
+          console.log('⚠️ Données localStorage trop anciennes, suppression');
+          localStorage.removeItem(STORAGE_KEY);
+          return null;
+        }
+        console.log('✅ Données trouvées dans localStorage:', data);
+        return data;
+      }
+    } catch (err) {
+      console.error('❌ Erreur lecture localStorage:', err);
+    }
+    return null;
+  };
+
+  // Nettoyer localStorage
+  const clearLocalStorage = () => {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+      console.log('✅ localStorage nettoyé');
+    } catch (err) {
+      console.error('❌ Erreur nettoyage localStorage:', err);
+    }
+  };
+
+  // Tentative de reconnexion automatique
+  const attemptAutoReconnect = async (storedData) => {
+    console.log('🔄 Tentative de reconnexion automatique...');
+    setIsReconnecting(true);
+
+    try {
+      // Vérifier que la session existe toujours dans Firebase
+      const sessionRef = ref(database, `sessions/${storedData.sessionId}`);
+
+      return new Promise((resolve) => {
+        onValue(sessionRef, async (snapshot) => {
+          if (!snapshot.exists() || !snapshot.val().active) {
+            console.log('❌ Session expirée ou inactive');
+            clearLocalStorage();
+            setIsReconnecting(false);
+            resolve(false);
+            return;
+          }
+
+          console.log('✅ Session toujours active');
+
+          // Vérifier que le joueur existe toujours dans son équipe
+          if (storedData.team && storedData.playerFirebaseKey) {
+            const teamKey = `team${storedData.team}`;
+            const playerRef = ref(database, `sessions/${storedData.sessionId}/players_session/${teamKey}/${storedData.playerFirebaseKey}`);
+
+            onValue(playerRef, async (playerSnapshot) => {
+
+              if (!playerSnapshot.exists()) {
+                // Le joueur n'existe plus, il faut le recréer
+                console.log('⚠️ Joueur non trouvé dans l\'équipe, recréation...');
+
+                try {
+                  const playerData = {
+                    id: storedData.selectedPlayer?.id || `temp_${storedData.playerName}`,
+                    name: storedData.selectedPlayer?.name || storedData.playerName,
+                    photo: storedData.selectedPlayer?.photo || storedData.photoData || null,
+                    status: 'idle',
+                    cooldownEnd: null,
+                    hasCooldownPending: false,
+                    buzzCount: 0,
+                    correctCount: 0,
+                    consecutiveCorrect: 0,
+                    joinedAt: Date.now()
+                  };
+
+                  await set(playerRef, playerData);
+                  console.log('✅ Joueur recréé dans l\'équipe');
+                } catch (err) {
+                  console.error('❌ Erreur recréation joueur:', err);
+                  setIsReconnecting(false);
+                  resolve(false);
+                  return;
+                }
+              } else {
+                console.log('✅ Joueur trouvé dans l\'équipe');
+              }
+
+              // Restaurer tous les états
+              setSessionId(storedData.sessionId);
+              setSessionValid(true);
+              setPlayerName(storedData.playerName);
+              setSelectedPlayer(storedData.selectedPlayer);
+              setTeam(storedData.team);
+              setPlayerFirebaseKey(storedData.playerFirebaseKey);
+              setPlayerAge(storedData.playerAge);
+              setSelectedGenres(storedData.selectedGenres || []);
+              setSpecialPhrase(storedData.specialPhrase || '');
+              setPhotoData(storedData.photoData);
+              setStep('game');
+
+              console.log('✅ Reconnexion automatique réussie !');
+              setIsReconnecting(false);
+              resolve(true);
+            }, { onlyOnce: true });
+          } else {
+            // Pas d'équipe, on revient à l'étape de sélection d'équipe
+            setSessionId(storedData.sessionId);
+            setSessionValid(true);
+            setPlayerName(storedData.playerName);
+            setSelectedPlayer(storedData.selectedPlayer);
+            setPlayerAge(storedData.playerAge);
+            setSelectedGenres(storedData.selectedGenres || []);
+            setSpecialPhrase(storedData.specialPhrase || '');
+            setPhotoData(storedData.photoData);
+            setStep('team');
+
+            console.log('✅ Reconnexion partielle (choix équipe nécessaire)');
+            setIsReconnecting(false);
+            resolve(true);
+          }
+        }, { onlyOnce: true });
+      });
+    } catch (err) {
+      console.error('❌ Erreur reconnexion automatique:', err);
+      clearLocalStorage();
+      setIsReconnecting(false);
+      return false;
+    }
+  };
+
+  // Vérifier le code de session depuis l'URL et gérer la reconnexion
+  useEffect(() => {
+    const init = async () => {
+      // Vérifier l'URL pour le sessionId
+      const urlParams = new URLSearchParams(window.location.search);
+      const sessionParam = urlParams.get('session');
+
+      if (sessionParam) {
+        // Vérifier localStorage : si session différente, nettoyer
+        const storedData = loadFromLocalStorage();
+        if (storedData && storedData.sessionId && storedData.sessionId !== sessionParam) {
+          console.log('🔄 Nouvelle session détectée, nettoyage du localStorage');
+          clearLocalStorage();
+        }
+
+        setSessionId(sessionParam);
+        await verifySession(sessionParam);
+
+        // Tenter reconnexion automatique si même session
+        if (storedData && storedData.sessionId === sessionParam) {
+          const reconnected = await attemptAutoReconnect(storedData);
+          if (reconnected) {
+            console.log('✅ Reconnexion automatique réussie');
+            return; // Skip le reste du flux
+          }
+        }
+      }
+    };
+
+    init();
   }, []);
 
-  // Fonction pour vérifier si la session existe
+  // Fonction pour vérifier si la session existe et si la partie a démarré
   const verifySession = async (id) => {
     const sessionRef = ref(database, `sessions/${id}`);
-    onValue(sessionRef, (snapshot) => {
-      if (snapshot.exists() && snapshot.val().active) {
-        setSessionValid(true);
-        setStep('name');
-      } else {
-        setSessionValid(false);
-        setError('Code de session invalide ou expiré');
-      }
-    }, { onlyOnce: true });
+    return new Promise((resolve) => {
+      onValue(sessionRef, (snapshot) => {
+        if (snapshot.exists() && snapshot.val().active) {
+          setSessionValid(true);
+
+          const sessionData = snapshot.val();
+          const gameStarted = sessionData.isPlaying === true || (sessionData.currentTrack && sessionData.currentTrack > 0);
+
+          if (gameStarted) {
+            console.log('⚡ La partie a déjà démarré, skip préférences');
+            // Stocker dans localStorage que la partie a démarré
+            saveToLocalStorage({ sessionId: id, gameAlreadyStarted: true });
+          } else {
+            console.log('⏸️ La partie n\'a pas encore démarré');
+            saveToLocalStorage({ sessionId: id, gameAlreadyStarted: false });
+          }
+
+          setStep('name');
+          resolve(true);
+        } else {
+          setSessionValid(false);
+          setError('Code de session invalide ou expiré');
+          resolve(false);
+        }
+      }, { onlyOnce: true });
+    });
   };
 
   // Fonction pour valider le code de session entré manuellement
@@ -250,7 +454,7 @@ export default function Buzzer() {
     } catch (err) {
       console.error('Erreur recherche:', err);
       setError('Erreur lors de la recherche. Continuons sans photo.');
-      setStep('preferences');
+      goToNextStep();
     } finally {
       setIsSearching(false);
     }
@@ -259,7 +463,9 @@ export default function Buzzer() {
   // NOUVEAU : Sélectionner un joueur existant
   const handleSelectPlayer = (player) => {
     setSelectedPlayer(player);
-    setStep('preferences');
+    goToNextStep();
+    // Sauvegarder le joueur sélectionné
+    saveToLocalStorage({ selectedPlayer: player, playerName: player.name });
   };
 
   // NOUVEAU : Créer un nouveau joueur
@@ -281,7 +487,7 @@ export default function Buzzer() {
     } catch (err) {
       console.error('Erreur caméra:', err);
       setError('Impossible d\'accéder à la caméra. Continuons sans photo.');
-      setTimeout(() => setStep('preferences'), 2000);
+      setTimeout(() => goToNextStep(), 2000);
     }
   };
 
@@ -309,29 +515,36 @@ export default function Buzzer() {
   // NOUVEAU : Confirmer le selfie
   const confirmSelfie = async () => {
     setIsSearching(true);
-    
+
     try {
       const playerData = {
         name: playerName,
         photo: photoData,
         firstSeen: new Date().toISOString()
       };
-      
+
       const result = await airtableService.createPlayer(playerData);
-      
-      setSelectedPlayer({
+
+      const newPlayer = {
         id: result.id,
         name: playerName,
         photo: photoData
-      });
+      };
 
-      setStep('preferences');
+      setSelectedPlayer(newPlayer);
+      goToNextStep();
+
+      // Sauvegarder le nouveau joueur
+      saveToLocalStorage({ selectedPlayer: newPlayer, playerName, photoData });
     } catch (err) {
       console.error('Erreur création joueur:', err);
       setError('Erreur lors de la sauvegarde. Continuons quand même !');
       setTimeout(() => {
-        setSelectedPlayer({ name: playerName });
-        setStep('preferences');
+        const fallbackPlayer = { name: playerName };
+        setSelectedPlayer(fallbackPlayer);
+        goToNextStep();
+        // Sauvegarder quand même
+        saveToLocalStorage({ selectedPlayer: fallbackPlayer, playerName, photoData });
       }, 2000);
     } finally {
       setIsSearching(false);
@@ -344,50 +557,65 @@ export default function Buzzer() {
     startCamera();
   };
 
-  // NOUVEAU : Envoyer les données au workflow n8n pour remplir la playlist avec l'IA
-  const sendToN8nWorkflow = async () => {
-    if (!playlistId) {
-      console.warn('⚠️ Pas de playlistId disponible, skip n8n');
-      return false;
-    }
+  // Helper : Décider de l'étape suivante selon si la partie a démarré
+  const goToNextStep = () => {
+    const storedData = loadFromLocalStorage();
+    const gameAlreadyStarted = storedData?.gameAlreadyStarted === true;
 
-    try {
-      console.log('📤 Envoi des préférences au workflow n8n (AI Playlist Generator)...');
-
-      // Appeler le workflow AI via n8nService
-      const result = await n8nService.fillPlaylistWithAI({
-        playlistId: playlistId,
-        age: parseInt(playerAge),
-        genres: selectedGenres, // Array de 3 genres
-        genre1Preferences: specialPhrase || '', // Utiliser la phrase spéciale comme préférence globale
-        genre2Preferences: '',
-        genre3Preferences: ''
-      });
-
-      console.log('✅ Playlist remplie avec succès:', result);
-      console.log(`🎵 ${result.totalSongs} chansons ajoutées à la playlist`);
-
-      // Signaler à Firebase que la playlist a été mise à jour
-      // Cela permettra au Master de rafraîchir automatiquement la playlist
-      if (sessionId) {
-        const updateRef = ref(database, `sessions/${sessionId}/lastPlaylistUpdate`);
-        await set(updateRef, {
-          timestamp: Date.now(),
-          playerName: selectedPlayer?.name || playerName,
-          songsAdded: result.totalSongs || 10
-        });
-        console.log('✅ Mise à jour signalée à Firebase pour rafraîchissement automatique');
-      }
-
-      return true; // Succès
-
-    } catch (err) {
-      console.error('❌ Erreur appel workflow n8n:', err);
-      return false; // Échec
+    if (gameAlreadyStarted) {
+      console.log('⚡ Partie démarrée → skip préférences, accès direct au choix d\'équipe');
+      setStep('team');
+    } else {
+      console.log('⏸️ Partie non démarrée → demande des préférences');
+      setStep('preferences');
     }
   };
 
-  // NOUVEAU : Valider les préférences
+  // Sauvegarder les préférences via fonction Netlify (sécurisé avec Firebase Admin SDK)
+  // Le Master verra ces préférences et pourra générer la playlist avec TOUTES les préférences
+  const savePreferencesToFirebase = async () => {
+    try {
+      console.log('💾 Sauvegarde des préférences via Netlify...');
+
+      const playerId = selectedPlayer?.id || `temp_${playerName}`;
+
+      const preferencesData = {
+        name: selectedPlayer?.name || playerName,
+        photo: selectedPlayer?.photo || photoData || null,
+        age: parseInt(playerAge),
+        genres: selectedGenres,
+        specialPhrase: specialPhrase || ''
+      };
+
+      const response = await fetch('/.netlify/functions/save-player-preferences', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          sessionId,
+          playerId,
+          preferences: preferencesData
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Erreur serveur');
+      }
+
+      const result = await response.json();
+      console.log('✅ Préférences sauvegardées:', result);
+
+      return true;
+
+    } catch (err) {
+      console.error('❌ Erreur sauvegarde préférences:', err);
+      throw err;
+    }
+  };
+
+  // Valider les préférences
   const handleSubmitPreferences = async () => {
     // Validation
     if (!playerAge || selectedGenres.length === 0) {
@@ -396,40 +624,29 @@ export default function Buzzer() {
     }
 
     setIsSearching(true);
-    setError(''); // Effacer les erreurs précédentes
+    setError('');
 
-    // Attendre que le playlistId soit disponible (max 10 secondes)
-    let currentPlaylistId = playlistId;
-    if (!currentPlaylistId) {
-      console.log('⏳ Attente du playlistId depuis Firebase...');
-      const startTime = Date.now();
-      const timeout = 10000; // 10 secondes max
+    try {
+      // Sauvegarder dans Firebase
+      await savePreferencesToFirebase();
 
-      while (!currentPlaylistId && (Date.now() - startTime) < timeout) {
-        await new Promise(resolve => setTimeout(resolve, 500)); // Attendre 500ms
-        currentPlaylistId = playlistId; // Vérifier si le state a été mis à jour
-      }
+      // Sauvegarder localement
+      saveToLocalStorage({
+        playerAge,
+        selectedGenres,
+        specialPhrase
+      });
 
-      if (!currentPlaylistId) {
-        console.error('❌ PlaylistId toujours indisponible après 10 secondes');
-        setIsSearching(false);
-        setError('❌ La playlist n\'est pas encore prête. Assurez-vous que le maître du jeu a créé la session en mode Spotify IA.');
-        return;
-      }
+      console.log('✅ Préférences enregistrées. Le Master génèrera la playlist quand tous les joueurs seront prêts.');
 
-      console.log('✅ PlaylistId récupéré après attente');
-    }
-
-    // Envoyer au workflow n8n
-    const success = await sendToN8nWorkflow();
-
-    setIsSearching(false);
-
-    // Ne passer à l'étape suivante QUE si l'envoi a réussi
-    if (success) {
+      // Passer à l'étape suivante
       setStep('team');
-    } else {
-      setError('❌ Erreur lors de l\'envoi de vos préférences. Veuillez réessayer.');
+
+    } catch (err) {
+      console.error('❌ Erreur lors de la soumission des préférences:', err);
+      setError(`❌ Erreur: ${err.message || 'Impossible de sauvegarder'}`);
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -458,6 +675,9 @@ const selectTeam = async (teamNumber) => {
     await set(playerRef, playerData);
     setPlayerFirebaseKey(newPlayerKey); // ✅ Stocker la clé
     console.log('✅ Joueur enregistré:', playerData.name, 'dans', teamKey, 'clé:', newPlayerKey);
+
+    // Sauvegarder l'équipe et la clé Firebase
+    saveToLocalStorage({ team: teamNumber, playerFirebaseKey: newPlayerKey });
   } catch (error) {
     console.error('❌ Erreur enregistrement joueur:', error);
   }
@@ -512,6 +732,9 @@ const changeTeam = async () => {
   setSomeoneBuzzed(false);
   setPlayerFirebaseKey(null); // ✅ Reset la clé
   setStep('team');
+
+  // Mettre à jour localStorage sans l'équipe
+  saveToLocalStorage({ team: null, playerFirebaseKey: null });
 };
 
 // Charger les statistiques personnelles du joueur
@@ -571,6 +794,26 @@ const loadPersonalStats = () => {
 };
 
   // ========== ÉCRANS ==========
+
+  // ÉCRAN -1 : Reconnexion en cours (DÉSACTIVÉ temporairement)
+  // if (isReconnecting) {
+  //   return (
+  //     <div className="bg-gradient flex-center">
+  //       <div className="text-center" style={{ maxWidth: '500px', width: '100%', padding: '2rem' }}>
+  //         <h1 className="title">🎵 BLIND TEST 🎵</h1>
+  //         <div style={{ fontSize: '4rem', marginBottom: '2rem', animation: 'pulse 1.5s infinite' }}>
+  //           🔄
+  //         </div>
+  //         <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>
+  //           Reconnexion en cours...
+  //         </h2>
+  //         <p style={{ fontSize: '1rem', opacity: 0.7 }}>
+  //           Nous restaurons votre session
+  //         </p>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   // ÉCRAN 0 : Saisie du code de session
   if (step === 'session') {

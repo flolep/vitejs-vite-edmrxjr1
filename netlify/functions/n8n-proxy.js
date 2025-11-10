@@ -40,7 +40,13 @@ exports.handler = async (event, context) => {
     const { endpoint, payload } = body;
 
     // Valider l'endpoint
-    const allowedEndpoints = ['create-playlist-simple', 'create-playlist', 'blindtest-player-input'];
+    const allowedEndpoints = [
+      'create-playlist-simple',
+      'create-playlist',
+      'blindtest-player-input',
+      'blindtest-quiz-mode',      // 🎯 Endpoint pour le mode Quiz
+      'blindtest-batch-playlist'  // 🆕 Endpoint pour génération groupée
+    ];
     if (!endpoint || !allowedEndpoints.includes(endpoint)) {
       return {
         statusCode: 400,
@@ -65,12 +71,16 @@ exports.handler = async (event, context) => {
     });
 
     const responseText = await response.text();
+    console.log(`📥 Réponse brute de n8n (${endpoint}):`, responseText);
+    console.log(`📏 Longueur de la réponse:`, responseText.length);
     let data;
 
     // Parser la réponse (gérer JSON et texte)
     try {
       data = JSON.parse(responseText);
+      console.log(`✅ JSON parsé avec succès:`, data);
     } catch (e) {
+      console.log(`⚠️ Échec du parsing JSON, erreur:`, e.message);
       data = { raw: responseText };
     }
 
