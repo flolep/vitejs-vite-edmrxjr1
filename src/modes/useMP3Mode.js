@@ -1,11 +1,33 @@
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
+import { ref, set } from 'firebase/database';
+import { database } from '../firebase';
 
 /**
  * Hook pour gérer le mode MP3
  * Logique spécifique au chargement manuel de fichiers MP3
  */
-export function useMP3Mode(playlist, setPlaylist) {
+export function useMP3Mode(playlist, setPlaylist, sessionId) {
   const audioRef = useRef(null);
+
+  // Écrire la durée dans Firebase quand les métadonnées sont chargées
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !sessionId) return;
+
+    const handleLoadedMetadata = () => {
+      const duration = audio.duration;
+      if (duration && !isNaN(duration)) {
+        const durationRef = ref(database, `sessions/${sessionId}/songDuration`);
+        set(durationRef, duration);
+      }
+    };
+
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+
+    return () => {
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+    };
+  }, [sessionId]);
 
   const handleManualAdd = () => {
     const newTrack = {

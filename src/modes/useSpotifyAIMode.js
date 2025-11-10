@@ -42,6 +42,13 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
       const tracks = await spotifyService.getPlaylistTracks(spotifyToken, playlistId);
       setPlaylist(tracks);
 
+      // Écrire la durée de la première chanson dans Firebase
+      if (sessionId && tracks && tracks.length > 0) {
+        const firstDuration = tracks[0]?.duration || 30;
+        const durationRef = ref(database, `sessions/${sessionId}/songDuration`);
+        await set(durationRef, firstDuration);
+      }
+
       // Initialiser le player si nécessaire
       await initSpotifyPlayer();
 

@@ -57,10 +57,17 @@ export function useSpotifyAutoMode(spotifyToken, sessionId) {
       setPlaylist(tracks);
       setShowPlaylistSelector(false);
 
-      // Stocker l'ID de playlist dans Firebase
+      // Stocker l'ID de playlist et la durée de la première chanson dans Firebase
       if (sessionId) {
         const playlistIdRef = ref(database, `sessions/${sessionId}/playlistId`);
         await set(playlistIdRef, playlistId);
+
+        // Écrire la durée de la première chanson
+        if (tracks && tracks.length > 0) {
+          const firstDuration = tracks[0]?.duration || 30;
+          const durationRef = ref(database, `sessions/${sessionId}/songDuration`);
+          await set(durationRef, firstDuration);
+        }
       }
 
       // Initialiser le player si nécessaire

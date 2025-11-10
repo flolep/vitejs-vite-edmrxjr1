@@ -33,6 +33,19 @@ export function useGameSession(sessionId) {
     currentChronoRef.current = currentChrono;
   }, [currentChrono]);
 
+  // Synchroniser songDuration avec Firebase
+  useEffect(() => {
+    if (!sessionId) return;
+    const durationRef = ref(database, `sessions/${sessionId}/songDuration`);
+    const unsubscribe = onValue(durationRef, (snapshot) => {
+      const duration = snapshot.val();
+      if (duration !== null) {
+        setSongDuration(duration);
+      }
+    });
+    return () => unsubscribe();
+  }, [sessionId]);
+
   // Mettre à jour le chrono toutes les 100ms quand la musique joue
   useEffect(() => {
     if (!sessionId) return;
