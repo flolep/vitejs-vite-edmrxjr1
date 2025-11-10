@@ -3,22 +3,28 @@ import { database } from '../firebase';
 
 /**
  * Calcule les points disponibles selon le système de décroissance
+ * Phase 1 (0-5s): 2500 points fixes
+ * Phase 2 (5-15s): Décroissance rapide de 2000 à 1000 points (-100 pts/sec)
+ * Phase 3 (15s-fin): Décroissance lente de 1000 à 0 points
  */
 export function calculatePoints(chrono, songDuration) {
   const maxPoints = 2500;
   let availablePoints = maxPoints;
 
   if (chrono <= 5) {
+    // Phase 1: Points fixes
     availablePoints = 2500;
   } else if (chrono < 15) {
+    // Phase 2: Décroissance rapide (10 secondes pour perdre 1000 points)
     const timeInPhase = chrono - 5;
     const phaseDuration = 10;
     availablePoints = 2000 - (timeInPhase / phaseDuration) * 1000;
   } else {
+    // Phase 3: Décroissance lente (reste de la chanson pour perdre 1000 points)
     const timeAfter15 = chrono - 15;
     const remainingDuration = Math.max(1, songDuration - 15);
     const decayRatio = Math.min(1, timeAfter15 / remainingDuration);
-    availablePoints = 500 * (1 - decayRatio);
+    availablePoints = 1000 * (1 - decayRatio);
   }
 
   return Math.max(0, Math.round(availablePoints));
