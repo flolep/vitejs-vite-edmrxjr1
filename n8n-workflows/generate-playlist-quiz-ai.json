@@ -1,5 +1,5 @@
 {
-  "name": "Blindtest Game - Quiz Mode Playlist Generator",
+  "name": "Blindtest Game - Quiz Mode Playlist Generator (Fixed)",
   "nodes": [
     {
       "parameters": {
@@ -12,8 +12,18 @@
       "name": "Quiz Mode Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1.1,
-      "position": [0, -80],
+      "position": [0, 16],
       "webhookId": "quiz-mode-webhook-id"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ✅ AJOUT : Parser le body correctement (comme dans batch)\nconst input = $json.body;\n\nconsole.log('═══════════════════════════════════════');\nconsole.log('Type du body:', typeof input);\nconsole.log('Body reçu:', input);\n\nlet data;\n\n// Cas 1 : Le body est déjà un objet\nif (typeof input === 'object' && input !== null) {\n  console.log('✅ Body déjà parsé comme objet');\n  data = input;\n}\n// Cas 2 : Le body est une string JSON\nelse if (typeof input === 'string') {\n  console.log('🔄 Body est une string, parsing nécessaire');\n  try {\n    data = JSON.parse(input);\n    console.log('✅ Parsing JSON réussi');\n  } catch (e) {\n    console.log('❌ Erreur parsing:', e.message);\n    throw new Error(`Impossible de parser le JSON: ${e.message}`);\n  }\n}\nelse {\n  throw new Error(`Type de body inattendu: ${typeof input}`);\n}\n\n// Validation\nif (!data.playlistId) {\n  throw new Error('playlistId manquant');\n}\nif (!data.age) {\n  throw new Error('age manquant');\n}\nif (!Array.isArray(data.genres) || data.genres.length === 0) {\n  throw new Error('genres manquant ou vide');\n}\n\nconsole.log('✅ Données Quiz validées:');\nconsole.log('  PlaylistId:', data.playlistId);\nconsole.log('  Age:', data.age);\nconsole.log('  Genres:', data.genres);\nconsole.log('═══════════════════════════════════════');\n\nreturn [{\n  json: {\n    playlistId: data.playlistId,\n    age: data.age,\n    genres: data.genres,\n    genre1Preferences: data.genre1Preferences || '',\n    genre2Preferences: data.genre2Preferences || '',\n    genre3Preferences: data.genre3Preferences || ''\n  }\n}];"
+      },
+      "id": "parse-json-body",
+      "name": "Parse JSON Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [224, 16]
     },
     {
       "parameters": {
@@ -23,7 +33,7 @@
               "id": "prompt-1",
               "name": "prompt",
               "type": "string",
-              "value": "=You are a music expert. Based on the following player information, recommend exactly 10 songs that would be perfect for a blindtest QUIZ game.\n\n  Player Age: {{ $json.body.age }}\n  Favorite Genres: {{ $json.body.genres.join(\", \") }}\n  Genre 1 Preferences: {{ $json.body.genre1Preferences }}\n  Genre 2 Preferences: {{ $json.body.genre2Preferences }}\n  Genre 3 Preferences: {{ $json.body.genre3Preferences }}\n\n  RESPOND WITH ONLY VALID JSON in this exact format, with no markdown code blocks or explanations:\n  [\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"}\n  ]\n\n  Make sure songs are popular, well-known, and on Spotify. These will be the CORRECT answers for the quiz. No markdown formatting."
+              "value": "=You are a music expert. Based on the following player information, recommend exactly 10 songs that would be perfect for a blindtest QUIZ game.\n\n  Player Age: {{ $json.age }}\n  Favorite Genres: {{ $json.genres.join(\", \") }}\n  Genre 1 Preferences: {{ $json.genre1Preferences }}\n  Genre 2 Preferences: {{ $json.genre2Preferences }}\n  Genre 3 Preferences: {{ $json.genre3Preferences }}\n\n  RESPOND WITH ONLY VALID JSON in this exact format, with no markdown code blocks or explanations:\n  [\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"}\n  ]\n\n  Make sure songs are popular, well-known, and on Spotify. These will be the CORRECT answers for the quiz. No markdown formatting."
             }
           ]
         },
@@ -33,7 +43,7 @@
       "name": "Format Quiz Input",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.3,
-      "position": [224, -80]
+      "position": [448, 16]
     },
     {
       "parameters": {
@@ -44,7 +54,7 @@
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2.2,
-      "position": [448, -80],
+      "position": [672, 16],
       "id": "ai-generate-songs",
       "name": "AI Agent - Generate Songs",
       "alwaysOutputData": false
@@ -53,17 +63,17 @@
       "parameters": {
         "model": {
           "__rl": true,
-          "value": "gpt-4o",
+          "value": "gpt-3.5-turbo",
           "mode": "list",
-          "cachedResultName": "gpt-4o"
+          "cachedResultName": "gpt-3.5-turbo"
         },
         "options": {}
       },
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1.2,
-      "position": [352, 176],
+      "position": [576, 256],
       "id": "openai-model-songs",
-      "name": "OpenAI Chat Model",
+      "name": "OpenAI Chat Model (GPT-3.5)",
       "credentials": {
         "openAiApi": {
           "id": "ytGgzcq7Rtx4z7WA",
@@ -73,13 +83,13 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parse the AI response to get songs list\nconst response = $input.item.json;\n\nconsole.log('Received data:', JSON.stringify(response, null, 2));\n\n// If the response is directly an array, use it\nlet songs = Array.isArray(response) ? response : response.output || response.text;\n\n// If still not an array, try parsing as string\nif (typeof songs === 'string') {\n  songs = JSON.parse(songs);\n}\n\n// Final validation\nif (!Array.isArray(songs)) {\n  throw new Error(`Expected array but got: ${typeof songs}`);\n}\n\nconsole.log(`Processing ${songs.length} songs for quiz mode`);\n\n// Return each song for parallel processing\nreturn songs.map((song, index) => ({\n  json: {\n    artist: song.artist,\n    song: song.song,\n    searchQuery: `${song.song} ${song.artist}`,\n    index: index\n  }\n}));"
+        "jsCode": "// Parse the AI response to get songs list\nconst response = $input.item.json;\n\nconsole.log('Received data:', JSON.stringify(response, null, 2));\n\n// If the response is directly an array, use it\nlet songs = Array.isArray(response) ? response : response.output || response.text;\n\n// If still not an array, try parsing as string\nif (typeof songs === 'string') {\n  songs = JSON.parse(songs);\n}\n\n// Final validation\nif (!Array.isArray(songs)) {\n  throw new Error(`Expected array but got: ${typeof songs}`);\n}\n\n// ✅ Récupérer le playlistId depuis Parse JSON Body (plus fiable)\nconst playlistId = $('Parse JSON Body').first().json.playlistId;\n\nconsole.log(`Processing ${songs.length} songs for quiz mode`);\nconsole.log(`PlaylistId: ${playlistId}`);\n\n// Return each song for parallel processing\nreturn songs.map((song, index) => ({\n  json: {\n    artist: song.artist,\n    song: song.song,\n    searchQuery: `${song.song} ${song.artist}`,\n    index: index,\n    playlistId: playlistId\n  }\n}));"
       },
       "id": "parse-songs",
       "name": "Parse Song List",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [672, -80]
+      "position": [896, 16]
     },
     {
       "parameters": {
@@ -99,7 +109,7 @@
       "name": "Format Wrong Answers Prompt",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.3,
-      "position": [896, -80]
+      "position": [1120, 16]
     },
     {
       "parameters": {
@@ -110,7 +120,7 @@
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2.2,
-      "position": [1120, -80],
+      "position": [1344, 16],
       "id": "ai-generate-wrong-answers",
       "name": "AI Agent - Generate Wrong Answers",
       "alwaysOutputData": false
@@ -119,17 +129,17 @@
       "parameters": {
         "model": {
           "__rl": true,
-          "value": "gpt-4o-mini",
+          "value": "gpt-3.5-turbo",
           "mode": "list",
-          "cachedResultName": "gpt-4o-mini"
+          "cachedResultName": "gpt-3.5-turbo"
         },
         "options": {}
       },
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1.2,
-      "position": [1024, 176],
+      "position": [1248, 256],
       "id": "openai-model-wrong-answers",
-      "name": "OpenAI Chat Model (Mini)",
+      "name": "OpenAI Chat Model (GPT-3.5) Wrong",
       "credentials": {
         "openAiApi": {
           "id": "ytGgzcq7Rtx4z7WA",
@@ -145,7 +155,7 @@
       "name": "Combine Song + Wrong Answers",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1344, -80]
+      "position": [1568, 16]
     },
     {
       "parameters": {
@@ -159,7 +169,7 @@
       "name": "Search Song on Spotify",
       "type": "n8n-nodes-base.spotify",
       "typeVersion": 1,
-      "position": [1568, -80],
+      "position": [1792, 16],
       "credentials": {
         "spotifyOAuth2Api": {
           "id": "XFtc8avtF5O4GuHO",
@@ -175,30 +185,30 @@
       "name": "Merge Spotify + Wrong Answers",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1792, -80]
+      "position": [2016, 16]
     },
     {
       "parameters": {
-        "jsCode": "// Aggregate all songs with their wrong answers\nconst allItems = $input.all();\nconst trackUris = [];\nconst songsData = [];\n\nconsole.log('Aggregating', allItems.length, 'songs with wrong answers');\n\nfor (const item of allItems) {\n  const song = item.json;\n  \n  if (song && song.uri && song.id) {\n    trackUris.push(song.uri);\n    songsData.push({\n      uri: song.uri,\n      title: song.title,\n      artist: song.artist,\n      wrongAnswers: song.wrongAnswers\n    });\n    \n    console.log('Song:', song.title, 'by', song.artist);\n    console.log('  Wrong answers:', song.wrongAnswers);\n  }\n}\n\nconsole.log('Total tracks:', trackUris.length);\n\nif (trackUris.length === 0) {\n  throw new Error('No valid tracks found');\n}\n\nconst trackUrisString = trackUris.join(',');\n\nreturn [{\n  json: {\n    trackUris: trackUris,\n    trackUrisString: trackUrisString,\n    songs: songsData,\n    totalSongs: songsData.length\n  }\n}];"
+        "jsCode": "// ✅ Aggregate all songs with their wrong answers\nconst allItems = $input.all();\nconst trackUris = [];\nconst trackIds = []; // ✅ AJOUT : utiliser trackIds comme dans batch\nconst songsData = [];\n\nconsole.log('Aggregating', allItems.length, 'songs with wrong answers');\n\nfor (const item of allItems) {\n  const song = item.json;\n  \n  if (song && song.uri && song.id) {\n    trackUris.push(song.uri);\n    trackIds.push(song.id); // ✅ AJOUT\n    songsData.push({\n      uri: song.uri,\n      title: song.title,\n      artist: song.artist,\n      wrongAnswers: song.wrongAnswers\n    });\n    \n    console.log('Song:', song.title, 'by', song.artist);\n    console.log('  Wrong answers:', song.wrongAnswers);\n  }\n}\n\nconsole.log('Total tracks:', trackUris.length);\n\nif (trackUris.length === 0) {\n  throw new Error('No valid tracks found');\n}\n\n// ✅ Récupérer playlistId depuis Parse JSON Body (comme batch)\nconst playlistId = $('Parse JSON Body').first().json.playlistId;\n\nreturn [{\n  json: {\n    trackUris: trackUris,\n    trackIds: trackIds, // ✅ AJOUT : pour Spotify API\n    songs: songsData,\n    totalSongs: songsData.length,\n    playlistId: playlistId\n  }\n}];"
       },
       "id": "aggregate-all-songs",
       "name": "Aggregate All Songs",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2016, -80]
+      "position": [2240, 16]
     },
     {
       "parameters": {
         "resource": "playlist",
-        "id": "={{ $node['Quiz Mode Webhook'].json.body.playlistId }}",
-        "trackID": "={{ $json.trackUrisString }}",
+        "id": "={{ $json.playlistId }}",
+        "trackID": "={{ $json.trackIds }}",
         "additionalFields": {}
       },
       "id": "add-to-playlist",
       "name": "Add Songs to Playlist",
       "type": "n8n-nodes-base.spotify",
       "typeVersion": 1,
-      "position": [2240, -80],
+      "position": [2464, 16],
       "credentials": {
         "spotifyOAuth2Api": {
           "id": "XFtc8avtF5O4GuHO",
@@ -220,7 +230,7 @@
               "id": "playlistId",
               "name": "playlistId",
               "type": "string",
-              "value": "={{ $node['Quiz Mode Webhook'].json.body.playlistId }}"
+              "value": "={{ $('Parse JSON Body').first().json.playlistId }}"
             },
             {
               "id": "totalSongs",
@@ -242,7 +252,7 @@
       "name": "Format Success Response",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.3,
-      "position": [2464, -80]
+      "position": [2688, 16]
     },
     {
       "parameters": {
@@ -256,12 +266,15 @@
       "name": "Send Response",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [2688, -80]
+      "position": [2912, 16]
     }
   ],
   "pinData": {},
   "connections": {
     "Quiz Mode Webhook": {
+      "main": [[{"node": "Parse JSON Body", "type": "main", "index": 0}]]
+    },
+    "Parse JSON Body": {
       "main": [[{"node": "Format Quiz Input", "type": "main", "index": 0}]]
     },
     "Format Quiz Input": {
@@ -270,7 +283,7 @@
     "AI Agent - Generate Songs": {
       "main": [[{"node": "Parse Song List", "type": "main", "index": 0}]]
     },
-    "OpenAI Chat Model": {
+    "OpenAI Chat Model (GPT-3.5)": {
       "ai_languageModel": [[{"node": "AI Agent - Generate Songs", "type": "ai_languageModel", "index": 0}]]
     },
     "Parse Song List": {
@@ -282,7 +295,7 @@
     "AI Agent - Generate Wrong Answers": {
       "main": [[{"node": "Combine Song + Wrong Answers", "type": "main", "index": 0}]]
     },
-    "OpenAI Chat Model (Mini)": {
+    "OpenAI Chat Model (GPT-3.5) Wrong": {
       "ai_languageModel": [[{"node": "AI Agent - Generate Wrong Answers", "type": "ai_languageModel", "index": 0}]]
     },
     "Combine Song + Wrong Answers": {
@@ -308,12 +321,12 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "quiz-mode-v1",
+  "versionId": "quiz-mode-v2-fixed",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "94b9168551008d33a984c826b7246a9b011ffc20d1040c638e77929747a45f99"
   },
-  "id": "QuizModePlaylistGenerator",
+  "id": "QuizModePlaylistGeneratorFixed",
   "tags": [
     {
       "createdAt": "2025-10-12T08:27:32.015Z",
