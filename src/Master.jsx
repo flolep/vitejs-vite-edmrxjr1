@@ -296,6 +296,18 @@ export default function Master({
           setIsGeneratingPlaylist(false);
           setPlaylistPollAttempt(0);
           clearInterval(pollPlaylist);
+
+          // 🎯 Mode Quiz : Stocker les données quiz (si disponibles)
+          if (playMode === 'quiz' && tracks && tracks.length > 0) {
+            // Vérifier si les tracks contiennent des wrongAnswers
+            if (tracks[0]?.wrongAnswers) {
+              console.log('🎯 Données Quiz détectées, stockage dans Firebase...');
+              await quizMode.storeQuizData(tracks);
+            } else {
+              console.warn('⚠️ Mode Quiz actif mais pas de wrongAnswers dans les tracks');
+              console.warn('⚠️ Le workflow n8n doit retourner wrongAnswers pour chaque chanson');
+            }
+          }
         } else if (pollAttempts >= maxPollAttempts) {
           console.log('⏱️ Arrêt du polling : nombre max de tentatives atteint');
           setDebugInfo('⏱️ Génération en cours... Rafraîchissez manuellement si besoin');
@@ -382,7 +394,7 @@ export default function Master({
 
         // En mode Quiz, générer les réponses
         if (playMode === 'quiz') {
-          quizMode.generateQuizAnswers(playlist[currentTrack], playlist);
+          quizMode.generateQuizAnswers(currentTrack);
         }
 
         // Mettre à jour la chanson courante

@@ -13,53 +13,102 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
   const [leaderboard, setLeaderboard] = useState([]); // Classement temps réel
 
   /**
-   * Génère 4 réponses dont 1 correcte pour le track actuel
-   * À adapter selon la logique de génération des réponses
+   * Stocke les données quiz (wrongAnswers) pour toutes les chansons
+   * À appeler lors du chargement initial de la playlist générée par l'IA
+   * @param {Array} songsData - Tableau de chansons avec format:
+   *   [{ uri, title, artist, wrongAnswers: ["Artist - Title", ...] }]
    */
-  const generateQuizAnswers = (track, allTracks) => {
-    if (!track) return;
+  const storeQuizData = async (songsData) => {
+    if (!sessionId || !songsData || songsData.length === 0) return;
 
-    // La réponse correcte
-    const correctAnswer = {
-      title: track.title,
-      artist: track.artist,
-      isCorrect: true
-    };
+    console.log('📦 Stockage des données quiz pour', songsData.length, 'chansons');
 
-    // Générer 3 réponses incorrectes (artistes différents de la playlist)
-    const wrongAnswers = allTracks
-      .filter(t => t.artist !== track.artist && t.artist) // Artistes différents
-      .sort(() => Math.random() - 0.5) // Mélanger
-      .slice(0, 3) // Prendre 3
-      .map(t => ({
-        title: t.title,
-        artist: t.artist,
+    // Stocker chaque chanson avec ses mauvaises réponses
+    for (let trackNumber = 0; trackNumber < songsData.length; trackNumber++) {
+      const song = songsData[trackNumber];
+
+      if (!song.wrongAnswers || song.wrongAnswers.length < 3) {
+        console.warn(`⚠️ Chanson ${trackNumber} n'a pas 3 mauvaises réponses, génération par défaut`);
+        continue;
+      }
+
+      const quizDataRef = ref(database, `sessions/${sessionId}/quiz_data/${trackNumber}`);
+      await set(quizDataRef, {
+        correctAnswer: {
+          title: song.title,
+          artist: song.artist,
+          uri: song.uri
+        },
+        wrongAnswers: song.wrongAnswers.slice(0, 3) // S'assurer qu'on a exactement 3
+      });
+    }
+
+    console.log('✅ Données quiz stockées dans Firebase');
+  };
+
+  /**
+   * Génère 4 réponses mélangées pour le track actuel
+   * Lit les données depuis quiz_data/{trackNumber} stockées précédemment
+   */
+  const generateQuizAnswers = async (trackNumber) => {
+    if (!sessionId || trackNumber === undefined) return;
+
+    console.log('🎯 Génération des réponses pour la chanson', trackNumber);
+
+    // Lire les données depuis Firebase
+    const quizDataRef = ref(database, `sessions/${sessionId}/quiz_data/${trackNumber}`);
+
+    onValue(quizDataRef, (snapshot) => {
+      const quizData = snapshot.val();
+
+      if (!quizData) {
+        console.error('❌ Aucune donnée quiz trouvée pour le track', trackNumber);
+        return;
+      }
+
+      const { correctAnswer, wrongAnswers } = quizData;
+
+      // Formater la bonne réponse
+      const correctAnswerFormatted = {
+        text: `${correctAnswer.artist} - ${correctAnswer.title}`,
+        isCorrect: true
+      };
+
+      // Formater les mauvaises réponses
+      const wrongAnswersFormatted = wrongAnswers.map(wa => ({
+        text: wa,
         isCorrect: false
       }));
 
-    // Mélanger toutes les réponses
-    const allAnswers = [correctAnswer, ...wrongAnswers].sort(() => Math.random() - 0.5);
+      // Mélanger toutes les réponses
+      const allAnswers = [correctAnswerFormatted, ...wrongAnswersFormatted]
+        .sort(() => Math.random() - 0.5);
 
-    // Trouver l'index de la bonne réponse après mélange
-    const correctIndex = allAnswers.findIndex(a => a.isCorrect);
+      // Trouver l'index de la bonne réponse après mélange
+      const correctIndex = allAnswers.findIndex(a => a.isCorrect);
 
-    setQuizAnswers(allAnswers);
-    setCorrectAnswerIndex(correctIndex);
+      setQuizAnswers(allAnswers);
+      setCorrectAnswerIndex(correctIndex);
 
-    // Stocker dans Firebase pour synchroniser avec les joueurs
-    if (sessionId) {
+      // Stocker dans Firebase pour synchroniser avec les joueurs
       const quizRef = ref(database, `sessions/${sessionId}/quiz`);
       set(quizRef, {
-        trackNumber: currentTrack,
+        trackNumber: trackNumber,
         answers: allAnswers.map((a, idx) => ({
           label: String.fromCharCode(65 + idx), // A, B, C, D
-          text: `${a.artist} - ${a.title}`,
+          text: a.text,
           isCorrect: a.isCorrect
         })),
         correctAnswer: String.fromCharCode(65 + correctIndex), // A, B, C ou D
         revealed: false
       });
-    }
+
+      console.log('✅ Quiz généré:', {
+        trackNumber,
+        correctAnswer: String.fromCharCode(65 + correctIndex),
+        answers: allAnswers.map(a => a.text)
+      });
+    }, { onlyOnce: true });
   };
 
   /**
@@ -224,6 +273,7 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
     correctAnswerIndex,
     playerAnswers,
     leaderboard,
+    storeQuizData,
     generateQuizAnswers,
     revealQuizAnswer,
     resetQuiz

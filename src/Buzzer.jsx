@@ -3,6 +3,7 @@ import { database } from './firebase';
 import { ref, set, onValue, remove } from 'firebase/database';
 import { airtableService } from './airtableService';
 import { n8nService } from './n8nService';
+import { QuizInterface } from './components/buzzer/QuizInterface';
 
 export default function Buzzer() {
   // États de session
@@ -16,6 +17,13 @@ export default function Buzzer() {
   const [scores, setScores] = useState({ team1: 0, team2: 0 });
   const [someoneBuzzed, setSomeoneBuzzed] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+
+  // États Mode Quiz
+  const [playMode, setPlayMode] = useState('team'); // 'team' | 'quiz'
+  const [quizQuestion, setQuizQuestion] = useState(null); // { trackNumber, answers: [...], correctAnswer, revealed }
+  const [selectedAnswer, setSelectedAnswer] = useState(null); // 'A' | 'B' | 'C' | 'D'
+  const [hasAnswered, setHasAnswered] = useState(false);
+  const [currentTrackNumber, setCurrentTrackNumber] = useState(null);
 
   // NOUVEAUX états pour identification
   const [step, setStep] = useState('session'); // 'session' | 'name' | 'search' | 'select' | 'photo' | 'preferences' | 'team' | 'game'
@@ -379,6 +387,54 @@ export default function Buzzer() {
     });
     return () => unsubscribe();
   }, [sessionValid, sessionId]);
+
+  // 🎯 Écouter le mode de jeu (team | quiz)
+  useEffect(() => {
+    if (!sessionValid || !sessionId) return;
+    const playModeRef = ref(database, `sessions/${sessionId}/playMode`);
+    const unsubscribe = onValue(playModeRef, (snapshot) => {
+      const mode = snapshot.val();
+      if (mode) {
+        setPlayMode(mode);
+        console.log('🎮 Mode de jeu:', mode);
+      }
+    });
+    return () => unsubscribe();
+  }, [sessionValid, sessionId]);
+
+  // 🎯 Écouter le numéro de piste actuelle
+  useEffect(() => {
+    if (!sessionValid || !sessionId) return;
+    const trackRef = ref(database, `sessions/${sessionId}/currentTrackNumber`);
+    const unsubscribe = onValue(trackRef, (snapshot) => {
+      const trackNum = snapshot.val();
+      if (trackNum !== null && trackNum !== currentTrackNumber) {
+        setCurrentTrackNumber(trackNum);
+        // Reset quiz state pour la nouvelle chanson
+        setSelectedAnswer(null);
+        setHasAnswered(false);
+        console.log('🎵 Nouvelle piste:', trackNum);
+      }
+    });
+    return () => unsubscribe();
+  }, [sessionValid, sessionId, currentTrackNumber]);
+
+  // 🎯 Écouter la question Quiz actuelle (mode Quiz uniquement)
+  useEffect(() => {
+    if (!sessionValid || !sessionId || playMode !== 'quiz') return;
+
+    const quizRef = ref(database, `sessions/${sessionId}/quiz`);
+    const unsubscribe = onValue(quizRef, (snapshot) => {
+      const quizData = snapshot.val();
+      if (quizData) {
+        setQuizQuestion(quizData);
+        console.log('🎯 Question Quiz:', quizData);
+      } else {
+        setQuizQuestion(null);
+      }
+    });
+    return () => unsubscribe();
+  }, [sessionValid, sessionId, playMode]);
 
   // Ajoutez cet useEffect pour écouter le cooldown du joueur
   useEffect(() => {
@@ -752,6 +808,48 @@ const handleBuzz = async () => {
   if (navigator.vibrate) {
     navigator.vibrate(200);
   }
+};
+
+// 🎯 Gérer la réponse Quiz
+const handleQuizAnswer = async (answer) => {
+  if (!sessionId || !quizQuestion || hasAnswered) {
+    console.log('❌ Impossible de répondre:', { sessionId, quizQuestion, hasAnswered });
+    return;
+  }
+
+  // Calculer le temps de réponse (depuis le début de la chanson)
+  const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
+  onValue(chronoRef, async (snapshot) => {
+    const chrono = snapshot.val() || 0;
+
+    // Marquer comme répondu localement
+    setSelectedAnswer(answer);
+    setHasAnswered(true);
+
+    // Envoyer la réponse à Firebase
+    const playerId = selectedPlayer?.id || `temp_${playerName}`;
+    const answerRef = ref(database, `sessions/${sessionId}/quiz_answers/${quizQuestion.trackNumber}/${playerId}`);
+
+    await set(answerRef, {
+      playerName: selectedPlayer?.name || playerName,
+      answer: answer, // 'A', 'B', 'C', 'D'
+      time: chrono,
+      timestamp: Date.now(),
+      isCorrect: null // Sera calculé après révélation
+    });
+
+    console.log('✅ Réponse Quiz envoyée:', {
+      player: selectedPlayer?.name || playerName,
+      answer,
+      time: chrono,
+      trackNumber: quizQuestion.trackNumber
+    });
+
+    // Vibration feedback
+    if (navigator.vibrate) {
+      navigator.vibrate(100);
+    }
+  }, { onlyOnce: true });
 };
 
 const changeTeam = async () => {
@@ -1380,8 +1478,29 @@ if (step === 'photo') {
     );
   }
 
-// ÉCRAN 7 : Jeu (buzzer)
+// ÉCRAN 7 : Jeu (buzzer ou quiz)
 if (step === 'game') {
+  // 🎯 Mode Quiz
+  if (playMode === 'quiz') {
+    return (
+      <QuizInterface
+        selectedPlayer={selectedPlayer}
+        playerName={playerName}
+        quizQuestion={quizQuestion}
+        selectedAnswer={selectedAnswer}
+        hasAnswered={hasAnswered}
+        isPlaying={isPlaying}
+        onAnswerSelect={handleQuizAnswer}
+        onChangeTeam={changeTeam}
+        loadPersonalStats={loadPersonalStats}
+        showStats={showStats}
+        setShowStats={setShowStats}
+        personalStats={personalStats}
+      />
+    );
+  }
+
+  // 👥 Mode Team (Buzzer classique)
   const bgClass = team === 1 ? 'bg-gradient-red' : 'bg-gradient-blue';
   const buttonColor = team === 1 ? '#ef4444' : '#3b82f6';
   const isInCooldown = cooldownEnd && cooldownEnd > Date.now();
