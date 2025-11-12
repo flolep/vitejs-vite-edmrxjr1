@@ -28,10 +28,29 @@ export function QuizInterface({
     );
   }
 
-  const { answers, revealed } = quizQuestion;
+  const { answers, revealed, trackNumber } = quizQuestion;
+
+  // 🎲 Mélanger les positions visuelles des réponses (stable par chanson)
+  // Utilise le trackNumber comme seed pour avoir toujours le même ordre pendant la question
+  const shuffledAnswers = React.useMemo(() => {
+    if (!answers) return [];
+
+    // Créer un array avec les réponses et leur index original
+    const answersWithIndex = answers.map((answer, idx) => ({ answer, originalIndex: idx }));
+
+    // Mélanger en utilisant le trackNumber comme seed simple
+    const shuffled = [...answersWithIndex].sort((a, b) => {
+      // Hash simple basé sur trackNumber + index pour avoir un ordre déterministe
+      const hashA = (trackNumber * 1000 + a.originalIndex * 13) % 100;
+      const hashB = (trackNumber * 1000 + b.originalIndex * 13) % 100;
+      return hashA - hashB;
+    });
+
+    return shuffled.map(item => item.answer);
+  }, [answers, trackNumber]);
 
   // Trouver si la réponse du joueur est correcte
-  const playerAnswerData = answers?.find(a => a.label === selectedAnswer);
+  const playerAnswerData = shuffledAnswers?.find(a => a.label === selectedAnswer);
   const isCorrect = playerAnswerData?.isCorrect;
 
   return (
@@ -106,7 +125,7 @@ export function QuizInterface({
           gap: '1rem',
           marginTop: '1rem'
         }}>
-          {answers && answers.map((answer) => {
+          {shuffledAnswers && shuffledAnswers.map((answer) => {
             const isSelected = selectedAnswer === answer.label;
             const showCorrect = revealed && answer.isCorrect;
             const showWrong = revealed && isSelected && !answer.isCorrect;
