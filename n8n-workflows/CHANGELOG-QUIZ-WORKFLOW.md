@@ -1,5 +1,100 @@
 # Changelog - Workflow Quiz (Corrections)
 
+## Version 3.0.1 - Critical Spotify API Fix (2025-11-12)
+
+### 🚨 Correction critique basée sur le workflow Batch qui fonctionne
+
+**Problème détecté** : Le workflow v3.0 utilisait le mauvais format pour l'ajout de chansons à la playlist Spotify.
+
+---
+
+### 🔧 Corrections apportées
+
+#### 1. **Node "🅰️ Aggregate Spotify Tracks" - Format des URIs**
+
+**Avant (v3.0 - BUGGY) :**
+```javascript
+const trackIds = [];
+for (const item of allItems) {
+  if (track && track.id && track.uri) {
+    trackIds.push(track.id);  // ❌ Pousse juste les IDs
+  }
+}
+
+return [{
+  json: {
+    trackIds: trackIds,  // ❌ Array d'IDs seulement
+    playlistId: playlistId
+  }
+}];
+```
+
+**Après (v3.0.1 - FIXED) :**
+```javascript
+const trackUris = [];
+for (const item of allItems) {
+  if (track && track.id && track.uri && track.name) {  // ✅ Vérifie aussi track.name
+    trackUris.push(track.uri);  // ✅ Pousse les URIs complets
+  }
+}
+
+// ✅ Crée la string comma-separated comme dans Batch
+const trackUrisString = trackUris.join(',');
+
+return [{
+  json: {
+    trackUris: trackUris,
+    trackUrisString: trackUrisString,  // ✅ CRITICAL
+    trackIds: trackUris.map(uri => uri.split(':')[2]),  // Pour référence
+    playlistId: playlistId
+  }
+}];
+```
+
+---
+
+#### 2. **Node "🅰️ Add Songs to Playlist" - Paramètre trackID**
+
+**Avant (v3.0 - BUGGY) :**
+```javascript
+{
+  "resource": "playlist",
+  "id": "={{ $json.playlistId }}",
+  "trackID": "={{ $json.trackIds }}"  // ❌ Array d'IDs
+}
+```
+
+**Après (v3.0.1 - FIXED) :**
+```javascript
+{
+  "resource": "playlist",
+  "id": "={{ $json.playlistId }}",
+  "trackID": "={{ $json.trackUrisString }}"  // ✅ String comma-separated
+}
+```
+
+---
+
+### 📊 Différences identifiées avec le workflow Batch
+
+| Aspect | Batch (✅ fonctionne) | Quiz v3.0 (❌ buggy) | Quiz v3.0.1 (✅ fixed) |
+|--------|----------------------|---------------------|----------------------|
+| **Variable utilisée** | `trackUris` | `trackIds` | `trackUris` ✅ |
+| **Contenu** | `["spotify:track:xxx"]` | `["xxx"]` | `["spotify:track:xxx"]` ✅ |
+| **Format pour API** | String comma-separated | Array | String comma-separated ✅ |
+| **Vérification name** | `track.name` | ❌ Absent | `track.name` ✅ |
+| **Paramètre Spotify** | `trackUrisString` | `trackIds` | `trackUrisString` ✅ |
+
+---
+
+### ✅ Impact de la correction
+
+- **Avant** : Le workflow aurait échoué lors de l'ajout des chansons à la playlist Spotify (format incorrect)
+- **Après** : Alignement complet avec le workflow Batch qui fonctionne en production
+- **Test requis** : Validé par comparaison avec `generate-playlist-batch-ai.json`
+
+---
+
 ## Version 3.0 - Parallel Architecture (2025-11-12)
 
 ### 🚀 Optimisation majeure : Architecture parallélisée

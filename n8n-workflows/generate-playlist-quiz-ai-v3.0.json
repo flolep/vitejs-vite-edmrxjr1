@@ -113,7 +113,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// 🅰️ BRANCHE A : Aggregate Spotify tracks for playlist creation\nconst allItems = $input.all();\nconst trackIds = [];\nconst trackData = [];\n\nconsole.log('🅰️ [BRANCH A] Aggregating Spotify tracks...');\n\nfor (const item of allItems) {\n  const track = item.json;\n  \n  if (track && track.id && track.uri) {\n    trackIds.push(track.id);\n    trackData.push({\n      id: track.id,\n      uri: track.uri,\n      title: track.name,\n      artist: track.artists?.[0]?.name || 'Unknown'\n    });\n    \n    console.log(`  ✓ ${track.name} by ${track.artists?.[0]?.name}`);\n  } else {\n    console.warn('  ⚠️ Invalid track data:', track);\n  }\n}\n\nif (trackIds.length === 0) {\n  throw new Error('No valid Spotify tracks found');\n}\n\n// Get playlistId from Parse JSON Body\nconst playlistId = $('Parse JSON Body').first().json.playlistId;\n\nconsole.log(`✅ [BRANCH A] Found ${trackIds.length} Spotify tracks`);\nconsole.log(`   Ready to add to playlist: ${playlistId}`);\n\nreturn [{\n  json: {\n    trackIds: trackIds,\n    trackData: trackData,\n    playlistId: playlistId,\n    totalTracks: trackIds.length,\n    branchName: 'SPOTIFY'\n  }\n}];"
+        "jsCode": "// 🅰️ BRANCHE A : Aggregate Spotify tracks for playlist creation\n// ✅ ALIGNED WITH BATCH WORKFLOW (working version)\nconst allItems = $input.all();\nconst trackUris = [];\nconst trackData = [];\n\nconsole.log('🅰️ [BRANCH A] Aggregating Spotify tracks...');\n\nfor (const item of allItems) {\n  const track = item.json;\n  \n  // ✅ Check track.name too, like in Batch workflow\n  if (track && track.id && track.uri && track.name) {\n    trackUris.push(track.uri);  // ✅ Push full URIs, not just IDs\n    trackData.push({\n      id: track.id,\n      uri: track.uri,\n      title: track.name,\n      artist: track.artists?.[0]?.name || 'Unknown'\n    });\n    \n    console.log(`  ✓ ${track.name} by ${track.artists?.[0]?.name}`);\n  } else {\n    console.warn('  ⚠️ Invalid track data:', track);\n  }\n}\n\nif (trackUris.length === 0) {\n  throw new Error('No valid Spotify tracks found');\n}\n\n// ✅ Create comma-separated string like Batch workflow\nconst trackUrisString = trackUris.join(',');\n\n// Get playlistId from Parse JSON Body\nconst playlistId = $('Parse JSON Body').first().json.playlistId;\n\nconsole.log(`✅ [BRANCH A] Found ${trackUris.length} Spotify tracks`);\nconsole.log(`   Ready to add to playlist: ${playlistId}`);\n\nreturn [{\n  json: {\n    trackUris: trackUris,  // ✅ Array of URIs\n    trackUrisString: trackUrisString,  // ✅ CRITICAL: Comma-separated string for Spotify API\n    trackIds: trackUris.map(uri => uri.split(':')[2]),  // Extract IDs for reference\n    trackData: trackData,\n    playlistId: playlistId,\n    totalTracks: trackUris.length,\n    branchName: 'SPOTIFY'\n  }\n}];"
       },
       "id": "aggregate-spotify",
       "name": "🅰️ Aggregate Spotify Tracks",
@@ -125,7 +125,7 @@
       "parameters": {
         "resource": "playlist",
         "id": "={{ $json.playlistId }}",
-        "trackID": "={{ $json.trackIds }}",
+        "trackID": "={{ $json.trackUrisString }}",
         "additionalFields": {}
       },
       "id": "add-to-playlist",
