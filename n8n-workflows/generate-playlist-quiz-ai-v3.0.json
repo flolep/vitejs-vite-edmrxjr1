@@ -314,10 +314,8 @@
     },
     "Parse Song List": {
       "main": [
-        [
-          {"node": "🅰️ Search Song on Spotify", "type": "main", "index": 0},
-          {"node": "🅱️ Format Wrong Answers Prompt", "type": "main", "index": 0}
-        ]
+        [{"node": "🅰️ Search Song on Spotify", "type": "main", "index": 0}],
+        [{"node": "🅱️ Format Wrong Answers Prompt", "type": "main", "index": 0}]
       ]
     },
     "🅰️ Search Song on Spotify": {

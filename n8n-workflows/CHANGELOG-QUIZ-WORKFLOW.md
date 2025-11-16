@@ -1,5 +1,54 @@
 # Changelog - Workflow Quiz (Corrections)
 
+## Version 3.0.3 - Fix Parallel Branches Configuration (2025-11-12)
+
+### 🚨 Correction de la configuration des branches parallèles
+
+**Erreur détectée** : La branche B (Wrong Answers) ne s'exécutait pas - seule la branche A (Spotify) était exécutée.
+
+**Cause** : Configuration incorrecte des connexions n8n pour "Parse Song List". Les deux branches étaient dans le **même array** au lieu de **deux arrays séparés**, ce qui les rendait séquentielles au lieu de parallèles.
+
+**Solution** : Restructuration des connexions pour exécution réellement parallèle.
+
+### 🔧 Configuration corrigée
+
+**Avant (v3.0.2 - SÉQUENTIEL) :**
+```javascript
+"Parse Song List": {
+  "main": [
+    [
+      {"node": "🅰️ Search Song on Spotify"},     // Exécuté EN PREMIER
+      {"node": "🅱️ Format Wrong Answers Prompt"} // Exécuté APRÈS (jamais atteint)
+    ]
+  ]
+}
+```
+
+**Après (v3.0.3 - PARALLÈLE) :**
+```javascript
+"Parse Song List": {
+  "main": [
+    [{"node": "🅰️ Search Song on Spotify"}],      // Branche A ⚡
+    [{"node": "🅱️ Format Wrong Answers Prompt"}]  // Branche B ⚡ (simultané)
+  ]
+}
+```
+
+### 📊 Différence technique
+
+| Configuration | Structure | Comportement |
+|---------------|-----------|--------------|
+| **Séquentiel** | `[[nodeA, nodeB]]` | nodeA → nodeB (l'un après l'autre) |
+| **Parallèle** | `[[nodeA], [nodeB]]` | nodeA + nodeB (simultanés) ✅ |
+
+### ✅ Impact
+
+- **Avant** : Branche B ignorée → Erreur "Missing Wrong Answers data from BRANCH B"
+- **Après** : Les deux branches s'exécutent vraiment en parallèle ⚡
+- **Performance** : Gain de temps réel de 50-60% maintenant effectif
+
+---
+
 ## Version 3.0.2 - Fix Parallel Merge Error (2025-11-12)
 
 ### 🚨 Correction du problème de merge dans l'architecture parallèle
