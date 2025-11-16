@@ -33,7 +33,26 @@ export function QuizDisplay({
     );
   }
 
-  const { answers, revealed } = quizQuestion;
+  const { answers, revealed, trackNumber } = quizQuestion;
+
+  // 🎲 Mélanger les positions visuelles des réponses (stable par chanson)
+  // Utilise le trackNumber comme seed pour avoir toujours le même ordre pendant la question
+  const shuffledAnswers = React.useMemo(() => {
+    if (!answers) return [];
+
+    // Créer un array avec les réponses et leur index original
+    const answersWithIndex = answers.map((answer, idx) => ({ answer, originalIndex: idx }));
+
+    // Mélanger en utilisant le trackNumber comme seed simple
+    const shuffled = [...answersWithIndex].sort((a, b) => {
+      // Hash simple basé sur trackNumber + index pour avoir un ordre déterministe
+      const hashA = (trackNumber * 1000 + a.originalIndex * 13) % 100;
+      const hashB = (trackNumber * 1000 + b.originalIndex * 13) % 100;
+      return hashA - hashB;
+    });
+
+    return shuffled.map(item => item.answer);
+  }, [answers, trackNumber]);
 
   // Calculer quels joueurs n'ont pas encore répondu
   const respondedPlayerIds = quizAnswers.map(a => a.playerId);
@@ -74,7 +93,7 @@ export function QuizDisplay({
           maxWidth: '1000px',
           margin: '0 auto 3rem'
         }}>
-          {answers && answers.map((answer) => {
+          {shuffledAnswers && shuffledAnswers.map((answer) => {
             const showCorrect = revealed && answer.isCorrect;
             const answersCount = quizAnswers.filter(a => a.answer === answer.label).length;
 
