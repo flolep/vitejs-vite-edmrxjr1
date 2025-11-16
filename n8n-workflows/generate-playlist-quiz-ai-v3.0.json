@@ -83,7 +83,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parse the AI response to get songs list\nconst response = $input.item.json;\n\nconsole.log('🎵 Parsing AI song recommendations...');\nconsole.log('Received data type:', typeof response);\n\n// If the response is directly an array, use it\nlet songs = Array.isArray(response) ? response : response.output || response.text;\n\n// If still not an array, try parsing as string\nif (typeof songs === 'string') {\n  songs = JSON.parse(songs);\n}\n\n// Final validation\nif (!Array.isArray(songs)) {\n  throw new Error(`Expected array but got: ${typeof songs}`);\n}\n\n// ✅ Récupérer le playlistId depuis Parse JSON Body\nconst playlistId = $('Parse JSON Body').first().json.playlistId;\n\nconsole.log(`✅ Processing ${songs.length} songs for Quiz mode (Parallel workflow v3.0)`);\nconsole.log(`   PlaylistId: ${playlistId}`);\nconsole.log('   Songs will be split into 2 parallel branches:');\nconsole.log('   - BRANCH A: Spotify search & playlist creation');\nconsole.log('   - BRANCH B: AI wrong answers generation');\n\n// Préparer les items pour les 2 branches\nconst items = songs.map((song, index) => ({\n  json: {\n    artist: song.artist,\n    song: song.song,\n    searchQuery: `${song.song} ${song.artist}`,\n    index: index,\n    playlistId: playlistId\n  }\n}));\n\n// ✅ Retourner 2 sorties pour créer 2 branches visuelles dans n8n\n// Sortie 0 → Branche A (Spotify)\n// Sortie 1 → Branche B (Wrong Answers)\nreturn [\n  items,  // Output 0: vers 🅰️ Search Song on Spotify\n  items   // Output 1: vers 🅱️ Format Wrong Answers Prompt\n];"
+        "jsCode": "// Parse the AI response to get songs list\nconst response = $input.item.json;\n\nconsole.log('🎵 Parsing AI song recommendations...');\nconsole.log('Received data type:', typeof response);\n\n// If the response is directly an array, use it\nlet songs = Array.isArray(response) ? response : response.output || response.text;\n\n// If still not an array, try parsing as string\nif (typeof songs === 'string') {\n  songs = JSON.parse(songs);\n}\n\n// Final validation\nif (!Array.isArray(songs)) {\n  throw new Error(`Expected array but got: ${typeof songs}`);\n}\n\n// ✅ Récupérer le playlistId depuis Parse JSON Body\nconst playlistId = $('Parse JSON Body').first().json.playlistId;\n\nconsole.log(`✅ Processing ${songs.length} songs for Quiz mode (Parallel workflow v3.0.4)`);\nconsole.log(`   PlaylistId: ${playlistId}`);\nconsole.log('   Songs will be sent to 2 parallel branches:');\nconsole.log('   - BRANCH A: Spotify search & playlist creation');\nconsole.log('   - BRANCH B: AI wrong answers generation');\n\n// Return each song for parallel processing in BOTH branches\n// Note: n8n Code node has only ONE output that connects to BOTH branches\nreturn songs.map((song, index) => ({\n  json: {\n    artist: song.artist,\n    song: song.song,\n    searchQuery: `${song.song} ${song.artist}`,\n    index: index,\n    playlistId: playlistId\n  }\n}));"
       },
       "id": "parse-songs",
       "name": "Parse Song List",
@@ -314,8 +314,10 @@
     },
     "Parse Song List": {
       "main": [
-        [{"node": "🅰️ Search Song on Spotify", "type": "main", "index": 0}],
-        [{"node": "🅱️ Format Wrong Answers Prompt", "type": "main", "index": 0}]
+        [
+          {"node": "🅰️ Search Song on Spotify", "type": "main", "index": 0},
+          {"node": "🅱️ Format Wrong Answers Prompt", "type": "main", "index": 0}
+        ]
       ]
     },
     "🅰️ Search Song on Spotify": {

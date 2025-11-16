@@ -1,104 +1,91 @@
 # Changelog - Workflow Quiz (Corrections)
 
-## Version 3.0.4 - Fix Visual Branch Split in n8n (2025-11-16)
+## Version 3.0.4 - Fix Visual Branch Connection in n8n (2025-11-16)
 
-### 🚨 Correction de l'affichage des 2 branches dans n8n
+### 🚨 Correction de la connexion visuelle de la branche B
 
-**Problème détecté** : Dans l'interface n8n, le node "Parse Song List" n'affichait qu'**une seule sortie** connectée à la branche A. La branche B démarrait "dans le vide" sans connexion visuelle.
+**Problème détecté** : Dans l'interface n8n, le node "Parse Song List" n'était **pas visuellement connecté** à la branche B "🅱️ Format Wrong Answers Prompt". La branche B démarrait "dans le vide".
 
-**Cause** : Le code JavaScript du node "Parse Song List" retournait un simple array, ce qui ne crée qu'**une seule sortie** dans n8n. Pour avoir **2 sorties visuelles**, il faut retourner un **array de 2 arrays**.
+**Cause** : Configuration incorrecte dans le JSON `connections`. La v3.0.3 utilisait le format `[[nodeA], [nodeB]]` qui est pour un node avec **2 sorties physiques** (comme Switch ou IF). Mais un node **Code** n'a qu'**une seule sortie physique**.
 
-**Solution** : Modifier le return pour créer explicitement 2 outputs.
-
-### 🔧 Code corrigé
-
-**Avant (v3.0.3 - 1 SEULE SORTIE) :**
-```javascript
-// Dans "Parse Song List"
-return songs.map((song, index) => ({
-  json: { ... }
-}));
-// ❌ Retourne un array simple → 1 seule sortie dans n8n
-```
-
-**Après (v3.0.4 - 2 SORTIES) :**
-```javascript
-// Préparer les items
-const items = songs.map((song, index) => ({
-  json: { ... }
-}));
-
-// ✅ Retourner 2 sorties pour créer 2 branches visuelles
-return [
-  items,  // Output 0 → 🅰️ Search Song on Spotify
-  items   // Output 1 → 🅱️ Format Wrong Answers Prompt
-];
-```
-
-### ✅ Impact
-
-- **Avant** : Branche B démarrait "dans le vide" dans l'interface n8n
-- **Après** : Les 2 branches sont visuellement connectées au node "Parse Song List" ✅
-- **Fonctionnalité** : Aucun changement, le workflow fonctionnait déjà correctement en backend
-
-### 📊 Affichage dans n8n
-
-```
-Parse Song List
-    ├─── Output 0 → 🅰️ Search Song on Spotify (Branche A)
-    └─── Output 1 → 🅱️ Format Wrong Answers Prompt (Branche B)
-```
-
-Les 2 branches sont maintenant **visuellement connectées** au node source.
-
----
-
-## Version 3.0.3 - Fix Parallel Branches Configuration (2025-11-12)
-
-### 🚨 Correction de la configuration des branches parallèles
-
-**Erreur détectée** : La branche B (Wrong Answers) ne s'exécutait pas - seule la branche A (Spotify) était exécutée.
-
-**Cause** : Configuration incorrecte des connexions n8n pour "Parse Song List". Les deux branches étaient dans le **même array** au lieu de **deux arrays séparés**, ce qui les rendait séquentielles au lieu de parallèles.
-
-**Solution** : Restructuration des connexions pour exécution réellement parallèle.
+**Solution** : Revenir au format correct pour un node à sortie unique : `[[nodeA, nodeB]]`.
 
 ### 🔧 Configuration corrigée
 
-**Avant (v3.0.2 - SÉQUENTIEL) :**
-```javascript
+**Avant (v3.0.3 - FORMAT INCORRECT) :**
+```json
+"Parse Song List": {
+  "main": [
+    [{"node": "🅰️ Search Song on Spotify"}],
+    [{"node": "🅱️ Format Wrong Answers Prompt"}]
+  ]
+}
+```
+❌ Format pour node avec 2 sorties → Branche B non connectée visuellement
+
+**Après (v3.0.4 - FORMAT CORRECT) :**
+```json
 "Parse Song List": {
   "main": [
     [
-      {"node": "🅰️ Search Song on Spotify"},     // Exécuté EN PREMIER
-      {"node": "🅱️ Format Wrong Answers Prompt"} // Exécuté APRÈS (jamais atteint)
+      {"node": "🅰️ Search Song on Spotify"},
+      {"node": "🅱️ Format Wrong Answers Prompt"}
     ]
   ]
 }
 ```
+✅ Format pour node avec 1 sortie → Les 2 branches reçoivent les mêmes données
 
-**Après (v3.0.3 - PARALLÈLE) :**
-```javascript
-"Parse Song List": {
-  "main": [
-    [{"node": "🅰️ Search Song on Spotify"}],      // Branche A ⚡
-    [{"node": "🅱️ Format Wrong Answers Prompt"}]  // Branche B ⚡ (simultané)
-  ]
-}
-```
+### 📊 Principe de fonctionnement
 
-### 📊 Différence technique
+Dans n8n, pour un **node Code** (qui n'a qu'une sortie) :
+- `[[nodeA, nodeB]]` = La même sortie alimente les 2 branches EN PARALLÈLE ✅
+- `[[nodeA], [nodeB]]` = Essaie de créer 2 sorties distinctes (impossible pour un Code node) ❌
 
-| Configuration | Structure | Comportement |
-|---------------|-----------|--------------|
-| **Séquentiel** | `[[nodeA, nodeB]]` | nodeA → nodeB (l'un après l'autre) |
-| **Parallèle** | `[[nodeA], [nodeB]]` | nodeA + nodeB (simultanés) ✅ |
+Pour un **node Switch/IF** (qui a plusieurs sorties) :
+- `[[nodeA], [nodeB]]` = Output 0 → nodeA, Output 1 → nodeB ✅
 
 ### ✅ Impact
 
-- **Avant** : Branche B ignorée → Erreur "Missing Wrong Answers data from BRANCH B"
-- **Après** : Les deux branches s'exécutent vraiment en parallèle ⚡
-- **Performance** : Gain de temps réel de 50-60% maintenant effectif
+- **Avant** : Branche B non connectée visuellement dans l'interface n8n
+- **Après** : Les 2 branches sont visuellement connectées au node "Parse Song List" ✅
+- **Exécution** : Les 2 branches reçoivent les mêmes données et s'exécutent en parallèle
+
+---
+
+## Version 3.0.3 - ~~Fix Parallel Branches Configuration~~ ANNULÉE (2025-11-12)
+
+### ⚠️ CETTE VERSION CONTENAIT UNE ERREUR - CORRIGÉE DANS v3.0.4
+
+**Ce qui était documenté** : Modification du format de connexion de `[[nodeA, nodeB]]` vers `[[nodeA], [nodeB]]` pour parallélisation.
+
+**Erreur** : Cette modification était incorrecte. Le format `[[nodeA], [nodeB]]` est pour des nodes avec **plusieurs sorties physiques** (Switch, IF), pas pour un node Code qui n'a qu'**une seule sortie**.
+
+**Conséquence** : La branche B n'était plus connectée visuellement au node "Parse Song List" dans l'interface n8n.
+
+**Correction** : Voir v3.0.4 ci-dessus pour le bon format.
+
+### 📚 Clarification technique
+
+Pour un **node Code** (1 sortie physique) :
+```json
+"main": [
+  [
+    {"node": "Branch A"},
+    {"node": "Branch B"}
+  ]
+]
+```
+✅ Les 2 nodes reçoivent les données de la **même sortie** en parallèle.
+
+Pour un **node Switch/IF** (plusieurs sorties physiques) :
+```json
+"main": [
+  [{"node": "Branch A"}],  // Output 0
+  [{"node": "Branch B"}]   // Output 1
+]
+```
+✅ Chaque output va vers un node différent.
 
 ---
 
