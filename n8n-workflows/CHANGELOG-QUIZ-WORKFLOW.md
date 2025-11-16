@@ -1,5 +1,58 @@
 # Changelog - Workflow Quiz (Corrections)
 
+## Version 3.0.4 - Fix Visual Branch Split in n8n (2025-11-16)
+
+### 🚨 Correction de l'affichage des 2 branches dans n8n
+
+**Problème détecté** : Dans l'interface n8n, le node "Parse Song List" n'affichait qu'**une seule sortie** connectée à la branche A. La branche B démarrait "dans le vide" sans connexion visuelle.
+
+**Cause** : Le code JavaScript du node "Parse Song List" retournait un simple array, ce qui ne crée qu'**une seule sortie** dans n8n. Pour avoir **2 sorties visuelles**, il faut retourner un **array de 2 arrays**.
+
+**Solution** : Modifier le return pour créer explicitement 2 outputs.
+
+### 🔧 Code corrigé
+
+**Avant (v3.0.3 - 1 SEULE SORTIE) :**
+```javascript
+// Dans "Parse Song List"
+return songs.map((song, index) => ({
+  json: { ... }
+}));
+// ❌ Retourne un array simple → 1 seule sortie dans n8n
+```
+
+**Après (v3.0.4 - 2 SORTIES) :**
+```javascript
+// Préparer les items
+const items = songs.map((song, index) => ({
+  json: { ... }
+}));
+
+// ✅ Retourner 2 sorties pour créer 2 branches visuelles
+return [
+  items,  // Output 0 → 🅰️ Search Song on Spotify
+  items   // Output 1 → 🅱️ Format Wrong Answers Prompt
+];
+```
+
+### ✅ Impact
+
+- **Avant** : Branche B démarrait "dans le vide" dans l'interface n8n
+- **Après** : Les 2 branches sont visuellement connectées au node "Parse Song List" ✅
+- **Fonctionnalité** : Aucun changement, le workflow fonctionnait déjà correctement en backend
+
+### 📊 Affichage dans n8n
+
+```
+Parse Song List
+    ├─── Output 0 → 🅰️ Search Song on Spotify (Branche A)
+    └─── Output 1 → 🅱️ Format Wrong Answers Prompt (Branche B)
+```
+
+Les 2 branches sont maintenant **visuellement connectées** au node source.
+
+---
+
 ## Version 3.0.3 - Fix Parallel Branches Configuration (2025-11-12)
 
 ### 🚨 Correction de la configuration des branches parallèles
