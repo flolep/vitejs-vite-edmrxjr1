@@ -1,5 +1,55 @@
 # Changelog - Workflow Quiz (Corrections)
 
+## Version 3.0.2 - Fix Parallel Merge Error (2025-11-12)
+
+### 🚨 Correction du problème de merge dans l'architecture parallèle
+
+**Erreur détectée** : `Missing Spotify data from BRANCH A` lors du merge des deux branches parallèles.
+
+**Cause** : Le node "🅰️ Add Songs to Playlist" (Spotify API) retourne seulement un `snapshot_id`, pas les données `trackData` préparées par "Aggregate Spotify Tracks".
+
+**Solution** : Ajout d'un node intermédiaire "🅰️ Propagate Spotify Data" qui :
+1. Récupère les données de "🅰️ Aggregate Spotify Tracks"
+2. Confirme le succès de l'ajout à la playlist
+3. Propage les `trackData` vers le node Merge
+
+### 🔧 Architecture corrigée
+
+**Avant (v3.0.1 - ERREUR) :**
+```
+🅰️ Aggregate Spotify Tracks → Add to Playlist → 🔀 Merge
+                                                  ❌ trackData manquant
+```
+
+**Après (v3.0.2 - CORRIGÉ) :**
+```
+🅰️ Aggregate Spotify Tracks → Add to Playlist → Propagate Data → 🔀 Merge
+                                                                   ✅ trackData présent
+```
+
+### 📝 Node ajouté
+
+**"🅰️ Propagate Spotify Data"** (Code JavaScript) :
+```javascript
+const aggregateData = $('🅰️ Aggregate Spotify Tracks').first().json;
+const addResult = $input.first().json;
+
+return [{
+  json: {
+    ...aggregateData,  // ✅ Contient trackData, trackUris, etc.
+    playlistAddSuccess: true,
+    playlistSnapshot: addResult.snapshot_id || null
+  }
+}];
+```
+
+### 🔗 Connexions mises à jour
+
+- `🅰️ Add Songs to Playlist` → `🅰️ Propagate Spotify Data` (nouveau)
+- `🅰️ Propagate Spotify Data` → `🔀 Merge Spotify + Wrong Answers` (nouveau)
+
+---
+
 ## Version 3.0.1 - Critical Spotify API Fix (2025-11-12)
 
 ### 🚨 Correction critique basée sur le workflow Batch qui fonctionne

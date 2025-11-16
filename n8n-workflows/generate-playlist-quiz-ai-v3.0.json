@@ -142,6 +142,16 @@
     },
     {
       "parameters": {
+        "jsCode": "// 🅰️ Propagate Spotify data from Aggregate node to Merge\n// The \"Add Songs to Playlist\" node only returns snapshot_id, not trackData\n// So we need to retrieve trackData from the Aggregate node\n\nconst aggregateData = $('🅰️ Aggregate Spotify Tracks').first().json;\nconst addResult = $input.first().json;\n\nconsole.log('🅰️ [BRANCH A] Propagating Spotify data to merge...');\nconsole.log('   Playlist add result:', addResult.snapshot_id || 'success');\nconsole.log('   Propagating trackData for', aggregateData.totalTracks, 'tracks');\n\n// Return the aggregate data (which contains trackData) for the Merge node\nreturn [{\n  json: {\n    ...aggregateData,\n    playlistAddSuccess: true,\n    playlistSnapshot: addResult.snapshot_id || null\n  }\n}];"
+      },
+      "id": "propagate-spotify-data",
+      "name": "🅰️ Propagate Spotify Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1792, 100]
+    },
+    {
+      "parameters": {
         "assignments": {
           "assignments": [
             {
@@ -317,6 +327,9 @@
       "main": [[{"node": "🅰️ Add Songs to Playlist", "type": "main", "index": 0}]]
     },
     "🅰️ Add Songs to Playlist": {
+      "main": [[{"node": "🅰️ Propagate Spotify Data", "type": "main", "index": 0}]]
+    },
+    "🅰️ Propagate Spotify Data": {
       "main": [[{"node": "🔀 Merge Spotify + Wrong Answers", "type": "main", "index": 0}]]
     },
     "🅱️ Format Wrong Answers Prompt": {
