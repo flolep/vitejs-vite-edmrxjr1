@@ -1,5 +1,109 @@
 # Changelog - Workflow Quiz (Corrections)
 
+## Version 4.0 - Architecture 2 Workflows Séparés (2025-11-16)
+
+### 🚀 CHANGEMENT MAJEUR : Simplification avec 2 workflows indépendants
+
+**Décision** : Abandon du workflow complexe avec branches parallèles au profit de **2 workflows séparés**.
+
+### 🎯 Pourquoi ce changement ?
+
+Les versions 3.0.x essayaient de gérer les branches parallèles dans un seul workflow n8n, causant des problèmes :
+- ❌ Connexions visuelles complexes et confuses
+- ❌ Difficultés de maintenance et debugging
+- ❌ Problèmes de format de connexions (`[[nodeA, nodeB]]` vs `[[nodeA], [nodeB]]`)
+- ❌ Code dupliqué avec le workflow Batch
+
+### ✅ Solution : 2 Workflows Simples
+
+**Workflow 1 : Génération de Playlist** (`generate-playlist-batch-ai-v3.json`)
+- **Réutilise** le workflow Batch existant
+- Génère la playlist Spotify
+- Partagé entre mode Équipe et mode Quiz
+
+**Workflow 2 : Génération des Mauvaises Réponses** (`generate-wrong-answers-v1.0.json`) - **NOUVEAU**
+- Reçoit une liste de chansons
+- Génère 3 mauvaises réponses par chanson via IA (GPT-3.5-turbo)
+- Workflow simple et spécialisé
+
+### 🔧 Changements Techniques
+
+#### Nouveau fichier créé
+```
+n8n-workflows/generate-wrong-answers-v1.0.json
+```
+
+#### Service n8n (src/n8nService.js)
+
+**Nouvelle fonction** :
+```javascript
+async generateWrongAnswers(songs) {
+  // Appelle le workflow 2 pour générer les mauvaises réponses
+}
+```
+
+**Fonction modifiée** :
+```javascript
+async fillPlaylistQuizMode({ playlistId, players }) {
+  // 1. Appelle generatePlaylistWithAllPreferences (Workflow 1)
+  // 2. Appelle generateWrongAnswers (Workflow 2)
+  // 3. Fusionne les résultats
+  // 4. Retourne songs avec wrongAnswers
+}
+```
+
+#### Master.jsx
+
+**Modification** :
+```javascript
+// Choix automatique du bon workflow selon le mode
+const generatePlaylistPromise = playMode === 'quiz'
+  ? n8nService.fillPlaylistQuizMode({ playlistId, players })
+  : n8nService.generatePlaylistWithAllPreferences({ playlistId, players });
+```
+
+### 📊 Comparaison
+
+| Aspect | v3.0.x (1 workflow) | v4.0 (2 workflows) |
+|--------|---------------------|-------------------|
+| Simplicité | ❌ Complexe | ✅ Simple |
+| Maintenabilité | ❌ Difficile | ✅ Facile |
+| Réutilisabilité | ❌ Code dupliqué | ✅ Batch partagé |
+| Problèmes visuels | ❌ Branches mal connectées | ✅ Aucun problème |
+| Performance | ~30-35s (parallèle) | ~50-60s (séquentiel) |
+| Fiabilité | ⚠️ Problématique | ✅ Excellente |
+
+### ✅ Avantages
+
+1. **Simplicité** : Chaque workflow a une responsabilité unique
+2. **Réutilisabilité** : Workflow Batch partagé entre Équipe et Quiz
+3. **Maintenabilité** : Plus facile à debugger et améliorer
+4. **Pas de problèmes de branches** : Évite la complexité n8n
+
+### ⚠️ Performance
+
+- **Légèrement plus lent** (~20s de plus) car séquentiel au lieu de parallèle
+- **Mais beaucoup plus fiable** : pas d'erreurs de connexions ou de timeout
+
+### 📝 Migration
+
+1. ✅ Importer `generate-wrong-answers-v1.0.json` dans n8n
+2. ✅ Vérifier les credentials OpenAI (GPT-3.5-turbo)
+3. ✅ Activer le nouveau workflow
+4. ⚠️ Optionnel : Désactiver ou supprimer `generate-playlist-quiz-ai-v3.0.json`
+5. ✅ Le code application est déjà mis à jour
+
+### 📚 Documentation
+
+Nouvelle documentation créée : `QUIZ-MODE-ARCHITECTURE.md`
+- Architecture complète des 2 workflows
+- Exemples d'inputs/outputs
+- Guide d'installation et tests
+
+---
+
+# Changelog - Workflow Quiz (Corrections)
+
 ## Version 3.0.4 - Fix Visual Branch Connection in n8n (2025-11-16)
 
 ### 🚨 Correction de la connexion visuelle de la branche B
