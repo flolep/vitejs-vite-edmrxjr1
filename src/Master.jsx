@@ -282,6 +282,28 @@ export default function Master({
     return () => unsubscribe();
   }, [sessionId, playMode]);
 
+  // Écouter la révélation des réponses en mode Quiz
+  useEffect(() => {
+    if (!sessionId || playMode !== 'quiz') return;
+
+    const quizRef = ref(database, `sessions/${sessionId}/quiz`);
+    const unsubscribe = onValue(quizRef, (snapshot) => {
+      const quizData = snapshot.val();
+      if (quizData && quizData.revealed && currentTrack !== null && playlist[currentTrack]) {
+        // Mettre à jour currentSong avec revealed: true
+        updateCurrentSong({
+          title: playlist[currentTrack].title,
+          artist: playlist[currentTrack].artist,
+          imageUrl: playlist[currentTrack].imageUrl,
+          revealed: true,
+          number: currentTrack + 1
+        });
+      }
+    });
+
+    return () => unsubscribe();
+  }, [sessionId, playMode, currentTrack, playlist, updateCurrentSong]);
+
   // === ACTIONS ===
 
   const handleGeneratePlaylistWithAllPreferences = async () => {
