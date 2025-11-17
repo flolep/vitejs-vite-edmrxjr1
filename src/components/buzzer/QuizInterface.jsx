@@ -9,7 +9,6 @@ export function QuizInterface({
   hasAnswered,
   isPlaying,
   onAnswerSelect,
-  onChangeTeam,
   loadPersonalStats,
   showStats,
   setShowStats,
@@ -198,10 +197,6 @@ export function QuizInterface({
           </div>
         )}
       </div>
-
-      <button onClick={onChangeTeam} className="btn btn-gray mt-8">
-        Changer d'équipe
-      </button>
 
       {/* Modale des statistiques personnelles */}
       {showStats && (
