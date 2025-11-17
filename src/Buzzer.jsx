@@ -237,11 +237,21 @@ export default function Buzzer() {
             setSelectedGenres(storedData.selectedGenres || []);
             setSpecialPhrase(storedData.specialPhrase || '');
             setPhotoData(storedData.photoData);
-            setStep('team');
 
-            console.log('✅ Reconnexion partielle (choix équipe nécessaire)');
-            setIsReconnecting(false);
-            resolve(true);
+            // Vérifier le mode de jeu avant de décider l'étape suivante
+            const playModeRef = ref(database, `sessions/${sessionId}/playMode`);
+            onValue(playModeRef, async (playModeSnapshot) => {
+              const mode = playModeSnapshot.val();
+              if (mode === 'quiz') {
+                console.log('✅ Reconnexion partielle en mode Quiz → accès direct au jeu');
+                await goToGameWithQuizSetup();
+              } else {
+                console.log('✅ Reconnexion partielle (choix équipe nécessaire)');
+                setStep('team');
+              }
+              setIsReconnecting(false);
+              resolve(true);
+            }, { onlyOnce: true });
           }
         }, { onlyOnce: true });
       });
@@ -626,11 +636,47 @@ export default function Buzzer() {
     const gameAlreadyStarted = storedData?.gameAlreadyStarted === true;
 
     if (gameAlreadyStarted) {
-      console.log('⚡ Partie démarrée → skip préférences, accès direct au choix d\'équipe');
-      setStep('team');
+      // En mode Quiz, pas besoin de choix d'équipe
+      if (playMode === 'quiz') {
+        console.log('⚡ Partie démarrée en mode Quiz → accès direct au jeu');
+        goToGameWithQuizSetup();
+      } else {
+        console.log('⚡ Partie démarrée → skip préférences, accès direct au choix d\'équipe');
+        setStep('team');
+      }
     } else {
       console.log('⏸️ Partie non démarrée → demande des préférences');
       setStep('preferences');
+    }
+  };
+
+  // Helper : Passer directement au jeu en mode Quiz sans choix d'équipe
+  const goToGameWithQuizSetup = async () => {
+    try {
+      const playerId = selectedPlayer?.id || `temp_${playerName}`;
+      const playersRef = ref(database, `sessions/${sessionId}/players_session/team1/${playerId}`);
+
+      // Enregistrer le joueur dans team1 (utilisé pour le suivi en mode Quiz)
+      await set(playersRef, {
+        name: selectedPlayer?.name || playerName,
+        photo: selectedPlayer?.photo || photoData || null,
+        connected: true,
+        lastSeen: Date.now()
+      });
+
+      setTeam('team1'); // Techniquement dans team1 mais pas affiché
+      setPlayerFirebaseKey(playerId);
+      setStep('game');
+
+      saveToLocalStorage({
+        team: 'team1',
+        playerFirebaseKey: playerId
+      });
+
+      console.log('✅ Joueur enregistré en mode Quiz');
+    } catch (err) {
+      console.error('❌ Erreur enregistrement joueur Quiz:', err);
+      setError('Erreur de connexion au jeu');
     }
   };
 
@@ -702,8 +748,14 @@ export default function Buzzer() {
 
       console.log('✅ Préférences enregistrées. Le Master génèrera la playlist quand tous les joueurs seront prêts.');
 
-      // Passer à l'étape suivante
-      setStep('team');
+      // Passer à l'étape suivante selon le mode de jeu
+      if (playMode === 'quiz') {
+        console.log('🎯 Mode Quiz → passage direct au jeu');
+        await goToGameWithQuizSetup();
+      } else {
+        console.log('👥 Mode Équipe → choix de l\'équipe');
+        setStep('team');
+      }
 
     } catch (err) {
       console.error('❌ Erreur lors de la soumission des préférences:', err);
@@ -853,6 +905,12 @@ const handleQuizAnswer = async (answer) => {
 };
 
 const changeTeam = async () => {
+  // En mode Quiz, il n'y a pas de changement d'équipe
+  if (playMode === 'quiz') {
+    console.log('⚠️ Changement d\'équipe non disponible en mode Quiz');
+    return;
+  }
+
   // ✅ SUPPRIMER le joueur avec sa clé Firebase
   if (team && playerFirebaseKey) {
     const currentTeamKey = `team${team}`;
@@ -1491,7 +1549,6 @@ if (step === 'game') {
         hasAnswered={hasAnswered}
         isPlaying={isPlaying}
         onAnswerSelect={handleQuizAnswer}
-        onChangeTeam={changeTeam}
         loadPersonalStats={loadPersonalStats}
         showStats={showStats}
         setShowStats={setShowStats}
