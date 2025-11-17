@@ -189,7 +189,18 @@ export function QuizDisplay({
         }}>
           {shuffledAnswers && shuffledAnswers.map((answer) => {
             const showCorrect = revealed && answer.isCorrect;
-            const answersCount = quizAnswers.filter(a => a.answer === answer.label).length;
+
+            // Trouver les joueurs qui ont choisi cette réponse
+            const playersWhoAnswered = quizAnswers.filter(a => a.answer === answer.label);
+
+            // Récupérer les photos depuis allPlayers
+            const playersWithPhotos = playersWhoAnswered.map(playerAnswer => {
+              const player = allPlayers.find(p => p.name === playerAnswer.playerName);
+              return {
+                ...playerAnswer,
+                photo: player?.photo
+              };
+            });
 
             let backgroundColor = 'rgba(75, 85, 99, 0.5)';
             let borderColor = '#6b7280';
@@ -209,7 +220,8 @@ export function QuizDisplay({
                   padding: '2rem',
                   textAlign: 'center',
                   transition: 'all 0.3s',
-                  boxShadow: showCorrect ? '0 0 30px rgba(16, 185, 129, 0.6)' : 'none'
+                  boxShadow: showCorrect ? '0 0 30px rgba(16, 185, 129, 0.6)' : 'none',
+                  position: 'relative'
                 }}
               >
                 <div style={{
@@ -228,14 +240,36 @@ export function QuizDisplay({
                 }}>
                   {answer.text}
                 </div>
-                {/* Nombre de réponses */}
-                {answersCount > 0 && (
+
+                {/* Photos des joueurs qui ont répondu */}
+                {playersWithPhotos.length > 0 && (
                   <div style={{
-                    fontSize: '1.5rem',
-                    opacity: 0.8,
-                    marginTop: '0.5rem'
+                    display: 'flex',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    marginTop: '1rem',
+                    flexWrap: 'wrap'
                   }}>
-                    {answersCount} {answersCount === 1 ? 'réponse' : 'réponses'}
+                    {playersWithPhotos.map((player, idx) => (
+                      player.photo && (
+                        <img
+                          key={idx}
+                          src={player.photo}
+                          alt={player.playerName}
+                          title={player.playerName}
+                          style={{
+                            width: '50px',
+                            height: '50px',
+                            borderRadius: '50%',
+                            objectFit: 'cover',
+                            border: '3px solid white',
+                            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+                            transition: 'transform 0.2s',
+                            animation: 'fadeIn 0.3s ease-in'
+                          }}
+                        />
+                      )
+                    ))}
                   </div>
                 )}
               </div>
