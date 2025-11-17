@@ -305,6 +305,16 @@ export default function Master({
     return () => unsubscribe();
   }, [sessionId, playMode, currentTrack, playlist, updateCurrentSong]);
 
+  // Ref pour stocker les fonctions de navigation et lecture (éviter les closures obsolètes)
+  const nextTrackRef = useRef(null);
+  const togglePlayRef = useRef(null);
+
+  // Mettre à jour les refs à chaque render
+  useEffect(() => {
+    nextTrackRef.current = nextTrack;
+    togglePlayRef.current = togglePlay;
+  });
+
   // Écouter la demande de passage à la chanson suivante par le joueur le plus rapide
   useEffect(() => {
     if (!sessionId || playMode !== 'quiz') return;
@@ -322,26 +332,33 @@ export default function Master({
           // Supprimer la demande immédiatement
           await remove(nextSongRequestRef);
 
-          // Passer à la chanson suivante
-          nextTrack();
+          // Passer à la chanson suivante en utilisant la ref (toujours à jour)
+          if (nextTrackRef.current) {
+            nextTrackRef.current();
+          }
 
-          // Attendre que nextTrack() se termine et que l'état se propage
-          await new Promise(resolve => setTimeout(resolve, 500));
+          // Attendre que l'état se propage
+          await new Promise(resolve => setTimeout(resolve, 1000));
 
           // Démarrer automatiquement la lecture de la nouvelle chanson
-          await togglePlay();
+          if (togglePlayRef.current) {
+            await togglePlayRef.current();
+          }
 
           console.log('✅ Chanson suivante lancée automatiquement');
         } catch (error) {
           console.error('❌ Erreur lors du passage à la chanson suivante:', error);
         } finally {
-          isProcessing = false;
+          // Reset le flag après un délai pour éviter les double-clics
+          setTimeout(() => {
+            isProcessing = false;
+          }, 500);
         }
       }
     });
 
     return () => unsubscribe();
-  }, [sessionId, playMode]); // Pas de dépendances sur nextTrack/togglePlay pour éviter re-création constante
+  }, [sessionId, playMode]);
 
   // === ACTIONS ===
 
