@@ -224,6 +224,11 @@ export const n8nService = {
       };
 
       console.log(`🎲 Génération des mauvaises réponses pour ${songs.length} chansons via n8n`);
+      console.log(`⏱️ Cette opération peut prendre jusqu'à 2 minutes...`);
+
+      // Créer un AbortController pour timeout de 120 secondes
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutes
 
       const response = await fetch(N8N_PROXY_URL, {
         method: 'POST',
@@ -233,8 +238,11 @@ export const n8nService = {
         body: JSON.stringify({
           endpoint: 'blindtest-wrong-answers',
           payload: payload
-        })
+        }),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -246,6 +254,10 @@ export const n8nService = {
 
       return data;
     } catch (error) {
+      if (error.name === 'AbortError') {
+        console.error('❌ Timeout après 2 minutes');
+        throw new Error('La génération a pris trop de temps. Le workflow continue en arrière-plan sur n8n.');
+      }
       console.error('❌ Erreur génération mauvaises réponses:', error);
       throw error;
     }

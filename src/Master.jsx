@@ -363,7 +363,6 @@ export default function Master({
 
     try {
       setIsGeneratingQuizQuestions(true);
-      setDebugInfo('🎲 Génération des questions Quiz en cours...');
 
       console.log('🎲 Génération des wrongAnswers pour', playlist.length, 'chansons');
 
@@ -373,24 +372,64 @@ export default function Master({
         uri: track.uri
       }));
 
-      const wrongAnswersResponse = await n8nService.generateWrongAnswers(songsForWrongAnswers);
+      // 🔄 Découper en batches de 10 chansons pour éviter le timeout Netlify (10-26s max)
+      const BATCH_SIZE = 10;
+      const batches = [];
+      for (let i = 0; i < songsForWrongAnswers.length; i += BATCH_SIZE) {
+        batches.push(songsForWrongAnswers.slice(i, i + BATCH_SIZE));
+      }
 
-      const songsWithWrongAnswers = playlist.map((track, index) => {
-        const wrongAnswersData = wrongAnswersResponse.wrongAnswers[index];
-        return {
-          uri: track.uri,
-          title: track.title,
-          artist: track.artist,
-          wrongAnswers: wrongAnswersData ? wrongAnswersData.wrongAnswers : [
-            `Fallback 1 - Song ${index + 1}A`,
-            `Fallback 2 - Song ${index + 1}B`,
-            `Fallback 3 - Song ${index + 1}C`
-          ]
-        };
-      });
+      console.log(`📦 ${batches.length} batches de ${BATCH_SIZE} chansons max`);
+
+      const allWrongAnswers = [];
+
+      for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+        const batch = batches[batchIndex];
+        const batchNum = batchIndex + 1;
+
+        setDebugInfo(`🎲 Génération batch ${batchNum}/${batches.length} (${batch.length} chansons)...`);
+        console.log(`🔄 Batch ${batchNum}/${batches.length}: ${batch.length} chansons`);
+
+        try {
+          const wrongAnswersResponse = await n8nService.generateWrongAnswers(batch);
+
+          // Ajouter les wrongAnswers de ce batch
+          for (let i = 0; i < batch.length; i++) {
+            const wrongAnswersData = wrongAnswersResponse.wrongAnswers[i];
+            allWrongAnswers.push({
+              uri: batch[i].uri,
+              title: batch[i].title,
+              artist: batch[i].artist,
+              wrongAnswers: wrongAnswersData ? wrongAnswersData.wrongAnswers : [
+                `Fallback 1 - Song ${allWrongAnswers.length + 1}A`,
+                `Fallback 2 - Song ${allWrongAnswers.length + 1}B`,
+                `Fallback 3 - Song ${allWrongAnswers.length + 1}C`
+              ]
+            });
+          }
+
+          console.log(`✅ Batch ${batchNum}/${batches.length} terminé`);
+        } catch (error) {
+          console.error(`❌ Erreur batch ${batchNum}:`, error);
+          // Ajouter des fallbacks pour ce batch en cas d'erreur
+          for (let i = 0; i < batch.length; i++) {
+            allWrongAnswers.push({
+              uri: batch[i].uri,
+              title: batch[i].title,
+              artist: batch[i].artist,
+              wrongAnswers: [
+                `Fallback 1 - Song ${allWrongAnswers.length + 1}A`,
+                `Fallback 2 - Song ${allWrongAnswers.length + 1}B`,
+                `Fallback 3 - Song ${allWrongAnswers.length + 1}C`
+              ]
+            });
+          }
+        }
+      }
 
       console.log('🎯 Stockage des données Quiz dans Firebase...');
-      await quizMode.storeQuizData(songsWithWrongAnswers);
+      setDebugInfo('💾 Stockage dans Firebase...');
+      await quizMode.storeQuizData(allWrongAnswers);
       console.log('✅ Données Quiz stockées avec succès !');
 
       setQuizQuestionsReady(true);
