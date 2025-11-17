@@ -176,13 +176,6 @@ export function QuizDisplay({
                 }}>
                   {availablePoints}
                 </div>
-                <div style={{
-                  fontSize: '1rem',
-                  opacity: 0.6,
-                  marginTop: '0.25rem'
-                }}>
-                  / 2500
-                </div>
               </div>
             </div>
 
@@ -356,10 +349,10 @@ export function QuizDisplay({
                       {playerAnswer.playerName}
                     </div>
 
-                    {/* Avant révélation : juste "A répondu" */}
+                    {/* Avant révélation : "A répondu en X.X s" */}
                     {!revealed && (
                       <div style={{ fontSize: '1.25rem', opacity: 0.8, fontStyle: 'italic' }}>
-                        ✓ A répondu
+                        ✓ A répondu en {playerAnswer.time.toFixed(1)} s
                       </div>
                     )}
 

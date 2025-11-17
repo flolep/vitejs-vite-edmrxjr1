@@ -310,27 +310,38 @@ export default function Master({
     if (!sessionId || playMode !== 'quiz') return;
 
     const nextSongRequestRef = ref(database, `sessions/${sessionId}/quiz_next_song_request`);
+    let isProcessing = false; // Flag pour éviter les doubles traitements
+
     const unsubscribe = onValue(nextSongRequestRef, async (snapshot) => {
       const requestData = snapshot.val();
-      if (requestData && requestData.timestamp) {
+      if (requestData && requestData.timestamp && !isProcessing) {
+        isProcessing = true;
         console.log(`➡️ Demande de passage à la chanson suivante par ${requestData.playerName}`);
 
-        // Passer à la chanson suivante
-        nextTrack();
+        try {
+          // Supprimer la demande immédiatement
+          await remove(nextSongRequestRef);
 
-        // Attendre un court instant pour que nextTrack() se termine
-        await new Promise(resolve => setTimeout(resolve, 100));
+          // Passer à la chanson suivante
+          nextTrack();
 
-        // Démarrer automatiquement la lecture de la nouvelle chanson
-        togglePlay();
+          // Attendre que nextTrack() se termine et que l'état se propage
+          await new Promise(resolve => setTimeout(resolve, 500));
 
-        // Supprimer la demande
-        remove(nextSongRequestRef);
+          // Démarrer automatiquement la lecture de la nouvelle chanson
+          await togglePlay();
+
+          console.log('✅ Chanson suivante lancée automatiquement');
+        } catch (error) {
+          console.error('❌ Erreur lors du passage à la chanson suivante:', error);
+        } finally {
+          isProcessing = false;
+        }
       }
     });
 
     return () => unsubscribe();
-  }, [sessionId, playMode]);
+  }, [sessionId, playMode]); // Pas de dépendances sur nextTrack/togglePlay pour éviter re-création constante
 
   // === ACTIONS ===
 

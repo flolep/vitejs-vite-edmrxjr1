@@ -906,26 +906,12 @@ const handleQuizAnswer = async (answer) => {
 
 // 🎯 Passer à la chanson suivante (mode Quiz - joueur le plus rapide uniquement)
 const handleNextSong = () => {
-  if (!sessionId) return;
+  if (!sessionId) {
+    console.error('❌ Pas de sessionId pour passer à la chanson suivante');
+    return;
+  }
 
   console.log('➡️ Passage à la chanson suivante demandé par le joueur le plus rapide');
-
-  // Réinitialiser le trigger et le flag revealed dans quiz
-  const quizRef = ref(database, `sessions/${sessionId}/quiz`);
-  onValue(quizRef, (snapshot) => {
-    const quizData = snapshot.val();
-    if (quizData) {
-      set(quizRef, {
-        ...quizData,
-        nextSongTriggerPlayerId: null, // Reset le trigger
-        revealed: false // Préparer pour la prochaine question
-      });
-    }
-  }, { onlyOnce: true });
-
-  // Réinitialiser l'état local
-  setHasAnswered(false);
-  setSelectedAnswer(null);
 
   // Notifier le Master de passer à la chanson suivante
   const nextSongRequestRef = ref(database, `sessions/${sessionId}/quiz_next_song_request`);
@@ -933,6 +919,10 @@ const handleNextSong = () => {
     timestamp: Date.now(),
     playerId: selectedPlayer?.id || `temp_${playerName}`,
     playerName: selectedPlayer?.name || playerName
+  }).then(() => {
+    console.log('✅ Demande de passage à la chanson suivante envoyée');
+  }).catch(error => {
+    console.error('❌ Erreur lors de l\'envoi de la demande:', error);
   });
 };
 

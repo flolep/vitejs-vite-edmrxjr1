@@ -146,28 +146,33 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
    * Met à jour le classement général du quiz
    */
   const updateLeaderboard = (answers) => {
-    // Calculer les points pour chaque joueur
-    const playerScores = {};
+    // Calculer les points pour chaque joueur (bonnes et mauvaises réponses)
+    const playerUpdates = {};
 
     answers.forEach((answer, index) => {
+      // Initialiser l'entrée du joueur si nécessaire
+      if (!playerUpdates[answer.playerId]) {
+        playerUpdates[answer.playerId] = {
+          playerId: answer.playerId,
+          playerName: answer.playerName,
+          totalPoints: 0,
+          correctAnswers: 0,
+          totalAnswers: 0
+        };
+      }
+
+      // Compter toutes les réponses
+      playerUpdates[answer.playerId].totalAnswers += 1;
+
+      // Calculer les points uniquement pour les bonnes réponses
       if (answer.isCorrect) {
-        // Points basés sur la rapidité (1er = plus de points)
         const basePoints = 1000;
         const timeBonus = Math.max(0, 500 - (answer.time * 10)); // Décroit avec le temps
         const rankBonus = Math.max(0, 500 - (index * 100)); // Décroit selon le rang
         const points = Math.round(basePoints + timeBonus + rankBonus);
 
-        if (!playerScores[answer.playerId]) {
-          playerScores[answer.playerId] = {
-            playerId: answer.playerId,
-            playerName: answer.playerName,
-            totalPoints: 0,
-            correctAnswers: 0
-          };
-        }
-
-        playerScores[answer.playerId].totalPoints += points;
-        playerScores[answer.playerId].correctAnswers += 1;
+        playerUpdates[answer.playerId].totalPoints += points;
+        playerUpdates[answer.playerId].correctAnswers += 1;
       }
     });
 
@@ -177,22 +182,25 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
       const existingLeaderboard = snapshot.val() || {};
 
       // Fusionner avec les nouveaux scores
-      Object.entries(playerScores).forEach(([playerId, data]) => {
+      Object.entries(playerUpdates).forEach(([playerId, data]) => {
         if (!existingLeaderboard[playerId]) {
+          // Nouveau joueur
           existingLeaderboard[playerId] = data;
         } else {
+          // Joueur existant - incrémenter les valeurs
           existingLeaderboard[playerId].totalPoints += data.totalPoints;
           existingLeaderboard[playerId].correctAnswers += data.correctAnswers;
+          existingLeaderboard[playerId].totalAnswers += data.totalAnswers;
         }
       });
 
-      // Convertir en array et trier
+      // Convertir en array et trier pour l'affichage
       const leaderboardArray = Object.values(existingLeaderboard)
         .sort((a, b) => b.totalPoints - a.totalPoints);
 
       setLeaderboard(leaderboardArray);
 
-      // Mettre à jour Firebase
+      // Sauvegarder dans Firebase (toujours comme objet pour cohérence)
       set(leaderboardRef, existingLeaderboard);
     }, { onlyOnce: true });
   };
@@ -261,75 +269,8 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
           });
         });
 
-        // Mettre à jour le leaderboard global
-        const leaderboardRef = ref(database, `sessions/${sessionId}/quiz_leaderboard`);
-        onValue(leaderboardRef, (leaderboardSnapshot) => {
-          let leaderboardData = leaderboardSnapshot.val() || [];
-
-          // Convertir en array si c'est un objet
-          if (!Array.isArray(leaderboardData)) {
-            leaderboardData = Object.values(leaderboardData);
-          }
-
-          // Mettre à jour chaque joueur qui a répondu
-          answersArray.forEach(answer => {
-            const isCorrect = answer.answer === String.fromCharCode(65 + correctAnswerIndex);
-
-            if (!isCorrect) return; // Ne compter que les bonnes réponses
-
-            const rank = answersArray.findIndex(a => a.playerId === answer.playerId);
-            const basePoints = 1000;
-            const timeBonus = Math.max(0, 500 - (answer.time * 10));
-            const rankBonus = Math.max(0, 500 - (rank * 100));
-            const points = Math.round(basePoints + timeBonus + rankBonus);
-
-            // Trouver ou créer l'entrée du joueur
-            let playerIndex = leaderboardData.findIndex(p => p.playerId === answer.playerId);
-
-            if (playerIndex === -1) {
-              // Nouveau joueur
-              leaderboardData.push({
-                playerId: answer.playerId,
-                playerName: answer.playerName,
-                totalPoints: points,
-                correctAnswers: 1,
-                totalAnswers: 1
-              });
-            } else {
-              // Joueur existant
-              leaderboardData[playerIndex].totalPoints += points;
-              leaderboardData[playerIndex].correctAnswers += 1;
-              leaderboardData[playerIndex].totalAnswers += 1;
-            }
-          });
-
-          // Compter aussi les mauvaises réponses pour totalAnswers
-          answersArray.forEach(answer => {
-            const isCorrect = answer.answer === String.fromCharCode(65 + correctAnswerIndex);
-            if (isCorrect) return; // Déjà compté ci-dessus
-
-            let playerIndex = leaderboardData.findIndex(p => p.playerId === answer.playerId);
-            if (playerIndex === -1) {
-              // Nouveau joueur avec mauvaise réponse
-              leaderboardData.push({
-                playerId: answer.playerId,
-                playerName: answer.playerName,
-                totalPoints: 0,
-                correctAnswers: 0,
-                totalAnswers: 1
-              });
-            } else {
-              // Joueur existant
-              leaderboardData[playerIndex].totalAnswers += 1;
-            }
-          });
-
-          // Trier par points décroissants
-          leaderboardData.sort((a, b) => b.totalPoints - a.totalPoints);
-
-          // Sauvegarder
-          set(leaderboardRef, leaderboardData);
-        }, { onlyOnce: true });
+        // Note: Le classement sera automatiquement mis à jour par updateLeaderboard()
+        // qui est appelé par le useEffect écoutant quiz_answers quand isCorrect est ajouté
       }
     }, { onlyOnce: true });
   };
