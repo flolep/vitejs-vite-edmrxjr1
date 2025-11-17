@@ -269,10 +269,19 @@ export default function Master({
         });
 
     generatePlaylistPromise
-      .then(result => {
+      .then(async result => {
         console.log('✅ Playlist générée (en arrière-plan):', result);
         if (playMode === 'quiz') {
           console.log(`   🎵 ${result.totalSongs} chansons + ${result.totalSongs * 3} mauvaises réponses`);
+
+          // 🎯 Stocker immédiatement les données quiz dans Firebase
+          if (result.songs && result.songs.length > 0 && result.songs[0]?.wrongAnswers) {
+            console.log('🎯 Stockage immédiat des données Quiz dans Firebase...');
+            await quizMode.storeQuizData(result.songs);
+            console.log('✅ Données Quiz stockées avec succès !');
+          } else {
+            console.warn('⚠️ Pas de wrongAnswers dans le résultat du workflow');
+          }
         } else {
           console.log(`   🎵 ${result.totalSongs} chansons ajoutées pour ${result.totalPlayers || players.length} joueurs`);
         }
@@ -309,18 +318,6 @@ export default function Master({
           setIsGeneratingPlaylist(false);
           setPlaylistPollAttempt(0);
           clearInterval(pollPlaylist);
-
-          // 🎯 Mode Quiz : Stocker les données quiz (si disponibles)
-          if (playMode === 'quiz' && tracks && tracks.length > 0) {
-            // Vérifier si les tracks contiennent des wrongAnswers
-            if (tracks[0]?.wrongAnswers) {
-              console.log('🎯 Données Quiz détectées, stockage dans Firebase...');
-              await quizMode.storeQuizData(tracks);
-            } else {
-              console.warn('⚠️ Mode Quiz actif mais pas de wrongAnswers dans les tracks');
-              console.warn('⚠️ Le workflow n8n doit retourner wrongAnswers pour chaque chanson');
-            }
-          }
         } else if (pollAttempts >= maxPollAttempts) {
           console.log('⏱️ Arrêt du polling : nombre max de tentatives atteint');
           setDebugInfo('⏱️ Génération en cours... Rafraîchissez manuellement si besoin');
