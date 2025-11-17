@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { database } from './firebase';
-import { ref, set, onValue, remove } from 'firebase/database';
+import { ref, set, onValue, remove, get } from 'firebase/database';
 import { airtableService } from './airtableService';
 import { n8nService } from './n8nService';
 import { QuizInterface } from './components/buzzer/QuizInterface';
@@ -871,49 +871,48 @@ const handleQuizAnswer = async (answer) => {
     return;
   }
 
-  // Calculer le temps de réponse (depuis le début de la chanson)
+  // Marquer comme répondu localement IMMÉDIATEMENT (comme le mode Équipe)
+  setSelectedAnswer(answer);
+  setHasAnswered(true);
+
+  // Lire le temps de réponse (comme le mode Équipe lit le chrono)
   const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
-  onValue(chronoRef, async (snapshot) => {
-    const chrono = snapshot.val() || 0;
+  const chronoSnapshot = await get(chronoRef);
+  const chrono = chronoSnapshot.val() || 0;
 
-    // Marquer comme répondu localement
-    setSelectedAnswer(answer);
-    setHasAnswered(true);
+  // Envoyer la réponse à Firebase (comme le mode Équipe envoie le buzz)
+  const playerId = selectedPlayer?.id || `temp_${playerName}`;
+  const answerPath = `sessions/${sessionId}/quiz_answers/${quizQuestion.trackNumber}/${playerId}`;
+  const answerRef = ref(database, answerPath);
 
-    // Envoyer la réponse à Firebase
-    const playerId = selectedPlayer?.id || `temp_${playerName}`;
-    const answerPath = `sessions/${sessionId}/quiz_answers/${quizQuestion.trackNumber}/${playerId}`;
-    const answerRef = ref(database, answerPath);
+  const answerData = {
+    playerName: selectedPlayer?.name || playerName,
+    answer: answer, // 'A', 'B', 'C', 'D'
+    time: chrono,
+    timestamp: Date.now(),
+    isCorrect: null // Sera calculé après révélation
+  };
 
-    const answerData = {
-      playerName: selectedPlayer?.name || playerName,
-      answer: answer, // 'A', 'B', 'C', 'D'
-      time: chrono,
-      timestamp: Date.now(),
-      isCorrect: null // Sera calculé après révélation
-    };
+  console.log('📤 Envoi réponse Quiz à Firebase:', {
+    path: answerPath,
+    playerId,
+    data: answerData
+  });
 
-    console.log('📤 Envoi réponse Quiz à Firebase:', {
-      path: answerPath,
-      playerId,
-      data: answerData
-    });
+  await set(answerRef, answerData);
 
-    await set(answerRef, answerData);
+  console.log('✅ Réponse Quiz envoyée avec succès:', {
+    player: selectedPlayer?.name || playerName,
+    answer,
+    time: chrono,
+    trackNumber: quizQuestion.trackNumber,
+    path: answerPath
+  });
 
-    console.log('✅ Réponse Quiz envoyée avec succès:', {
-      player: selectedPlayer?.name || playerName,
-      answer,
-      time: chrono,
-      trackNumber: quizQuestion.trackNumber,
-      path: answerPath
-    });
-
-    // Vibration feedback
-    if (navigator.vibrate) {
-      navigator.vibrate(100);
-    }
-  }, { onlyOnce: true });
+  // Vibration feedback
+  if (navigator.vibrate) {
+    navigator.vibrate(100);
+  }
 };
 
 // 🎯 Passer à la chanson suivante (mode Quiz - joueur le plus rapide uniquement)
