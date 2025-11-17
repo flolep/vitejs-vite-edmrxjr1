@@ -176,13 +176,6 @@ export function QuizDisplay({
                 }}>
                   {availablePoints}
                 </div>
-                <div style={{
-                  fontSize: '1rem',
-                  opacity: 0.6,
-                  marginTop: '0.25rem'
-                }}>
-                  / 2500
-                </div>
               </div>
             </div>
 
