@@ -175,6 +175,37 @@ export default function TV() {
   const [quizLeaderboard, setQuizLeaderboard] = useState([]); // Classement général du quiz
   const [allPlayers, setAllPlayers] = useState([]); // Tous les joueurs connectés (pour mode Quiz)
 
+  // 🔊 Ref pour le son de buzzer en mode Quiz
+  const buzzerSoundRef = useRef(null);
+  const previousAnswersCountRef = useRef(0);
+
+  // 🔊 Créer le son de buzzer (même son qu'en mode Équipe)
+  useEffect(() => {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+    const playBuzzerSound = () => {
+      const now = audioContext.currentTime;
+      const osc1 = audioContext.createOscillator();
+      const gain1 = audioContext.createGain();
+
+      osc1.connect(gain1);
+      gain1.connect(audioContext.destination);
+
+      osc1.frequency.setValueAtTime(800, now);
+      osc1.frequency.exponentialRampToValueAtTime(400, now + 0.1);
+      osc1.type = 'sawtooth';
+
+      gain1.gain.setValueAtTime(0, now);
+      gain1.gain.linearRampToValueAtTime(0.5, now + 0.01);
+      gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+
+      osc1.start(now);
+      osc1.stop(now + 0.3);
+    };
+
+    buzzerSoundRef.current = { play: playBuzzerSound };
+  }, []);
+
   // Vérifier le code de session depuis l'URL
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -435,6 +466,10 @@ export default function TV() {
   // 🎯 Écouter les réponses des joueurs pour la chanson actuelle
   useEffect(() => {
     if (!sessionValid || !sessionId || playMode !== 'quiz' || playingTrackNumber === null) return;
+
+    // Réinitialiser le compteur de réponses quand on change de chanson
+    previousAnswersCountRef.current = 0;
+
     const answersRef = ref(database, `sessions/${sessionId}/quiz_answers/${playingTrackNumber}`);
     const unsubscribe = onValue(answersRef, (snapshot) => {
       const answersData = snapshot.val();
@@ -449,9 +484,22 @@ export default function TV() {
         }));
         // Trier par temps de réponse
         answersList.sort((a, b) => a.time - b.time);
+
+        // 🔊 Jouer le son de buzzer si une nouvelle réponse est arrivée
+        const newAnswersCount = answersList.length;
+        if (newAnswersCount > previousAnswersCountRef.current && previousAnswersCountRef.current > 0) {
+          // Une nouvelle réponse est arrivée
+          if (buzzerSoundRef.current) {
+            buzzerSoundRef.current.play();
+            console.log('🔊 [QUIZ] Buzzer joué pour nouvelle réponse');
+          }
+        }
+        previousAnswersCountRef.current = newAnswersCount;
+
         setQuizAnswers(answersList);
       } else {
         setQuizAnswers([]);
+        previousAnswersCountRef.current = 0;
       }
     });
     return () => unsubscribe();
@@ -781,6 +829,8 @@ if (playMode === 'quiz') {
       allPlayers={allPlayers}
       isPlaying={isPlaying}
       gameStatus={gameEnded ? 'stopped' : 'playing'}
+      chrono={chrono}
+      songDuration={songDuration}
     />
   );
 }

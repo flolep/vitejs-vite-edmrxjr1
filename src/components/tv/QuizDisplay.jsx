@@ -1,13 +1,39 @@
 // Affichage TV pour le mode Quiz
 import React from 'react';
 
+/**
+ * Calcule les points disponibles selon le système de décompte
+ * (copié depuis TV.jsx pour cohérence)
+ */
+function calculatePoints(chrono, songDuration) {
+  const maxPoints = 2500;
+  let availablePoints = maxPoints;
+
+  if (chrono <= 5) {
+    availablePoints = 2500;
+  } else if (chrono < 15) {
+    const timeInPhase = chrono - 5;
+    const phaseDuration = 10;
+    availablePoints = 2000 - (timeInPhase / phaseDuration) * 1000;
+  } else {
+    const timeAfter15 = chrono - 15;
+    const remainingDuration = Math.max(1, songDuration - 15);
+    const decayRatio = Math.min(1, timeAfter15 / remainingDuration);
+    availablePoints = 500 * (1 - decayRatio);
+  }
+
+  return Math.max(0, Math.round(availablePoints));
+}
+
 export function QuizDisplay({
   quizQuestion,
   quizAnswers,
   quizLeaderboard,
   allPlayers,
   isPlaying,
-  gameStatus
+  gameStatus,
+  chrono = 0,
+  songDuration = 30
 }) {
   if (!quizQuestion) {
     return (
@@ -34,6 +60,19 @@ export function QuizDisplay({
   }
 
   const { answers, revealed, trackNumber } = quizQuestion;
+
+  // Calculer les points disponibles avec le système de décompte
+  const availablePoints = calculatePoints(chrono, songDuration);
+
+  // Couleur des points selon le montant
+  let pointsColor = '#10b981'; // vert
+  if (availablePoints < 1500) pointsColor = '#f59e0b'; // orange
+  if (availablePoints < 750) pointsColor = '#ef4444'; // rouge
+
+  // Détection des paliers
+  const isAt5s = chrono >= 4.5 && chrono <= 5.5;
+  const isAt15s = chrono >= 14.5 && chrono <= 15.5;
+  const isNearCritical = availablePoints < 250;
 
   // 🎲 Mélanger les positions visuelles des réponses (stable par chanson)
   // Utilise le trackNumber comme seed pour avoir toujours le même ordre pendant la question
@@ -79,10 +118,65 @@ export function QuizDisplay({
           textAlign: 'center',
           color: '#fbbf24',
           textShadow: '0 0 20px rgba(251, 191, 36, 0.5)',
-          marginBottom: '2rem'
+          marginBottom: '1rem'
         }}>
           🎯 MODE QUIZ
         </h1>
+
+        {/* Décompte des points disponibles */}
+        {!revealed && isPlaying && (
+          <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+            <h3 style={{
+              fontSize: '1.5rem',
+              marginBottom: '1rem',
+              color: '#fbbf24'
+            }}>
+              💰 POINTS DISPONIBLES
+            </h3>
+            <div style={{
+              fontSize: '4rem',
+              fontWeight: 'bold',
+              color: pointsColor,
+              lineHeight: 1,
+              marginBottom: '0.5rem',
+              textShadow: `0 0 30px ${pointsColor}`,
+              animation: isNearCritical ? 'pulse 0.5s infinite' : 'none'
+            }}>
+              {availablePoints}
+            </div>
+            <div style={{
+              fontSize: '1.2rem',
+              opacity: 0.7
+            }}>
+              / 2500 pts
+            </div>
+
+            {/* Alertes paliers */}
+            {isAt5s && (
+              <div style={{
+                marginTop: '0.5rem',
+                fontSize: '1.2rem',
+                color: '#fbbf24',
+                fontWeight: 'bold',
+                animation: 'pulse 0.5s infinite'
+              }}>
+                ⚠️ Palier à 5s !
+              </div>
+            )}
+
+            {isAt15s && (
+              <div style={{
+                marginTop: '0.5rem',
+                fontSize: '1.2rem',
+                color: '#ef4444',
+                fontWeight: 'bold',
+                animation: 'pulse 0.5s infinite'
+              }}>
+                ⚠️ Palier à 15s !
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Les 4 options de réponse */}
         <div style={{
@@ -95,7 +189,18 @@ export function QuizDisplay({
         }}>
           {shuffledAnswers && shuffledAnswers.map((answer) => {
             const showCorrect = revealed && answer.isCorrect;
-            const answersCount = quizAnswers.filter(a => a.answer === answer.label).length;
+
+            // Trouver les joueurs qui ont choisi cette réponse
+            const playersWhoAnswered = quizAnswers.filter(a => a.answer === answer.label);
+
+            // Récupérer les photos depuis allPlayers
+            const playersWithPhotos = playersWhoAnswered.map(playerAnswer => {
+              const player = allPlayers.find(p => p.name === playerAnswer.playerName);
+              return {
+                ...playerAnswer,
+                photo: player?.photo
+              };
+            });
 
             let backgroundColor = 'rgba(75, 85, 99, 0.5)';
             let borderColor = '#6b7280';
@@ -115,7 +220,8 @@ export function QuizDisplay({
                   padding: '2rem',
                   textAlign: 'center',
                   transition: 'all 0.3s',
-                  boxShadow: showCorrect ? '0 0 30px rgba(16, 185, 129, 0.6)' : 'none'
+                  boxShadow: showCorrect ? '0 0 30px rgba(16, 185, 129, 0.6)' : 'none',
+                  position: 'relative'
                 }}
               >
                 <div style={{
@@ -134,14 +240,36 @@ export function QuizDisplay({
                 }}>
                   {answer.text}
                 </div>
-                {/* Nombre de réponses */}
-                {answersCount > 0 && (
+
+                {/* Photos des joueurs qui ont répondu */}
+                {playersWithPhotos.length > 0 && (
                   <div style={{
-                    fontSize: '1.5rem',
-                    opacity: 0.8,
-                    marginTop: '0.5rem'
+                    display: 'flex',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    marginTop: '1rem',
+                    flexWrap: 'wrap'
                   }}>
-                    {answersCount} {answersCount === 1 ? 'réponse' : 'réponses'}
+                    {playersWithPhotos.map((player, idx) => (
+                      player.photo && (
+                        <img
+                          key={idx}
+                          src={player.photo}
+                          alt={player.playerName}
+                          title={player.playerName}
+                          style={{
+                            width: '50px',
+                            height: '50px',
+                            borderRadius: '50%',
+                            objectFit: 'cover',
+                            border: '3px solid white',
+                            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+                            transition: 'transform 0.2s',
+                            animation: 'fadeIn 0.3s ease-in'
+                          }}
+                        />
+                      )
+                    ))}
                   </div>
                 )}
               </div>
@@ -192,25 +320,31 @@ export function QuizDisplay({
                     <div style={{ flex: 1, fontSize: '1.25rem', fontWeight: 'bold' }}>
                       {playerAnswer.playerName}
                     </div>
-                    <div style={{ fontSize: '1.25rem', marginRight: '1.5rem' }}>
-                      → <span style={{ fontWeight: 'bold', color: '#fbbf24' }}>
-                        {playerAnswer.answer}
-                      </span>
-                    </div>
-                    {revealed && (
-                      <div style={{ fontSize: '1.5rem', marginRight: '1rem' }}>
-                        {isCorrect ? '✅' : '❌'}
-                      </div>
-                    )}
-                    {revealed && isCorrect && (
-                      <div style={{ fontSize: '1.25rem', color: '#10b981', fontWeight: 'bold' }}>
-                        +{calculateQuizPoints(playerAnswer.time, index)} pts
-                      </div>
-                    )}
+
+                    {/* Avant révélation : juste "A répondu" */}
                     {!revealed && (
-                      <div style={{ fontSize: '1rem', opacity: 0.6 }}>
-                        ({playerAnswer.time.toFixed(1)}s)
+                      <div style={{ fontSize: '1.25rem', opacity: 0.8, fontStyle: 'italic' }}>
+                        ✓ A répondu
                       </div>
+                    )}
+
+                    {/* Après révélation : réponse + correct/incorrect + points */}
+                    {revealed && (
+                      <>
+                        <div style={{ fontSize: '1.25rem', marginRight: '1.5rem' }}>
+                          → <span style={{ fontWeight: 'bold', color: '#fbbf24' }}>
+                            {playerAnswer.answer}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '1.5rem', marginRight: '1rem' }}>
+                          {isCorrect ? '✅' : '❌'}
+                        </div>
+                        {isCorrect && (
+                          <div style={{ fontSize: '1.25rem', color: '#10b981', fontWeight: 'bold' }}>
+                            +{calculateQuizPoints(playerAnswer.time, index)} pts
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 );
