@@ -366,11 +366,19 @@ export default function Master({
 
       console.log('🎲 Génération des wrongAnswers pour', playlist.length, 'chansons');
 
-      const songsForWrongAnswers = playlist.map((track, index) => ({
-        artist: track.artist,
-        title: track.title,
-        uri: track.uri
-      }));
+      const songsForWrongAnswers = playlist
+        .map((track, index) => ({
+          artist: track.artist,
+          title: track.title,
+          uri: track.spotifyUri || track.uri // Support both field names
+        }))
+        .filter((song, index) => {
+          if (!song.uri) {
+            console.warn(`⚠️ Chanson ${index} ignorée: pas d'URI`, song);
+            return false;
+          }
+          return true;
+        });
 
       // 🔄 Découper en batches de 10 chansons pour éviter le timeout Netlify (10-26s max)
       const BATCH_SIZE = 10;
@@ -395,6 +403,10 @@ export default function Master({
 
           // Ajouter les wrongAnswers de ce batch
           for (let i = 0; i < batch.length; i++) {
+            if (!batch[i].uri) {
+              console.warn(`⚠️ Chanson sans URI ignorée:`, batch[i]);
+              continue;
+            }
             const wrongAnswersData = wrongAnswersResponse.wrongAnswers[i];
             allWrongAnswers.push({
               uri: batch[i].uri,
@@ -413,6 +425,10 @@ export default function Master({
           console.error(`❌ Erreur batch ${batchNum}:`, error);
           // Ajouter des fallbacks pour ce batch en cas d'erreur
           for (let i = 0; i < batch.length; i++) {
+            if (!batch[i].uri) {
+              console.warn(`⚠️ Chanson sans URI ignorée (fallback):`, batch[i]);
+              continue;
+            }
             allWrongAnswers.push({
               uri: batch[i].uri,
               title: batch[i].title,
