@@ -100,6 +100,9 @@ export function QuizDisplay({
   // Afficher les non-répondants si arrêt/pause/révélé
   const showNonRespondents = !isPlaying || gameStatus === 'stopped' || revealed;
 
+  // Masquer les points quand tous les joueurs ont répondu
+  const allPlayersAnswered = allPlayers.length > 0 && quizAnswers.length >= allPlayers.length;
+
   return (
     <div style={{
       background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
@@ -123,32 +126,64 @@ export function QuizDisplay({
           🎯 MODE QUIZ
         </h1>
 
-        {/* Décompte des points disponibles */}
-        {!revealed && isPlaying && (
+        {/* Décompte des points disponibles + chrono */}
+        {!revealed && isPlaying && !allPlayersAnswered && (
           <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-            <h3 style={{
-              fontSize: '1.5rem',
-              marginBottom: '1rem',
-              color: '#fbbf24'
-            }}>
-              💰 POINTS DISPONIBLES
-            </h3>
             <div style={{
-              fontSize: '4rem',
-              fontWeight: 'bold',
-              color: pointsColor,
-              lineHeight: 1,
-              marginBottom: '0.5rem',
-              textShadow: `0 0 30px ${pointsColor}`,
-              animation: isNearCritical ? 'pulse 0.5s infinite' : 'none'
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: '3rem',
+              marginBottom: '1rem'
             }}>
-              {availablePoints}
-            </div>
-            <div style={{
-              fontSize: '1.2rem',
-              opacity: 0.7
-            }}>
-              / 2500 pts
+              {/* Chrono */}
+              <div>
+                <h3 style={{
+                  fontSize: '1.2rem',
+                  marginBottom: '0.5rem',
+                  color: '#fbbf24',
+                  opacity: 0.9
+                }}>
+                  ⏱️ TEMPS
+                </h3>
+                <div style={{
+                  fontSize: '3rem',
+                  fontWeight: 'bold',
+                  color: '#60a5fa',
+                  lineHeight: 1
+                }}>
+                  {chrono.toFixed(1)}s
+                </div>
+              </div>
+
+              {/* Points */}
+              <div>
+                <h3 style={{
+                  fontSize: '1.2rem',
+                  marginBottom: '0.5rem',
+                  color: '#fbbf24',
+                  opacity: 0.9
+                }}>
+                  💰 POINTS
+                </h3>
+                <div style={{
+                  fontSize: '3rem',
+                  fontWeight: 'bold',
+                  color: pointsColor,
+                  lineHeight: 1,
+                  textShadow: `0 0 30px ${pointsColor}`,
+                  animation: isNearCritical ? 'pulse 0.5s infinite' : 'none'
+                }}>
+                  {availablePoints}
+                </div>
+                <div style={{
+                  fontSize: '1rem',
+                  opacity: 0.6,
+                  marginTop: '0.25rem'
+                }}>
+                  / 2500
+                </div>
+              </div>
             </div>
 
             {/* Alertes paliers */}

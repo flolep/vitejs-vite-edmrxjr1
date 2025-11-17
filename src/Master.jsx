@@ -310,13 +310,19 @@ export default function Master({
     if (!sessionId || playMode !== 'quiz') return;
 
     const nextSongRequestRef = ref(database, `sessions/${sessionId}/quiz_next_song_request`);
-    const unsubscribe = onValue(nextSongRequestRef, (snapshot) => {
+    const unsubscribe = onValue(nextSongRequestRef, async (snapshot) => {
       const requestData = snapshot.val();
       if (requestData && requestData.timestamp) {
         console.log(`➡️ Demande de passage à la chanson suivante par ${requestData.playerName}`);
 
         // Passer à la chanson suivante
         nextTrack();
+
+        // Attendre un court instant pour que nextTrack() se termine
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Démarrer automatiquement la lecture de la nouvelle chanson
+        togglePlay();
 
         // Supprimer la demande
         remove(nextSongRequestRef);
