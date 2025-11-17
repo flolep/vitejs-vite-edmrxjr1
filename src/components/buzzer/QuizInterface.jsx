@@ -12,7 +12,8 @@ export function QuizInterface({
   loadPersonalStats,
   showStats,
   setShowStats,
-  personalStats
+  personalStats,
+  onNextSong // Fonction pour passer à la chanson suivante
 }) {
   if (!quizQuestion) {
     return (
@@ -27,7 +28,11 @@ export function QuizInterface({
     );
   }
 
-  const { answers, revealed, trackNumber } = quizQuestion;
+  const { answers, revealed, trackNumber, nextSongTriggerPlayerId } = quizQuestion;
+
+  // Vérifier si c'est ce joueur qui peut déclencher la chanson suivante
+  const playerId = selectedPlayer?.id || `temp_${playerName}`;
+  const canTriggerNextSong = revealed && nextSongTriggerPlayerId === playerId;
 
   // 🎲 Mélanger les positions visuelles des réponses (stable par chanson)
   // Utilise le trackNumber comme seed pour avoir toujours le même ordre pendant la question
@@ -80,18 +85,43 @@ export function QuizInterface({
 
       <div className="text-center mb-8" style={{ width: '100%', maxWidth: '600px' }}>
         {selectedPlayer?.photo && (
-          <img
-            src={selectedPlayer.photo}
-            alt={selectedPlayer.name}
-            style={{
-              width: '60px',
-              height: '60px',
-              borderRadius: '50%',
-              objectFit: 'cover',
-              margin: '0 auto 0.5rem',
-              border: '3px solid #fbbf24'
-            }}
-          />
+          <div style={{ position: 'relative', display: 'inline-block' }}>
+            <img
+              src={selectedPlayer.photo}
+              alt={selectedPlayer.name}
+              onClick={canTriggerNextSong ? onNextSong : undefined}
+              style={{
+                width: '60px',
+                height: '60px',
+                borderRadius: '50%',
+                objectFit: 'cover',
+                margin: '0 auto 0.5rem',
+                border: canTriggerNextSong ? '4px solid #ef4444' : '3px solid #fbbf24',
+                cursor: canTriggerNextSong ? 'pointer' : 'default',
+                transition: 'all 0.3s',
+                boxShadow: canTriggerNextSong ? '0 0 20px rgba(239, 68, 68, 0.8)' : 'none',
+                animation: canTriggerNextSong ? 'pulse 1.5s infinite' : 'none'
+              }}
+            />
+            {canTriggerNextSong && (
+              <div style={{
+                position: 'absolute',
+                bottom: '-25px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                backgroundColor: '#ef4444',
+                color: 'white',
+                padding: '0.25rem 0.75rem',
+                borderRadius: '1rem',
+                fontSize: '0.75rem',
+                fontWeight: 'bold',
+                whiteSpace: 'nowrap',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+              }}>
+                👆 Cliquez pour continuer
+              </div>
+            )}
+          </div>
         )}
         <div style={{ fontSize: '1.25rem', marginBottom: '0.5rem', opacity: 0.9 }}>
           {selectedPlayer?.name || playerName}

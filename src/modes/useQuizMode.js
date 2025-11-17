@@ -205,17 +205,6 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
 
     const quizRef = ref(database, `sessions/${sessionId}/quiz`);
 
-    // Marquer comme révélé
-    onValue(quizRef, (snapshot) => {
-      const quizData = snapshot.val();
-      if (quizData) {
-        set(quizRef, {
-          ...quizData,
-          revealed: true
-        });
-      }
-    }, { onlyOnce: true });
-
     // Récupérer les infos de la chanson actuelle
     const currentSong = playlist[currentTrack];
     const songTitle = currentSong?.title || 'Inconnu';
@@ -232,6 +221,21 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
           ...answer
         }));
         answersArray.sort((a, b) => a.time - b.time);
+
+        // Déterminer le joueur le plus rapide (celui qui déclenche la chanson suivante)
+        const fastestPlayerId = answersArray.length > 0 ? answersArray[0].playerId : null;
+
+        // Marquer comme révélé et désigner qui peut passer à la chanson suivante
+        onValue(quizRef, (quizSnapshot) => {
+          const quizData = quizSnapshot.val();
+          if (quizData) {
+            set(quizRef, {
+              ...quizData,
+              revealed: true,
+              nextSongTriggerPlayerId: fastestPlayerId
+            });
+          }
+        }, { onlyOnce: true });
 
         // Mettre à jour chaque réponse avec correction, points, et infos chanson
         answersArray.forEach((answer, rank) => {

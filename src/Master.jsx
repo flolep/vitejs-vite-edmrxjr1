@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { database, auth } from './firebase';
-import { ref, onValue, set, update } from 'firebase/database';
+import { ref, onValue, set, update, remove } from 'firebase/database';
 import { spotifyService } from './spotifyService';
 import { n8nService } from './n8nService';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -304,6 +304,27 @@ export default function Master({
 
     return () => unsubscribe();
   }, [sessionId, playMode, currentTrack, playlist, updateCurrentSong]);
+
+  // Écouter la demande de passage à la chanson suivante par le joueur le plus rapide
+  useEffect(() => {
+    if (!sessionId || playMode !== 'quiz') return;
+
+    const nextSongRequestRef = ref(database, `sessions/${sessionId}/quiz_next_song_request`);
+    const unsubscribe = onValue(nextSongRequestRef, (snapshot) => {
+      const requestData = snapshot.val();
+      if (requestData && requestData.timestamp) {
+        console.log(`➡️ Demande de passage à la chanson suivante par ${requestData.playerName}`);
+
+        // Passer à la chanson suivante
+        nextTrack();
+
+        // Supprimer la demande
+        remove(nextSongRequestRef);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [sessionId, playMode]);
 
   // === ACTIONS ===
 

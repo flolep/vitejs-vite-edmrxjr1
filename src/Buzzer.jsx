@@ -904,6 +904,38 @@ const handleQuizAnswer = async (answer) => {
   }, { onlyOnce: true });
 };
 
+// 🎯 Passer à la chanson suivante (mode Quiz - joueur le plus rapide uniquement)
+const handleNextSong = () => {
+  if (!sessionId) return;
+
+  console.log('➡️ Passage à la chanson suivante demandé par le joueur le plus rapide');
+
+  // Réinitialiser le trigger et le flag revealed dans quiz
+  const quizRef = ref(database, `sessions/${sessionId}/quiz`);
+  onValue(quizRef, (snapshot) => {
+    const quizData = snapshot.val();
+    if (quizData) {
+      set(quizRef, {
+        ...quizData,
+        nextSongTriggerPlayerId: null, // Reset le trigger
+        revealed: false // Préparer pour la prochaine question
+      });
+    }
+  }, { onlyOnce: true });
+
+  // Réinitialiser l'état local
+  setHasAnswered(false);
+  setSelectedAnswer(null);
+
+  // Notifier le Master de passer à la chanson suivante
+  const nextSongRequestRef = ref(database, `sessions/${sessionId}/quiz_next_song_request`);
+  set(nextSongRequestRef, {
+    timestamp: Date.now(),
+    playerId: selectedPlayer?.id || `temp_${playerName}`,
+    playerName: selectedPlayer?.name || playerName
+  });
+};
+
 const changeTeam = async () => {
   // En mode Quiz, il n'y a pas de changement d'équipe
   if (playMode === 'quiz') {
@@ -1623,6 +1655,7 @@ if (step === 'game') {
         showStats={showStats}
         setShowStats={setShowStats}
         personalStats={personalStats}
+        onNextSong={handleNextSong}
       />
     );
   }
