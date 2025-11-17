@@ -3,7 +3,7 @@
 const N8N_PROXY_URL = '/.netlify/functions/n8n-proxy';
 
 // Import stubs pour le mode Test
-import { generateStubBatch } from './utils/quizStubs';
+import { generateStubBatch, generateStubPlaylist } from './utils/quizStubs';
 
 /**
  * Vérifie si le mode Test est activé
@@ -395,6 +395,13 @@ export const n8nService = {
         }
       });
 
+      // 🎭 Mode Test : Utiliser des stubs au lieu d'appeler n8n/OpenAI
+      if (isTestModeEnabled()) {
+        console.log('🎭 [TEST MODE ACTIVÉ] Génération playlist avec stubs au lieu de n8n/OpenAI');
+        return await generateStubPlaylist({ playlistId, players });
+      }
+
+      // Mode Production : Appel réel à n8n
       const payload = {
         playlistId: playlistId,
         players: players

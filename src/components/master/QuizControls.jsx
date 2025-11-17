@@ -11,11 +11,22 @@ export default function QuizControls({
   playerAnswers,
   allPlayers,
   isPlaying,
+  currentTrack,
   onReveal,
   onPause,
   isRevealed
 }) {
   const hasAutoRevealed = useRef(false);
+  const lastTrackRef = useRef(null);
+
+  // Reset le flag quand on change de chanson (AVANT le check d'auto-reveal)
+  useEffect(() => {
+    if (currentTrack !== lastTrackRef.current) {
+      console.log(`🔄 Changement de chanson détecté: ${lastTrackRef.current} → ${currentTrack}`);
+      hasAutoRevealed.current = false;
+      lastTrackRef.current = currentTrack;
+    }
+  }, [currentTrack]);
 
   // Auto-révéler quand tous les joueurs ont répondu
   useEffect(() => {
@@ -44,13 +55,6 @@ export default function QuizControls({
       }
     }
   }, [playerAnswers, allPlayers, isRevealed, isPlaying, onReveal, onPause]);
-
-  // Reset le flag quand on change de chanson
-  useEffect(() => {
-    if (!isRevealed) {
-      hasAutoRevealed.current = false;
-    }
-  }, [isRevealed]);
 
   if (!quizAnswers || quizAnswers.length === 0) {
     return (

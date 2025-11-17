@@ -1292,6 +1292,7 @@ export default function Master({
                   playerAnswers={quizMode.playerAnswers}
                   allPlayers={allQuizPlayers}
                   isPlaying={isPlaying}
+                  currentTrack={currentTrack}
                   onReveal={quizMode.revealQuizAnswer}
                   onPause={async () => {
                     if (playerAdapter) {
