@@ -1,13 +1,39 @@
 // Affichage TV pour le mode Quiz
 import React from 'react';
 
+/**
+ * Calcule les points disponibles selon le système de décompte
+ * (copié depuis TV.jsx pour cohérence)
+ */
+function calculatePoints(chrono, songDuration) {
+  const maxPoints = 2500;
+  let availablePoints = maxPoints;
+
+  if (chrono <= 5) {
+    availablePoints = 2500;
+  } else if (chrono < 15) {
+    const timeInPhase = chrono - 5;
+    const phaseDuration = 10;
+    availablePoints = 2000 - (timeInPhase / phaseDuration) * 1000;
+  } else {
+    const timeAfter15 = chrono - 15;
+    const remainingDuration = Math.max(1, songDuration - 15);
+    const decayRatio = Math.min(1, timeAfter15 / remainingDuration);
+    availablePoints = 500 * (1 - decayRatio);
+  }
+
+  return Math.max(0, Math.round(availablePoints));
+}
+
 export function QuizDisplay({
   quizQuestion,
   quizAnswers,
   quizLeaderboard,
   allPlayers,
   isPlaying,
-  gameStatus
+  gameStatus,
+  chrono = 0,
+  songDuration = 30
 }) {
   if (!quizQuestion) {
     return (
@@ -34,6 +60,19 @@ export function QuizDisplay({
   }
 
   const { answers, revealed, trackNumber } = quizQuestion;
+
+  // Calculer les points disponibles avec le système de décompte
+  const availablePoints = calculatePoints(chrono, songDuration);
+
+  // Couleur des points selon le montant
+  let pointsColor = '#10b981'; // vert
+  if (availablePoints < 1500) pointsColor = '#f59e0b'; // orange
+  if (availablePoints < 750) pointsColor = '#ef4444'; // rouge
+
+  // Détection des paliers
+  const isAt5s = chrono >= 4.5 && chrono <= 5.5;
+  const isAt15s = chrono >= 14.5 && chrono <= 15.5;
+  const isNearCritical = availablePoints < 250;
 
   // 🎲 Mélanger les positions visuelles des réponses (stable par chanson)
   // Utilise le trackNumber comme seed pour avoir toujours le même ordre pendant la question
@@ -79,10 +118,65 @@ export function QuizDisplay({
           textAlign: 'center',
           color: '#fbbf24',
           textShadow: '0 0 20px rgba(251, 191, 36, 0.5)',
-          marginBottom: '2rem'
+          marginBottom: '1rem'
         }}>
           🎯 MODE QUIZ
         </h1>
+
+        {/* Décompte des points disponibles */}
+        {!revealed && isPlaying && (
+          <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+            <h3 style={{
+              fontSize: '1.5rem',
+              marginBottom: '1rem',
+              color: '#fbbf24'
+            }}>
+              💰 POINTS DISPONIBLES
+            </h3>
+            <div style={{
+              fontSize: '4rem',
+              fontWeight: 'bold',
+              color: pointsColor,
+              lineHeight: 1,
+              marginBottom: '0.5rem',
+              textShadow: `0 0 30px ${pointsColor}`,
+              animation: isNearCritical ? 'pulse 0.5s infinite' : 'none'
+            }}>
+              {availablePoints}
+            </div>
+            <div style={{
+              fontSize: '1.2rem',
+              opacity: 0.7
+            }}>
+              / 2500 pts
+            </div>
+
+            {/* Alertes paliers */}
+            {isAt5s && (
+              <div style={{
+                marginTop: '0.5rem',
+                fontSize: '1.2rem',
+                color: '#fbbf24',
+                fontWeight: 'bold',
+                animation: 'pulse 0.5s infinite'
+              }}>
+                ⚠️ Palier à 5s !
+              </div>
+            )}
+
+            {isAt15s && (
+              <div style={{
+                marginTop: '0.5rem',
+                fontSize: '1.2rem',
+                color: '#ef4444',
+                fontWeight: 'bold',
+                animation: 'pulse 0.5s infinite'
+              }}>
+                ⚠️ Palier à 15s !
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Les 4 options de réponse */}
         <div style={{

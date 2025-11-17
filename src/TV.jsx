@@ -781,6 +781,8 @@ if (playMode === 'quiz') {
       allPlayers={allPlayers}
       isPlaying={isPlaying}
       gameStatus={gameEnded ? 'stopped' : 'playing'}
+      chrono={chrono}
+      songDuration={songDuration}
     />
   );
 }
