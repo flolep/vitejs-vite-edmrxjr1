@@ -360,6 +360,19 @@ export default function Master({
     return () => unsubscribe();
   }, [sessionId, playMode]);
 
+  // Synchroniser showQRCode avec Firebase
+  useEffect(() => {
+    if (!sessionId) return;
+
+    const qrCodeRef = ref(database, `sessions/${sessionId}/showQRCode`);
+    const unsubscribe = onValue(qrCodeRef, (snapshot) => {
+      const show = snapshot.val();
+      setShowQRCode(show === true);
+    });
+
+    return () => unsubscribe();
+  }, [sessionId]);
+
   // === ACTIONS ===
 
   const handleGeneratePlaylistWithAllPreferences = async () => {
@@ -959,10 +972,21 @@ export default function Master({
     setSessionId(null);
   };
 
-  const toggleQRCodeOnTV = () => {
+  const toggleQRCodeOnTV = async () => {
+    if (!sessionId) return;
+
     const qrCodeRef = ref(database, `sessions/${sessionId}/showQRCode`);
-    set(qrCodeRef, !showQRCode);
-    setShowQRCode(!showQRCode);
+
+    // Lire la valeur actuelle depuis Firebase pour être sûr
+    onValue(qrCodeRef, async (snapshot) => {
+      const currentValue = snapshot.val();
+      const newValue = !currentValue;
+
+      console.log('📱 Toggle QR Code sur TV:', { currentValue, newValue });
+
+      // Écrire la nouvelle valeur
+      await set(qrCodeRef, newValue);
+    }, { onlyOnce: true });
   };
 
   // === RENDU ===
