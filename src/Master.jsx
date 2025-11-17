@@ -269,19 +269,11 @@ export default function Master({
         });
 
     generatePlaylistPromise
-      .then(async result => {
+      .then(result => {
         console.log('✅ Playlist générée (en arrière-plan):', result);
         if (playMode === 'quiz') {
           console.log(`   🎵 ${result.totalSongs} chansons + ${result.totalSongs * 3} mauvaises réponses`);
-
-          // 🎯 Stocker immédiatement les données quiz dans Firebase
-          if (result.songs && result.songs.length > 0 && result.songs[0]?.wrongAnswers) {
-            console.log('🎯 Stockage immédiat des données Quiz dans Firebase...');
-            await quizMode.storeQuizData(result.songs);
-            console.log('✅ Données Quiz stockées avec succès !');
-          } else {
-            console.warn('⚠️ Pas de wrongAnswers dans le résultat du workflow');
-          }
+          console.log('   ℹ️ Les wrongAnswers seront stockées lors du polling');
         } else {
           console.log(`   🎵 ${result.totalSongs} chansons ajoutées pour ${result.totalPlayers || players.length} joueurs`);
         }
@@ -291,6 +283,7 @@ export default function Master({
         // et continue à se remplir même après le timeout
         console.warn('⚠️ Timeout ou erreur n8n (normal si génération longue):', error.message);
         console.log('   ℹ️ La playlist continue à se générer en arrière-plan sur n8n');
+        console.log('   ℹ️ Les wrongAnswers (mode Quiz) seront générées lors du polling');
       });
 
     // Afficher immédiatement le succès
@@ -315,6 +308,52 @@ export default function Master({
         if (tracks && tracks.length > 0) {
           console.log(`✅ Playlist rechargée avec succès : ${tracks.length} chansons détectées`);
           setDebugInfo(`✅ Playlist mise à jour : ${tracks.length} chansons disponibles !`);
+
+          // 🎯 Mode Quiz : Vérifier et générer les wrongAnswers si nécessaire
+          if (playMode === 'quiz') {
+            try {
+              // Vérifier si les wrongAnswers sont déjà stockées dans Firebase
+              const quizDataRef = ref(database, `sessions/${sessionId}/quiz_data/0`);
+              const snapshot = await new Promise((resolve) => {
+                onValue(quizDataRef, resolve, { onlyOnce: true });
+              });
+
+              if (snapshot.val()) {
+                console.log('✅ Données Quiz déjà présentes dans Firebase, pas besoin de régénérer');
+              } else {
+                console.log('🎲 Génération des wrongAnswers via polling...');
+                const songsForWrongAnswers = tracks.map((track, index) => ({
+                  artist: track.artist,
+                  title: track.title,
+                  uri: track.uri
+                }));
+
+                const wrongAnswersResponse = await n8nService.generateWrongAnswers(songsForWrongAnswers);
+
+                const songsWithWrongAnswers = tracks.map((track, index) => {
+                  const wrongAnswersData = wrongAnswersResponse.wrongAnswers[index];
+                  return {
+                    uri: track.uri,
+                    title: track.title,
+                    artist: track.artist,
+                    wrongAnswers: wrongAnswersData ? wrongAnswersData.wrongAnswers : [
+                      `Fallback 1 - Song ${index + 1}A`,
+                      `Fallback 2 - Song ${index + 1}B`,
+                      `Fallback 3 - Song ${index + 1}C`
+                    ]
+                  };
+                });
+
+                console.log('🎯 Stockage des données Quiz dans Firebase...');
+                await quizMode.storeQuizData(songsWithWrongAnswers);
+                console.log('✅ Données Quiz stockées avec succès !');
+              }
+            } catch (error) {
+              console.error('❌ Erreur génération wrongAnswers:', error);
+              // Continuer quand même, on pourra générer des fallbacks
+            }
+          }
+
           setIsGeneratingPlaylist(false);
           setPlaylistPollAttempt(0);
           clearInterval(pollPlaylist);
