@@ -103,13 +103,15 @@
     },
     {
       "parameters": {
-        "jsCode": "// Aggregate all wrong answers into a map indexed by song index\nconst allItems = $input.all();\nconst wrongAnswersMap = {};\n\nconsole.log('🔀 Aggregating wrong answers...');\n\nfor (const item of allItems) {\n  const data = item.json;\n  \n  wrongAnswersMap[data.index] = {\n    artist: data.artist,\n    title: data.title,\n    uri: data.uri,\n    wrongAnswers: data.wrongAnswers\n  };\n  \n  console.log(`  ✓ [${data.index}] ${data.title} - ${data.wrongAnswers.length} wrong answers`);\n}\n\nconst totalSongs = Object.keys(wrongAnswersMap).length;\n\nif (totalSongs === 0) {\n  throw new Error('No wrong answers generated');\n}\n\nconsole.log(`✅ Successfully generated wrong answers for ${totalSongs} songs`);\n\nreturn [{\n  json: {\n    success: true,\n    totalSongs: totalSongs,\n    wrongAnswers: wrongAnswersMap\n  }\n}];"
+        "jsCode": "// Aggregate all wrong answers into a map indexed by song index\n// This node MUST be set to \"Run Once for All Items\" mode in n8n UI\n\nconst wrongAnswersMap = {};\n\nconsole.log('🔀 Aggregating wrong answers...');\nconsole.log(`📦 Received ${items.length} items to aggregate`);\n\nfor (let i = 0; i < items.length; i++) {\n  const data = items[i].json;\n  \n  wrongAnswersMap[data.index] = {\n    artist: data.artist,\n    title: data.title,\n    uri: data.uri,\n    wrongAnswers: data.wrongAnswers\n  };\n  \n  console.log(`  ✓ [${data.index}] ${data.title} - ${data.wrongAnswers.length} wrong answers`);\n}\n\nconst totalSongs = Object.keys(wrongAnswersMap).length;\n\nif (totalSongs === 0) {\n  throw new Error('No wrong answers generated');\n}\n\nconsole.log(`✅ Successfully generated wrong answers for ${totalSongs} songs`);\n\nreturn {\n  json: {\n    success: true,\n    totalSongs: totalSongs,\n    wrongAnswers: wrongAnswersMap\n  }\n};"
       },
       "id": "aggregate-results",
       "name": "Aggregate Wrong Answers",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1344, 300]
+      "position": [1344, 300],
+      "continueOnFail": false,
+      "executeOnce": true
     },
     {
       "parameters": {

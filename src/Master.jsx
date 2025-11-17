@@ -74,6 +74,8 @@ export default function Master({
   const [playlistPollAttempt, setPlaylistPollAttempt] = useState(0);
   const [isGeneratingQuizQuestions, setIsGeneratingQuizQuestions] = useState(false);
   const [quizQuestionsReady, setQuizQuestionsReady] = useState(false);
+  const [allQuizPlayers, setAllQuizPlayers] = useState([]); // Joueurs connectés en mode Quiz
+  const [testMode, setTestMode] = useState(() => localStorage.getItem('quizTestMode') === 'true');
 
   // Déterminer le token initial
   const getInitialToken = () => {
@@ -255,6 +257,53 @@ export default function Master({
 
     checkQuizData();
   }, [sessionId, playMode]);
+
+  // Écouter tous les joueurs connectés (pour mode Quiz - auto-reveal)
+  useEffect(() => {
+    if (!sessionId || playMode !== 'quiz') return;
+
+    const playersRef = ref(database, `sessions/${sessionId}/players_session/team1`);
+    const unsubscribe = onValue(playersRef, (snapshot) => {
+      const playersData = snapshot.val();
+      if (playersData) {
+        const playersList = Object.entries(playersData)
+          .filter(([_, player]) => player.connected) // Seulement les joueurs connectés
+          .map(([key, player]) => ({
+            id: player.id || key,
+            name: player.name,
+            photo: player.photo
+          }));
+        setAllQuizPlayers(playersList);
+        console.log(`👥 ${playersList.length} joueur(s) connecté(s) en Quiz`);
+      } else {
+        setAllQuizPlayers([]);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [sessionId, playMode]);
+
+  // Écouter la révélation des réponses en mode Quiz
+  useEffect(() => {
+    if (!sessionId || playMode !== 'quiz') return;
+
+    const quizRef = ref(database, `sessions/${sessionId}/quiz`);
+    const unsubscribe = onValue(quizRef, (snapshot) => {
+      const quizData = snapshot.val();
+      if (quizData && quizData.revealed && currentTrack !== null && playlist[currentTrack]) {
+        // Mettre à jour currentSong avec revealed: true
+        updateCurrentSong({
+          title: playlist[currentTrack].title,
+          artist: playlist[currentTrack].artist,
+          imageUrl: playlist[currentTrack].imageUrl,
+          revealed: true,
+          number: currentTrack + 1
+        });
+      }
+    });
+
+    return () => unsubscribe();
+  }, [sessionId, playMode, currentTrack, playlist, updateCurrentSong]);
 
   // === ACTIONS ===
 
@@ -759,6 +808,17 @@ export default function Master({
     setDebugInfo(`✅ ${result.points} points pour ${teamName}`);
   };
 
+  /**
+   * Toggle le mode Test (stubs au lieu de vrais appels n8n/OpenAI)
+   */
+  const toggleTestMode = () => {
+    const newValue = !testMode;
+    setTestMode(newValue);
+    localStorage.setItem('quizTestMode', newValue.toString());
+    console.log(`🎭 Mode Test ${newValue ? 'ACTIVÉ' : 'DÉSACTIVÉ'}`);
+    setDebugInfo(`🎭 Mode Test ${newValue ? 'activé' : 'désactivé'} - ${newValue ? 'Pas d\'appels OpenAI' : 'Vrais appels n8n'}`);
+  };
+
   const loadBuzzStats = (shouldShow = true) => {
     if (shouldShow === false) {
       setShowStats(false);
@@ -866,6 +926,36 @@ export default function Master({
               <span style={{ color: '#10b981' }}>●</span>
               Spotify connecté
             </div>
+          )}
+
+          {/* Mode Test Toggle (uniquement en mode Quiz) */}
+          {playMode === 'quiz' && (
+            <button
+              onClick={toggleTestMode}
+              style={{
+                padding: '0.5rem 1rem',
+                backgroundColor: testMode
+                  ? 'rgba(251, 191, 36, 0.3)'
+                  : 'rgba(107, 114, 128, 0.2)',
+                border: testMode
+                  ? '1px solid #fbbf24'
+                  : '1px solid #6b7280',
+                borderRadius: '0.5rem',
+                fontSize: '0.85rem',
+                color: 'white',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                transition: 'all 0.2s'
+              }}
+              title={testMode
+                ? 'Mode Test activé - Stubs au lieu d\'OpenAI'
+                : 'Mode Production - Vrais appels OpenAI'}
+            >
+              <span>{testMode ? '🎭' : '🔌'}</span>
+              <span>{testMode ? 'Mode Test' : 'Mode Prod'}</span>
+            </button>
           )}
 
           {/* Boutons d'actions */}
@@ -1200,7 +1290,16 @@ export default function Master({
                   quizAnswers={quizMode.quizAnswers}
                   correctAnswerIndex={quizMode.correctAnswerIndex}
                   playerAnswers={quizMode.playerAnswers}
+                  allPlayers={allQuizPlayers}
+                  isPlaying={isPlaying}
                   onReveal={quizMode.revealQuizAnswer}
+                  onPause={async () => {
+                    if (playerAdapter) {
+                      await playerAdapter.pause();
+                      updateIsPlaying(false);
+                      setDebugInfo('⏸️ Pause automatique (tous ont répondu)');
+                    }
+                  }}
                   isRevealed={currentSong?.revealed}
                 />
               )}
