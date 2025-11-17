@@ -192,25 +192,31 @@ export function QuizDisplay({
                     <div style={{ flex: 1, fontSize: '1.25rem', fontWeight: 'bold' }}>
                       {playerAnswer.playerName}
                     </div>
-                    <div style={{ fontSize: '1.25rem', marginRight: '1.5rem' }}>
-                      → <span style={{ fontWeight: 'bold', color: '#fbbf24' }}>
-                        {playerAnswer.answer}
-                      </span>
-                    </div>
-                    {revealed && (
-                      <div style={{ fontSize: '1.5rem', marginRight: '1rem' }}>
-                        {isCorrect ? '✅' : '❌'}
-                      </div>
-                    )}
-                    {revealed && isCorrect && (
-                      <div style={{ fontSize: '1.25rem', color: '#10b981', fontWeight: 'bold' }}>
-                        +{calculateQuizPoints(playerAnswer.time, index)} pts
-                      </div>
-                    )}
+
+                    {/* Avant révélation : juste "A répondu" */}
                     {!revealed && (
-                      <div style={{ fontSize: '1rem', opacity: 0.6 }}>
-                        ({playerAnswer.time.toFixed(1)}s)
+                      <div style={{ fontSize: '1.25rem', opacity: 0.8, fontStyle: 'italic' }}>
+                        ✓ A répondu
                       </div>
+                    )}
+
+                    {/* Après révélation : réponse + correct/incorrect + points */}
+                    {revealed && (
+                      <>
+                        <div style={{ fontSize: '1.25rem', marginRight: '1.5rem' }}>
+                          → <span style={{ fontWeight: 'bold', color: '#fbbf24' }}>
+                            {playerAnswer.answer}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '1.5rem', marginRight: '1rem' }}>
+                          {isCorrect ? '✅' : '❌'}
+                        </div>
+                        {isCorrect && (
+                          <div style={{ fontSize: '1.25rem', color: '#10b981', fontWeight: 'bold' }}>
+                            +{calculateQuizPoints(playerAnswer.time, index)} pts
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 );
