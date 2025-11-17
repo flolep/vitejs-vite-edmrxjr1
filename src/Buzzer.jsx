@@ -939,6 +939,76 @@ const changeTeam = async () => {
 const loadPersonalStats = () => {
   if (!sessionId || !selectedPlayer) return;
 
+  // 🎯 MODE QUIZ : Charger depuis quiz_leaderboard et quiz_answers
+  if (playMode === 'quiz') {
+    // Charger le classement général
+    const leaderboardRef = ref(database, `sessions/${sessionId}/quiz_leaderboard`);
+    onValue(leaderboardRef, (leaderboardSnapshot) => {
+      const leaderboardData = leaderboardSnapshot.val();
+
+      if (leaderboardData) {
+        // Trouver les stats du joueur actuel
+        const playerData = leaderboardData.find(p =>
+          p.playerName === (selectedPlayer?.name || playerName)
+        );
+
+        if (playerData) {
+          // Charger les détails des réponses pour avoir les chansons reconnues
+          const allAnswersRef = ref(database, `sessions/${sessionId}/quiz_answers`);
+          onValue(allAnswersRef, (answersSnapshot) => {
+            const allAnswersData = answersSnapshot.val();
+            const recognizedSongs = [];
+
+            if (allAnswersData) {
+              // Parcourir toutes les chansons
+              Object.keys(allAnswersData).forEach(trackNumber => {
+                const trackAnswers = allAnswersData[trackNumber];
+
+                // Trouver la réponse du joueur pour cette chanson
+                const playerAnswer = Object.values(trackAnswers).find(answer =>
+                  answer.playerName === (selectedPlayer?.name || playerName)
+                );
+
+                // Si le joueur a répondu correctement
+                if (playerAnswer && playerAnswer.isCorrect) {
+                  recognizedSongs.push({
+                    title: playerAnswer.songTitle || 'Inconnu',
+                    artist: playerAnswer.songArtist || 'Inconnu',
+                    time: playerAnswer.time,
+                    points: playerAnswer.points || 0,
+                    trackNumber: parseInt(trackNumber) + 1
+                  });
+                }
+              });
+            }
+
+            setPersonalStats({
+              totalBuzzes: playerData.totalAnswers || 0,
+              winningBuzzes: playerData.correctAnswers || 0,
+              totalPoints: playerData.totalPoints || 0,
+              recognizedSongs: recognizedSongs,
+              percentageContribution: '0' // Pas de concept d'équipe en Quiz
+            });
+
+            setShowStats(true);
+          }, { onlyOnce: true });
+        } else {
+          // Joueur pas encore dans le leaderboard
+          setPersonalStats({
+            totalBuzzes: 0,
+            winningBuzzes: 0,
+            totalPoints: 0,
+            recognizedSongs: [],
+            percentageContribution: '0'
+          });
+          setShowStats(true);
+        }
+      }
+    }, { onlyOnce: true });
+    return;
+  }
+
+  // 👥 MODE ÉQUIPE : Charger depuis buzz_times (comportement existant)
   const buzzTimesRef = ref(database, `sessions/${sessionId}/buzz_times`);
   onValue(buzzTimesRef, (snapshot) => {
     const data = snapshot.val();
@@ -1739,7 +1809,7 @@ if (step === 'game') {
                   {personalStats.totalBuzzes}
                 </div>
                 <div style={{ fontSize: '0.875rem', opacity: 0.8, marginTop: '0.5rem' }}>
-                  Buzz totaux
+                  {playMode === 'quiz' ? 'Réponses données' : 'Buzz totaux'}
                 </div>
               </div>
 
@@ -1753,7 +1823,7 @@ if (step === 'game') {
                   {personalStats.winningBuzzes}
                 </div>
                 <div style={{ fontSize: '0.875rem', opacity: 0.8, marginTop: '0.5rem' }}>
-                  Buzz gagnants
+                  {playMode === 'quiz' ? 'Bonnes réponses' : 'Buzz gagnants'}
                 </div>
               </div>
 
@@ -1768,7 +1838,10 @@ if (step === 'game') {
                   {personalStats.totalPoints}
                 </div>
                 <div style={{ fontSize: '0.875rem', opacity: 0.8, marginTop: '0.5rem' }}>
-                  Points gagnés ({personalStats.percentageContribution}% de l'équipe)
+                  {playMode === 'quiz'
+                    ? 'Points gagnés'
+                    : `Points gagnés (${personalStats.percentageContribution}% de l'équipe)`
+                  }
                 </div>
               </div>
             </div>

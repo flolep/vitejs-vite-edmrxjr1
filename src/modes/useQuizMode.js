@@ -201,7 +201,7 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
    * Révèle la bonne réponse et valide les réponses des joueurs
    */
   const revealQuizAnswer = async () => {
-    if (!sessionId) return;
+    if (!sessionId || currentTrack === null) return;
 
     const quizRef = ref(database, `sessions/${sessionId}/quiz`);
 
@@ -216,21 +216,116 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
       }
     }, { onlyOnce: true });
 
+    // Récupérer les infos de la chanson actuelle
+    const currentSong = playlist[currentTrack];
+    const songTitle = currentSong?.title || 'Inconnu';
+    const songArtist = currentSong?.artist || 'Inconnu';
+
     // Valider les réponses des joueurs
     const answersRef = ref(database, `sessions/${sessionId}/quiz_answers/${currentTrack}`);
     onValue(answersRef, (snapshot) => {
       const answersData = snapshot.val();
       if (answersData) {
-        Object.entries(answersData).forEach(([playerId, answer]) => {
+        // Convertir en array et trier par temps de réponse pour calculer le rang
+        const answersArray = Object.entries(answersData).map(([playerId, answer]) => ({
+          playerId,
+          ...answer
+        }));
+        answersArray.sort((a, b) => a.time - b.time);
+
+        // Mettre à jour chaque réponse avec correction, points, et infos chanson
+        answersArray.forEach((answer, rank) => {
           const isCorrect = answer.answer === String.fromCharCode(65 + correctAnswerIndex);
 
-          // Mettre à jour avec la correction
-          const playerAnswerRef = ref(database, `sessions/${sessionId}/quiz_answers/${currentTrack}/${playerId}`);
+          // Calculer les points (même formule que calculateQuizPoints dans QuizDisplay.jsx)
+          let points = 0;
+          if (isCorrect) {
+            const basePoints = 1000;
+            const timeBonus = Math.max(0, 500 - (answer.time * 10));
+            const rankBonus = Math.max(0, 500 - (rank * 100));
+            points = Math.round(basePoints + timeBonus + rankBonus);
+          }
+
+          // Mettre à jour avec la correction, points, et infos chanson
+          const playerAnswerRef = ref(database, `sessions/${sessionId}/quiz_answers/${currentTrack}/${answer.playerId}`);
           set(playerAnswerRef, {
             ...answer,
-            isCorrect
+            isCorrect,
+            points,
+            songTitle,
+            songArtist
           });
         });
+
+        // Mettre à jour le leaderboard global
+        const leaderboardRef = ref(database, `sessions/${sessionId}/quiz_leaderboard`);
+        onValue(leaderboardRef, (leaderboardSnapshot) => {
+          let leaderboardData = leaderboardSnapshot.val() || [];
+
+          // Convertir en array si c'est un objet
+          if (!Array.isArray(leaderboardData)) {
+            leaderboardData = Object.values(leaderboardData);
+          }
+
+          // Mettre à jour chaque joueur qui a répondu
+          answersArray.forEach(answer => {
+            const isCorrect = answer.answer === String.fromCharCode(65 + correctAnswerIndex);
+
+            if (!isCorrect) return; // Ne compter que les bonnes réponses
+
+            const rank = answersArray.findIndex(a => a.playerId === answer.playerId);
+            const basePoints = 1000;
+            const timeBonus = Math.max(0, 500 - (answer.time * 10));
+            const rankBonus = Math.max(0, 500 - (rank * 100));
+            const points = Math.round(basePoints + timeBonus + rankBonus);
+
+            // Trouver ou créer l'entrée du joueur
+            let playerIndex = leaderboardData.findIndex(p => p.playerId === answer.playerId);
+
+            if (playerIndex === -1) {
+              // Nouveau joueur
+              leaderboardData.push({
+                playerId: answer.playerId,
+                playerName: answer.playerName,
+                totalPoints: points,
+                correctAnswers: 1,
+                totalAnswers: 1
+              });
+            } else {
+              // Joueur existant
+              leaderboardData[playerIndex].totalPoints += points;
+              leaderboardData[playerIndex].correctAnswers += 1;
+              leaderboardData[playerIndex].totalAnswers += 1;
+            }
+          });
+
+          // Compter aussi les mauvaises réponses pour totalAnswers
+          answersArray.forEach(answer => {
+            const isCorrect = answer.answer === String.fromCharCode(65 + correctAnswerIndex);
+            if (isCorrect) return; // Déjà compté ci-dessus
+
+            let playerIndex = leaderboardData.findIndex(p => p.playerId === answer.playerId);
+            if (playerIndex === -1) {
+              // Nouveau joueur avec mauvaise réponse
+              leaderboardData.push({
+                playerId: answer.playerId,
+                playerName: answer.playerName,
+                totalPoints: 0,
+                correctAnswers: 0,
+                totalAnswers: 1
+              });
+            } else {
+              // Joueur existant
+              leaderboardData[playerIndex].totalAnswers += 1;
+            }
+          });
+
+          // Trier par points décroissants
+          leaderboardData.sort((a, b) => b.totalPoints - a.totalPoints);
+
+          // Sauvegarder
+          set(leaderboardRef, leaderboardData);
+        }, { onlyOnce: true });
       }
     }, { onlyOnce: true });
   };
