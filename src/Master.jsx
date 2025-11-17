@@ -256,13 +256,26 @@ export default function Master({
 
     // ⚡ Lancer la génération en arrière-plan sans attendre la réponse
     // Cela évite les timeouts de Netlify Functions (10-26 secondes max)
-    n8nService.generatePlaylistWithAllPreferences({
-      playlistId: initialPlaylistId,
-      players: players
-    })
+
+    // 🎯 Architecture 2 workflows : Choix du workflow selon le mode de jeu
+    const generatePlaylistPromise = playMode === 'quiz'
+      ? n8nService.fillPlaylistQuizMode({
+          playlistId: initialPlaylistId,
+          players: players
+        })
+      : n8nService.generatePlaylistWithAllPreferences({
+          playlistId: initialPlaylistId,
+          players: players
+        });
+
+    generatePlaylistPromise
       .then(result => {
         console.log('✅ Playlist générée (en arrière-plan):', result);
-        console.log(`   🎵 ${result.totalSongs} chansons ajoutées pour ${result.totalPlayers} joueurs`);
+        if (playMode === 'quiz') {
+          console.log(`   🎵 ${result.totalSongs} chansons + ${result.totalSongs * 3} mauvaises réponses`);
+        } else {
+          console.log(`   🎵 ${result.totalSongs} chansons ajoutées pour ${result.totalPlayers || players.length} joueurs`);
+        }
       })
       .catch(error => {
         // Ne pas afficher d'erreur à l'utilisateur car la playlist est déjà créée
