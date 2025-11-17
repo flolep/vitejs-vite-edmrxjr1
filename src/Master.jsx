@@ -28,6 +28,7 @@ import BuzzAlert from './components/master/BuzzAlert';
 import GameSettings from './components/master/GameSettings';
 import QuizControls from './components/master/QuizControls';
 import QuizLeaderboard from './components/master/QuizLeaderboard';
+import FirebaseCleanup from './components/master/FirebaseCleanup';
 
 /**
  * Composant Master refactorisé
@@ -56,6 +57,7 @@ export default function Master({
   const [showStats, setShowStats] = useState(false);
   const [showEndGameConfirm, setShowEndGameConfirm] = useState(false);
   const [showCooldownSettings, setShowCooldownSettings] = useState(false);
+  const [showFirebaseCleanup, setShowFirebaseCleanup] = useState(false);
   const [debugInfo, setDebugInfo] = useState('');
 
   // États de cooldown
@@ -1131,6 +1133,18 @@ export default function Master({
             ⚙️ Réglages
           </button>
 
+          <button onClick={() => setShowFirebaseCleanup(true)} style={{
+            padding: '0.5rem 1rem',
+            backgroundColor: 'rgba(139, 92, 246, 0.3)',
+            border: '1px solid #8b5cf6',
+            fontSize: '0.85rem',
+            borderRadius: '0.5rem',
+            color: 'white',
+            cursor: 'pointer'
+          }}>
+            🧹 Nettoyage
+          </button>
+
           <button onClick={handleLogout} style={{
             padding: '0.5rem 1.5rem',
             backgroundColor: 'rgba(239, 68, 68, 0.2)',
@@ -1809,6 +1823,14 @@ export default function Master({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal Nettoyage Firebase */}
+      {showFirebaseCleanup && (
+        <FirebaseCleanup
+          sessionId={sessionId}
+          onClose={() => setShowFirebaseCleanup(false)}
+        />
       )}
 
       {/* Audio caché pour MP3 */}
