@@ -2,6 +2,17 @@
 // On passe par une Netlify Function pour éviter les problèmes CORS
 const N8N_PROXY_URL = '/.netlify/functions/n8n-proxy';
 
+// Import stubs pour le mode Test
+import { generateStubBatch } from './utils/quizStubs';
+
+/**
+ * Vérifie si le mode Test est activé
+ * @returns {boolean}
+ */
+function isTestModeEnabled() {
+  return localStorage.getItem('quizTestMode') === 'true';
+}
+
 export const n8nService = {
   /**
    * Crée une playlist vide sur Spotify via n8n (VERSION SIMPLE - Animateur unique)
@@ -218,6 +229,13 @@ export const n8nService = {
    * @returns {Promise<{success: boolean, totalSongs: number, wrongAnswers: object}>}
    */
   async generateWrongAnswers(songs) {
+    // 🎭 Mode Test : Utiliser des stubs au lieu d'appeler n8n/OpenAI
+    if (isTestModeEnabled()) {
+      console.log('🎭 [TEST MODE ACTIVÉ] Utilisation des stubs au lieu de n8n');
+      return await generateStubBatch(songs);
+    }
+
+    // Mode Production : Appel réel à n8n
     try {
       const payload = {
         songs: songs
