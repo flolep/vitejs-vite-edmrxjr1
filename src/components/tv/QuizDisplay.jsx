@@ -356,10 +356,10 @@ export function QuizDisplay({
                       {playerAnswer.playerName}
                     </div>
 
-                    {/* Avant révélation : juste "A répondu" */}
+                    {/* Avant révélation : "A répondu en X.X s" */}
                     {!revealed && (
                       <div style={{ fontSize: '1.25rem', opacity: 0.8, fontStyle: 'italic' }}>
-                        ✓ A répondu
+                        ✓ A répondu en {playerAnswer.time.toFixed(1)} s
                       </div>
                     )}
 
