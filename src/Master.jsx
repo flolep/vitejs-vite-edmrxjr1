@@ -315,22 +315,22 @@ export default function Master({
       if (requestData && requestData.timestamp) {
         console.log(`➡️ Demande de passage à la chanson suivante par ${requestData.playerName}`);
 
+        // Supprimer la demande immédiatement pour éviter les doubles traitements
+        await remove(nextSongRequestRef);
+
         // Passer à la chanson suivante
         nextTrack();
 
         // Attendre un court instant pour que nextTrack() se termine
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 500));
 
         // Démarrer automatiquement la lecture de la nouvelle chanson
-        togglePlay();
-
-        // Supprimer la demande
-        remove(nextSongRequestRef);
+        await togglePlay();
       }
     });
 
     return () => unsubscribe();
-  }, [sessionId, playMode]);
+  }, [sessionId, playMode, nextTrack, togglePlay]);
 
   // === ACTIONS ===
 
