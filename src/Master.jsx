@@ -310,27 +310,38 @@ export default function Master({
     if (!sessionId || playMode !== 'quiz') return;
 
     const nextSongRequestRef = ref(database, `sessions/${sessionId}/quiz_next_song_request`);
+    let isProcessing = false; // Flag pour éviter les doubles traitements
+
     const unsubscribe = onValue(nextSongRequestRef, async (snapshot) => {
       const requestData = snapshot.val();
-      if (requestData && requestData.timestamp) {
+      if (requestData && requestData.timestamp && !isProcessing) {
+        isProcessing = true;
         console.log(`➡️ Demande de passage à la chanson suivante par ${requestData.playerName}`);
 
-        // Supprimer la demande immédiatement pour éviter les doubles traitements
-        await remove(nextSongRequestRef);
+        try {
+          // Supprimer la demande immédiatement
+          await remove(nextSongRequestRef);
 
-        // Passer à la chanson suivante
-        nextTrack();
+          // Passer à la chanson suivante
+          nextTrack();
 
-        // Attendre un court instant pour que nextTrack() se termine
-        await new Promise(resolve => setTimeout(resolve, 500));
+          // Attendre que nextTrack() se termine et que l'état se propage
+          await new Promise(resolve => setTimeout(resolve, 500));
 
-        // Démarrer automatiquement la lecture de la nouvelle chanson
-        await togglePlay();
+          // Démarrer automatiquement la lecture de la nouvelle chanson
+          await togglePlay();
+
+          console.log('✅ Chanson suivante lancée automatiquement');
+        } catch (error) {
+          console.error('❌ Erreur lors du passage à la chanson suivante:', error);
+        } finally {
+          isProcessing = false;
+        }
       }
     });
 
     return () => unsubscribe();
-  }, [sessionId, playMode, nextTrack, togglePlay]);
+  }, [sessionId, playMode]); // Pas de dépendances sur nextTrack/togglePlay pour éviter re-création constante
 
   // === ACTIONS ===
 
