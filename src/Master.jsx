@@ -72,6 +72,8 @@ export default function Master({
   const [playersPreferences, setPlayersPreferences] = useState([]);
   const [isGeneratingPlaylist, setIsGeneratingPlaylist] = useState(false);
   const [playlistPollAttempt, setPlaylistPollAttempt] = useState(0);
+  const [isGeneratingQuizQuestions, setIsGeneratingQuizQuestions] = useState(false);
+  const [quizQuestionsReady, setQuizQuestionsReady] = useState(false);
 
   // Déterminer le token initial
   const getInitialToken = () => {
@@ -232,6 +234,28 @@ export default function Master({
     }
   }, [musicSource, spotifyToken, spotifyAutoMode.spotifyDeviceId, spotifyAIMode.spotifyDeviceId]);
 
+  // Vérifier si les questions Quiz sont déjà générées au chargement
+  useEffect(() => {
+    if (!sessionId || playMode !== 'quiz') return;
+
+    const checkQuizData = async () => {
+      const quizDataRef = ref(database, `sessions/${sessionId}/quiz_data/0`);
+      const snapshot = await new Promise((resolve) => {
+        onValue(quizDataRef, resolve, { onlyOnce: true });
+      });
+
+      if (snapshot.val()) {
+        console.log('✅ Questions Quiz déjà présentes dans Firebase');
+        setQuizQuestionsReady(true);
+      } else {
+        console.log('ℹ️ Pas de questions Quiz trouvées, elles doivent être générées');
+        setQuizQuestionsReady(false);
+      }
+    };
+
+    checkQuizData();
+  }, [sessionId, playMode]);
+
   // === ACTIONS ===
 
   const handleGeneratePlaylistWithAllPreferences = async () => {
@@ -257,33 +281,18 @@ export default function Master({
     // ⚡ Lancer la génération en arrière-plan sans attendre la réponse
     // Cela évite les timeouts de Netlify Functions (10-26 secondes max)
 
-    // 🎯 Architecture 2 workflows : Choix du workflow selon le mode de jeu
-    const generatePlaylistPromise = playMode === 'quiz'
-      ? n8nService.fillPlaylistQuizMode({
-          playlistId: initialPlaylistId,
-          players: players
-        })
-      : n8nService.generatePlaylistWithAllPreferences({
-          playlistId: initialPlaylistId,
-          players: players
-        });
+    // 🎯 Génération de la playlist (Batch) - Même workflow pour Équipe et Quiz
+    const generatePlaylistPromise = n8nService.generatePlaylistWithAllPreferences({
+      playlistId: initialPlaylistId,
+      players: players
+    });
 
     generatePlaylistPromise
-      .then(async result => {
+      .then(result => {
         console.log('✅ Playlist générée (en arrière-plan):', result);
+        console.log(`   🎵 ${result.totalSongs} chansons ajoutées pour ${result.totalPlayers || players.length} joueurs`);
         if (playMode === 'quiz') {
-          console.log(`   🎵 ${result.totalSongs} chansons + ${result.totalSongs * 3} mauvaises réponses`);
-
-          // 🎯 Stocker immédiatement les données quiz dans Firebase
-          if (result.songs && result.songs.length > 0 && result.songs[0]?.wrongAnswers) {
-            console.log('🎯 Stockage immédiat des données Quiz dans Firebase...');
-            await quizMode.storeQuizData(result.songs);
-            console.log('✅ Données Quiz stockées avec succès !');
-          } else {
-            console.warn('⚠️ Pas de wrongAnswers dans le résultat du workflow');
-          }
-        } else {
-          console.log(`   🎵 ${result.totalSongs} chansons ajoutées pour ${result.totalPlayers || players.length} joueurs`);
+          console.log('   ℹ️ Utilisez le bouton "Générer les questions" pour créer les wrongAnswers');
         }
       })
       .catch(error => {
@@ -315,6 +324,7 @@ export default function Master({
         if (tracks && tracks.length > 0) {
           console.log(`✅ Playlist rechargée avec succès : ${tracks.length} chansons détectées`);
           setDebugInfo(`✅ Playlist mise à jour : ${tracks.length} chansons disponibles !`);
+
           setIsGeneratingPlaylist(false);
           setPlaylistPollAttempt(0);
           clearInterval(pollPlaylist);
@@ -334,6 +344,63 @@ export default function Master({
         }
       }
     }, pollInterval);
+  };
+
+  /**
+   * 🎲 Génère les questions Quiz (wrongAnswers) manuellement
+   * Bouton affiché uniquement en mode Quiz après que la playlist est prête
+   */
+  const handleGenerateQuizQuestions = async () => {
+    if (!playlist || playlist.length === 0) {
+      setDebugInfo('❌ La playlist est vide. Générez d\'abord la playlist.');
+      return;
+    }
+
+    if (quizQuestionsReady) {
+      setDebugInfo('✅ Les questions sont déjà prêtes !');
+      return;
+    }
+
+    try {
+      setIsGeneratingQuizQuestions(true);
+      setDebugInfo('🎲 Génération des questions Quiz en cours...');
+
+      console.log('🎲 Génération des wrongAnswers pour', playlist.length, 'chansons');
+
+      const songsForWrongAnswers = playlist.map((track, index) => ({
+        artist: track.artist,
+        title: track.title,
+        uri: track.uri
+      }));
+
+      const wrongAnswersResponse = await n8nService.generateWrongAnswers(songsForWrongAnswers);
+
+      const songsWithWrongAnswers = playlist.map((track, index) => {
+        const wrongAnswersData = wrongAnswersResponse.wrongAnswers[index];
+        return {
+          uri: track.uri,
+          title: track.title,
+          artist: track.artist,
+          wrongAnswers: wrongAnswersData ? wrongAnswersData.wrongAnswers : [
+            `Fallback 1 - Song ${index + 1}A`,
+            `Fallback 2 - Song ${index + 1}B`,
+            `Fallback 3 - Song ${index + 1}C`
+          ]
+        };
+      });
+
+      console.log('🎯 Stockage des données Quiz dans Firebase...');
+      await quizMode.storeQuizData(songsWithWrongAnswers);
+      console.log('✅ Données Quiz stockées avec succès !');
+
+      setQuizQuestionsReady(true);
+      setDebugInfo('✅ Questions Quiz générées avec succès !');
+    } catch (error) {
+      console.error('❌ Erreur génération questions Quiz:', error);
+      setDebugInfo(`❌ Erreur: ${error.message}`);
+    } finally {
+      setIsGeneratingQuizQuestions(false);
+    }
   };
 
   const togglePlay = async () => {
@@ -930,6 +997,40 @@ export default function Master({
                   : '🎵 Générer la playlist'
                 }
               </button>
+
+              {/* Bouton Générer les questions Quiz (uniquement en mode Quiz) */}
+              {playMode === 'quiz' && !isGeneratingPlaylist && playlist.length > 0 && (
+                <button
+                  onClick={handleGenerateQuizQuestions}
+                  disabled={isGeneratingQuizQuestions || quizQuestionsReady}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    marginTop: '0.75rem',
+                    backgroundColor: quizQuestionsReady
+                      ? 'rgba(16, 185, 129, 0.3)'
+                      : isGeneratingQuizQuestions
+                        ? 'rgba(156, 163, 175, 0.3)'
+                        : 'rgba(251, 191, 36, 0.3)',
+                    border: quizQuestionsReady
+                      ? '1px solid #10b981'
+                      : isGeneratingQuizQuestions
+                        ? '1px solid #9ca3af'
+                        : '1px solid #fbbf24',
+                    borderRadius: '0.5rem',
+                    color: 'white',
+                    cursor: (isGeneratingQuizQuestions || quizQuestionsReady) ? 'not-allowed' : 'pointer',
+                    fontWeight: '500'
+                  }}
+                >
+                  {quizQuestionsReady
+                    ? '✅ Questions prêtes !'
+                    : isGeneratingQuizQuestions
+                      ? '🎲 Génération des questions...'
+                      : '🎲 Générer les questions Quiz'
+                  }
+                </button>
+              )}
             </div>
           )}
 
