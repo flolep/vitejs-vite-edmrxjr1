@@ -74,6 +74,7 @@ export default function Master({
   const [playlistPollAttempt, setPlaylistPollAttempt] = useState(0);
   const [isGeneratingQuizQuestions, setIsGeneratingQuizQuestions] = useState(false);
   const [quizQuestionsReady, setQuizQuestionsReady] = useState(false);
+  const [allQuizPlayers, setAllQuizPlayers] = useState([]); // Joueurs connectés en mode Quiz
 
   // Déterminer le token initial
   const getInitialToken = () => {
@@ -254,6 +255,31 @@ export default function Master({
     };
 
     checkQuizData();
+  }, [sessionId, playMode]);
+
+  // Écouter tous les joueurs connectés (pour mode Quiz - auto-reveal)
+  useEffect(() => {
+    if (!sessionId || playMode !== 'quiz') return;
+
+    const playersRef = ref(database, `sessions/${sessionId}/players_session/team1`);
+    const unsubscribe = onValue(playersRef, (snapshot) => {
+      const playersData = snapshot.val();
+      if (playersData) {
+        const playersList = Object.entries(playersData)
+          .filter(([_, player]) => player.connected) // Seulement les joueurs connectés
+          .map(([key, player]) => ({
+            id: player.id || key,
+            name: player.name,
+            photo: player.photo
+          }));
+        setAllQuizPlayers(playersList);
+        console.log(`👥 ${playersList.length} joueur(s) connecté(s) en Quiz`);
+      } else {
+        setAllQuizPlayers([]);
+      }
+    });
+
+    return () => unsubscribe();
   }, [sessionId, playMode]);
 
   // === ACTIONS ===
@@ -1200,7 +1226,16 @@ export default function Master({
                   quizAnswers={quizMode.quizAnswers}
                   correctAnswerIndex={quizMode.correctAnswerIndex}
                   playerAnswers={quizMode.playerAnswers}
+                  allPlayers={allQuizPlayers}
+                  isPlaying={isPlaying}
                   onReveal={quizMode.revealQuizAnswer}
+                  onPause={async () => {
+                    if (playerAdapter) {
+                      await playerAdapter.pause();
+                      updateIsPlaying(false);
+                      setDebugInfo('⏸️ Pause automatique (tous ont répondu)');
+                    }
+                  }}
                   isRevealed={currentSong?.revealed}
                 />
               )}
