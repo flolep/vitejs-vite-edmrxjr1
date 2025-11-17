@@ -864,6 +864,8 @@ const handleBuzz = async () => {
 
 // 🎯 Gérer la réponse Quiz
 const handleQuizAnswer = async (answer) => {
+  console.log('🎯 handleQuizAnswer appelé avec:', { answer, sessionId, quizQuestion, hasAnswered, selectedPlayer, playerName });
+
   if (!sessionId || !quizQuestion || hasAnswered) {
     console.log('❌ Impossible de répondre:', { sessionId, quizQuestion, hasAnswered });
     return;
@@ -880,21 +882,31 @@ const handleQuizAnswer = async (answer) => {
 
     // Envoyer la réponse à Firebase
     const playerId = selectedPlayer?.id || `temp_${playerName}`;
-    const answerRef = ref(database, `sessions/${sessionId}/quiz_answers/${quizQuestion.trackNumber}/${playerId}`);
+    const answerPath = `sessions/${sessionId}/quiz_answers/${quizQuestion.trackNumber}/${playerId}`;
+    const answerRef = ref(database, answerPath);
 
-    await set(answerRef, {
+    const answerData = {
       playerName: selectedPlayer?.name || playerName,
       answer: answer, // 'A', 'B', 'C', 'D'
       time: chrono,
       timestamp: Date.now(),
       isCorrect: null // Sera calculé après révélation
+    };
+
+    console.log('📤 Envoi réponse Quiz à Firebase:', {
+      path: answerPath,
+      playerId,
+      data: answerData
     });
 
-    console.log('✅ Réponse Quiz envoyée:', {
+    await set(answerRef, answerData);
+
+    console.log('✅ Réponse Quiz envoyée avec succès:', {
       player: selectedPlayer?.name || playerName,
       answer,
       time: chrono,
-      trackNumber: quizQuestion.trackNumber
+      trackNumber: quizQuestion.trackNumber,
+      path: answerPath
     });
 
     // Vibration feedback

@@ -117,9 +117,16 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
   useEffect(() => {
     if (!sessionId) return;
 
-    const answersRef = ref(database, `sessions/${sessionId}/quiz_answers/${currentTrack}`);
+    const answersPath = `sessions/${sessionId}/quiz_answers/${currentTrack}`;
+    const answersRef = ref(database, answersPath);
+
+    console.log('👂 Écoute des réponses Quiz sur:', answersPath);
+
     const unsubscribe = onValue(answersRef, (snapshot) => {
       const answersData = snapshot.val();
+
+      console.log('📥 Réponses reçues de Firebase:', { currentTrack, answersData });
+
       if (answersData) {
         const answersList = Object.entries(answersData).map(([playerId, answer]) => ({
           playerId,
@@ -132,10 +139,16 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
 
         // Trier par temps de réponse
         answersList.sort((a, b) => a.time - b.time);
+
+        console.log('✅ Réponses traitées:', answersList);
+
         setPlayerAnswers(answersList);
 
         // Calculer le classement
         updateLeaderboard(answersList);
+      } else {
+        console.log('ℹ️ Aucune réponse pour currentTrack:', currentTrack);
+        setPlayerAnswers([]);
       }
     });
 
