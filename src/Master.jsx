@@ -336,6 +336,45 @@ export default function Master({
       players: players
     });
 
+    // 🎭 Mode Test : Utiliser directement les chansons stub sans polling Spotify
+    if (testMode) {
+      console.log('🎭 [TEST MODE] Utilisation directe des chansons stub (skip polling Spotify)');
+
+      generatePlaylistPromise
+        .then(result => {
+          console.log('✅ Playlist stub générée:', result);
+          console.log(`   🎵 ${result.totalSongs} chansons stub pour ${result.totalPlayers || players.length} joueurs`);
+
+          // Convertir les chansons stub au format attendu par setPlaylist
+          const stubTracks = result.songs.map((song, index) => ({
+            spotifyUri: song.uri,
+            title: song.title,
+            artist: song.artist,
+            imageUrl: 'https://via.placeholder.com/300?text=Test+Mode', // Image placeholder pour le mode test
+            durationMs: 180000, // 3 minutes par défaut
+            previewUrl: null
+          }));
+
+          setPlaylist(stubTracks);
+          setDebugInfo(`✅ [TEST MODE] Playlist stub créée avec ${stubTracks.length} chansons !`);
+          setIsGeneratingPlaylist(false);
+          setPlaylistPollAttempt(0);
+
+          if (playMode === 'quiz') {
+            console.log('   ℹ️ Utilisez le bouton "Générer les questions" pour créer les wrongAnswers');
+          }
+        })
+        .catch(error => {
+          console.error('❌ Erreur génération playlist stub:', error);
+          setDebugInfo('❌ Erreur lors de la génération de la playlist stub');
+          setIsGeneratingPlaylist(false);
+          setPlaylistPollAttempt(0);
+        });
+
+      return; // Skip le polling Spotify
+    }
+
+    // Mode Production : Polling Spotify normal
     generatePlaylistPromise
       .then(result => {
         console.log('✅ Playlist générée (en arrière-plan):', result);
