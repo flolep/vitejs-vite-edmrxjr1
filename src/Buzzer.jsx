@@ -859,6 +859,33 @@ const loadPersonalStats = () => {
   }, { onlyOnce: true });
 };
 
+  // ========== COMPOSANT DEBUG INFO (PERMANENT) ==========
+  const DebugInfoPanel = () => (
+    <div style={{
+      position: 'fixed',
+      top: '0.5rem',
+      left: '0.5rem',
+      right: '0.5rem',
+      backgroundColor: 'rgba(0, 0, 0, 0.9)',
+      color: '#00ff00',
+      padding: '0.75rem',
+      fontSize: '0.7rem',
+      fontFamily: 'monospace',
+      zIndex: 9999,
+      borderRadius: '0.5rem',
+      border: '2px solid #00ff00',
+      lineHeight: '1.4'
+    }}>
+      <div style={{ fontWeight: 'bold', marginBottom: '0.25rem' }}>🐛 DEBUG INFO</div>
+      <div>Étape: {step}</div>
+      <div>Nom: {selectedPlayer?.name || playerName || 'N/A'}</div>
+      <div>Photo: {selectedPlayer?.photo || photoData ? '✓ OUI' : '✗ NON'}</div>
+      <div>Session: {sessionId || 'N/A'}</div>
+      {team && <div>Team: {team}</div>}
+      {playerFirebaseKey && <div>Key: {playerFirebaseKey.substring(0, 15)}...</div>}
+    </div>
+  );
+
   // ========== ÉCRANS ==========
 
   // ÉCRAN -1 : Reconnexion en cours (DÉSACTIVÉ temporairement)
@@ -885,6 +912,7 @@ const loadPersonalStats = () => {
   if (step === 'session') {
     return (
       <div className="bg-gradient flex-center">
+        <DebugInfoPanel />
         <div className="text-center" style={{ maxWidth: '500px', width: '100%', padding: '2rem' }}>
           <h1 className="title">🎵 BLIND TEST 🎵</h1>
           <h2 style={{ fontSize: '1.5rem', marginBottom: '2rem' }}>
@@ -960,6 +988,7 @@ const loadPersonalStats = () => {
   if (step === 'name') {
     return (
       <div className="bg-gradient flex-center">
+        <DebugInfoPanel />
         <div className="text-center" style={{ maxWidth: '500px', width: '100%', padding: '2rem' }}>
           <h1 className="title">🎵 BLIND TEST 🎵</h1>
           <h2 style={{ fontSize: '1.5rem', marginBottom: '2rem' }}>
@@ -1020,6 +1049,7 @@ const loadPersonalStats = () => {
   if (step === 'select') {
     return (
       <div className="bg-gradient flex-center">
+        <DebugInfoPanel />
         <div className="text-center" style={{ maxWidth: '500px', width: '100%', padding: '2rem' }}>
           <h1 className="title">👥 Joueur trouvé !</h1>
           <h2 style={{ fontSize: '1.25rem', marginBottom: '2rem' }}>
@@ -1081,10 +1111,11 @@ const loadPersonalStats = () => {
 
  // ÉCRAN 3 : Prise de selfie
 if (step === 'photo') {
-  
+
 
   return (
     <div className="bg-gradient flex-center">
+      <DebugInfoPanel />
       <div className="text-center" style={{ maxWidth: '500px', width: '100%', padding: '2rem' }}>
         <h1 className="title">📸 Prenez un selfie</h1>
         
@@ -1193,6 +1224,7 @@ if (step === 'photo') {
 
     return (
       <div className="bg-gradient flex-center">
+        <DebugInfoPanel />
         <div className="text-center" style={{ maxWidth: '600px', width: '100%', padding: '2rem' }}>
           <h1 className="title">🎵 Vos Préférences</h1>
           <h2 style={{ fontSize: '1.25rem', marginBottom: '2rem' }}>
@@ -1488,6 +1520,7 @@ if (step === 'game') {
 
   return (
     <div className={`${bgClass} flex-center`}>
+      <DebugInfoPanel />
       {/* Bouton de debug */}
       <button
         onClick={() => setShowDebug(!showDebug)}
