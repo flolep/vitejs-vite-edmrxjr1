@@ -122,6 +122,8 @@ export default function Master({
   const {
     buzzedTeam,
     buzzedPlayerKey,
+    buzzedPlayerName,
+    buzzedPlayerPhoto,
     setBuzzedTeam,
     clearBuzz
   } = useBuzzer(sessionId, isPlaying, currentTrack, playlist, currentChronoRef, updateIsPlaying, playerAdapter);
@@ -1409,6 +1411,8 @@ export default function Master({
                 <BuzzAlert
                   buzzedTeam={buzzedTeam}
                   buzzedPlayerKey={buzzedPlayerKey}
+                  buzzedPlayerName={buzzedPlayerName}
+                  buzzedPlayerPhoto={buzzedPlayerPhoto}
                   currentChrono={currentChrono}
                   availablePoints={availablePoints}
                   onCorrect={() => addPoint(buzzedTeam)}
