@@ -9,6 +9,14 @@ export default function BuzzAlert({
   onCorrect,
   onWrong
 }) {
+  console.log('🎯 [BuzzAlert] Props reçues:', {
+    buzzedTeam,
+    buzzedPlayerName,
+    buzzedPlayerPhoto,
+    hasPhoto: !!buzzedPlayerPhoto,
+    hasName: !!buzzedPlayerName
+  });
+
   if (!buzzedTeam) return null;
 
   return (

@@ -52,6 +52,14 @@ export function useBuzzer(sessionId, isPlaying, currentTrack, playlist, currentC
         const { team } = buzzData;
         const buzzTime = currentChronoRef.current;
 
+        console.log('🔔 [useBuzzer] Buzz reçu:', {
+          team,
+          playerName: buzzData.playerName,
+          playerPhoto: buzzData.playerPhoto,
+          playerFirebaseKey: buzzData.playerFirebaseKey,
+          fullBuzzData: buzzData
+        });
+
         setBuzzedTeam(team);
         setBuzzedPlayerKey(buzzData.playerFirebaseKey || null);
         setBuzzedPlayerName(buzzData.playerName || 'Anonyme');

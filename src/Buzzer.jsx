@@ -737,16 +737,19 @@ const handleBuzz = async () => {
   }
 
   const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
-  await set(buzzRef, {
+  const buzzPayload = {
     type: 'BUZZ',
     team: `team${team}`,
     teamName: team === 1 ? 'Équipe 1' : 'Équipe 2',
     playerName: selectedPlayer?.name || playerName,
     playerId: selectedPlayer?.id || `temp_${playerName}`,
     playerPhoto: selectedPlayer?.photo || photoData || null,
-    playerFirebaseKey: playerFirebaseKey, // ✅ AJOUTEZ CECI
+    playerFirebaseKey: playerFirebaseKey,
     timestamp: Date.now()
-  });
+  };
+
+  console.log('📱 [Buzzer] Envoi du buzz:', buzzPayload);
+  await set(buzzRef, buzzPayload);
 
   // Vibration en plus du son
   if (navigator.vibrate) {
