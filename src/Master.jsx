@@ -186,6 +186,19 @@ export default function Master({
     }
   }, [musicSource, spotifyAIMode.playlist]);
 
+  // Synchroniser l'état showQRCode avec Firebase
+  useEffect(() => {
+    if (!sessionId) return;
+
+    const qrCodeRef = ref(database, `sessions/${sessionId}/showQRCode`);
+    const unsubscribe = onValue(qrCodeRef, (snapshot) => {
+      const show = snapshot.val();
+      setShowQRCode(show === true);
+    });
+
+    return () => unsubscribe();
+  }, [sessionId]);
+
   // Écouter les préférences des joueurs en mode Spotify IA
   useEffect(() => {
     if (!sessionId || musicSource !== 'spotify-ai') return;
