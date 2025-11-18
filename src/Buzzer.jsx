@@ -1607,6 +1607,81 @@ if (step === 'photo') {
   if (step === 'team') {
     return (
       <div className="bg-gradient flex-center">
+        {/* Bouton de debug */}
+        <button
+          onClick={() => setShowDebug(!showDebug)}
+          style={{
+            position: 'fixed',
+            top: '1rem',
+            left: '1rem',
+            backgroundColor: showDebug ? 'rgba(0, 255, 0, 0.3)' : 'rgba(0, 0, 0, 0.8)',
+            border: '3px solid ' + (showDebug ? '#00ff00' : 'rgba(255, 255, 255, 0.8)'),
+            borderRadius: '50%',
+            width: '60px',
+            height: '60px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            fontSize: '2rem',
+            zIndex: 1000,
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)'
+          }}
+          title="Debug"
+        >
+          🐛
+        </button>
+
+        {/* Panneau de debug */}
+        {showDebug && (
+          <div style={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.95)',
+            color: '#00ff00',
+            padding: '1rem',
+            maxHeight: '40vh',
+            overflowY: 'auto',
+            fontSize: '0.75rem',
+            fontFamily: 'monospace',
+            zIndex: 200,
+            borderTop: '2px solid #00ff00'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+              <strong>DEBUG LOGS (Sélection équipe)</strong>
+              <button onClick={() => setDebugLogs([])} style={{
+                background: 'none',
+                border: '1px solid #00ff00',
+                color: '#00ff00',
+                padding: '0.25rem 0.5rem',
+                cursor: 'pointer',
+                borderRadius: '0.25rem'
+              }}>
+                Clear
+              </button>
+            </div>
+            <div style={{ marginBottom: '0.5rem', paddingBottom: '0.5rem', borderBottom: '1px solid #333' }}>
+              <div>Étape: {step}</div>
+              <div>Nom: {selectedPlayer?.name || playerName || 'N/A'}</div>
+              <div>Photo: {selectedPlayer?.photo || photoData ? '✓' : '✗'}</div>
+              <div>Session: {sessionId || 'N/A'}</div>
+            </div>
+            {debugLogs.map((log, idx) => (
+              <div key={idx} style={{ marginBottom: '0.5rem', paddingBottom: '0.5rem', borderBottom: '1px solid #333' }}>
+                <div style={{ opacity: 0.7 }}>[{log.timestamp}]</div>
+                <div>{log.message}</div>
+                {log.data && (
+                  <pre style={{ margin: '0.25rem 0 0 1rem', fontSize: '0.7rem', opacity: 0.8 }}>
+                    {JSON.stringify(log.data, null, 2)}
+                  </pre>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="text-center" style={{ maxWidth: '500px', width: '100%', padding: '2rem' }}>
           <h1 className="title">🎵 BLIND TEST 🎵</h1>
           
@@ -1700,17 +1775,18 @@ if (step === 'game') {
           position: 'fixed',
           top: '1rem',
           left: '1rem',
-          backgroundColor: 'rgba(0, 0, 0, 0.3)',
-          border: '2px solid rgba(255, 255, 255, 0.3)',
+          backgroundColor: showDebug ? 'rgba(0, 255, 0, 0.3)' : 'rgba(0, 0, 0, 0.8)',
+          border: '3px solid ' + (showDebug ? '#00ff00' : 'rgba(255, 255, 255, 0.8)'),
           borderRadius: '50%',
-          width: '50px',
-          height: '50px',
+          width: '60px',
+          height: '60px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           cursor: 'pointer',
-          fontSize: '1.5rem',
-          zIndex: 100
+          fontSize: '2rem',
+          zIndex: 1000,
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)'
         }}
         title="Debug"
       >
