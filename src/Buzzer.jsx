@@ -57,6 +57,17 @@ export default function Buzzer() {
     recognizedSongs: []
   });
 
+  // Debug logs pour mobile
+  const [debugLogs, setDebugLogs] = useState([]);
+  const [showDebug, setShowDebug] = useState(false);
+
+  const addDebugLog = (message, data = null) => {
+    const timestamp = new Date().toLocaleTimeString();
+    const logEntry = { timestamp, message, data };
+    setDebugLogs(prev => [...prev.slice(-9), logEntry]); // Garder seulement les 10 derniers logs
+    console.log(message, data);
+  };
+
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
@@ -769,6 +780,12 @@ const selectTeam = async (teamNumber) => {
   const teamKey = `team${teamNumber}`;
   const playersRef = ref(database, `sessions/${sessionId}/players_session/${teamKey}`);
 
+  addDebugLog('🎯 Sélection équipe', {
+    teamNumber,
+    playerName: selectedPlayer?.name || playerName,
+    hasPhoto: !!(selectedPlayer?.photo || photoData)
+  });
+
   try {
     // ✅ VÉRIFIER SI UN JOUEUR AVEC LE MÊME NOM EXISTE DÉJÀ
     const snapshot = await new Promise((resolve) => {
@@ -845,16 +862,23 @@ const handleBuzz = async () => {
   }
 
   const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
-  await set(buzzRef, {
+  const buzzPayload = {
     type: 'BUZZ',
     team: `team${team}`,
     teamName: team === 1 ? 'Équipe 1' : 'Équipe 2',
     playerName: selectedPlayer?.name || playerName,
     playerId: selectedPlayer?.id || `temp_${playerName}`,
     playerPhoto: selectedPlayer?.photo || photoData || null,
-    playerFirebaseKey: playerFirebaseKey, // ✅ AJOUTEZ CECI
+    playerFirebaseKey: playerFirebaseKey,
     timestamp: Date.now()
+  };
+
+  addDebugLog('📱 [Buzzer] Envoi du buzz', {
+    playerName: buzzPayload.playerName,
+    hasPhoto: !!buzzPayload.playerPhoto,
+    team: buzzPayload.team
   });
+  await set(buzzRef, buzzPayload);
 
   // Vibration en plus du son
   if (navigator.vibrate) {
@@ -1669,6 +1693,30 @@ if (step === 'game') {
 
   return (
     <div className={`${bgClass} flex-center`}>
+      {/* Bouton de debug */}
+      <button
+        onClick={() => setShowDebug(!showDebug)}
+        style={{
+          position: 'fixed',
+          top: '1rem',
+          left: '1rem',
+          backgroundColor: 'rgba(0, 0, 0, 0.3)',
+          border: '2px solid rgba(255, 255, 255, 0.3)',
+          borderRadius: '50%',
+          width: '50px',
+          height: '50px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          fontSize: '1.5rem',
+          zIndex: 100
+        }}
+        title="Debug"
+      >
+        🐛
+      </button>
+
       {/* Bouton de statistiques personnelles */}
       <button
         onClick={loadPersonalStats}
@@ -1692,6 +1740,56 @@ if (step === 'game') {
       >
         📊
       </button>
+
+      {/* Panneau de debug */}
+      {showDebug && (
+        <div style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.95)',
+          color: '#00ff00',
+          padding: '1rem',
+          maxHeight: '40vh',
+          overflowY: 'auto',
+          fontSize: '0.75rem',
+          fontFamily: 'monospace',
+          zIndex: 200,
+          borderTop: '2px solid #00ff00'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+            <strong>DEBUG LOGS</strong>
+            <button onClick={() => setDebugLogs([])} style={{
+              background: 'none',
+              border: '1px solid #00ff00',
+              color: '#00ff00',
+              padding: '0.25rem 0.5rem',
+              cursor: 'pointer',
+              borderRadius: '0.25rem'
+            }}>
+              Clear
+            </button>
+          </div>
+          <div style={{ marginBottom: '0.5rem', paddingBottom: '0.5rem', borderBottom: '1px solid #333' }}>
+            <div>Nom: {selectedPlayer?.name || playerName}</div>
+            <div>Photo: {selectedPlayer?.photo || photoData ? '✓' : '✗'}</div>
+            <div>Team: {team}</div>
+            <div>Firebase Key: {playerFirebaseKey || 'none'}</div>
+          </div>
+          {debugLogs.map((log, idx) => (
+            <div key={idx} style={{ marginBottom: '0.5rem', paddingBottom: '0.5rem', borderBottom: '1px solid #333' }}>
+              <div style={{ opacity: 0.7 }}>[{log.timestamp}]</div>
+              <div>{log.message}</div>
+              {log.data && (
+                <pre style={{ margin: '0.25rem 0 0 1rem', fontSize: '0.7rem', opacity: 0.8 }}>
+                  {JSON.stringify(log.data, null, 2)}
+                </pre>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="score-display">
         <div className={`score-mini ${team === 1 ? 'highlighted' : ''}`} style={{ backgroundColor: 'rgba(220, 38, 38, 0.5)' }}>

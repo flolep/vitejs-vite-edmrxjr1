@@ -48,9 +48,23 @@ export function useBuzzer(sessionId, isPlaying, currentTrack, playlist, currentC
     const unsubscribe = onValue(buzzRef, (snapshot) => {
       const buzzData = snapshot.val();
 
+      console.log('👂 [useBuzzer] Firebase notification:', {
+        hasBuzzData: !!buzzData,
+        isPlaying,
+        buzzData
+      });
+
       if (buzzData && isPlaying) {
         const { team } = buzzData;
         const buzzTime = currentChronoRef.current;
+
+        console.log('🔔 [useBuzzer] Buzz reçu et traité:', {
+          team,
+          playerName: buzzData.playerName,
+          playerPhoto: buzzData.playerPhoto,
+          playerFirebaseKey: buzzData.playerFirebaseKey,
+          fullBuzzData: buzzData
+        });
 
         setBuzzedTeam(team);
         setBuzzedPlayerKey(buzzData.playerFirebaseKey || null);
