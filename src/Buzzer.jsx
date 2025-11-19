@@ -34,16 +34,23 @@ export default function Buzzer() {
   // Écouter le mode de jeu depuis Firebase
   useEffect(() => {
     if (!sessionId) {
+      console.log('⚠️ [Buzzer Router] Pas de sessionId');
       setIsLoading(false);
       return;
     }
 
+    console.log('🔍 [Buzzer Router] Lecture session Firebase:', sessionId);
     const sessionRef = ref(database, `sessions/${sessionId}`);
     const unsubscribe = onValue(sessionRef, (snapshot) => {
       if (snapshot.exists()) {
         const sessionData = snapshot.val();
         const mode = sessionData.playMode || 'team';
-        console.log('🎮 [Buzzer Router] Mode détecté:', mode);
+        console.log('🎮 [Buzzer Router] Session data:', {
+          playMode: sessionData.playMode,
+          gameMode: sessionData.gameMode,
+          musicSource: sessionData.musicSource,
+          modeDetecte: mode
+        });
         setPlayMode(mode);
         setIsLoading(false);
       } else {
@@ -68,12 +75,19 @@ export default function Buzzer() {
   }
 
   // Routage vers le bon composant
+  console.log('🔀 [Buzzer Router] Routage final:', {
+    playMode,
+    comparaison: `playMode === 'quiz' ? ${playMode === 'quiz'}`,
+    typePlayMode: typeof playMode,
+    composantRendu: playMode === 'quiz' ? 'BuzzerQuiz' : 'BuzzerTeam'
+  });
+
   if (playMode === 'quiz') {
-    console.log('📝 [Buzzer Router] Affichage BuzzerQuiz');
+    console.log('✅ [Buzzer Router] → Affichage BuzzerQuiz');
     return <BuzzerQuiz />;
   }
 
   // Par défaut, mode Team
-  console.log('👥 [Buzzer Router] Affichage BuzzerTeam');
+  console.log('✅ [Buzzer Router] → Affichage BuzzerTeam (défaut)');
   return <BuzzerTeam />;
 }
