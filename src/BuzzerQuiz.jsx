@@ -341,10 +341,30 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
   // ========== HANDLERS - QUIZ SCREEN ==========
 
   const handleQuizAnswer = async (answer) => {
-    console.log('🎯 handleQuizAnswer appelé avec:', { answer, sessionId, quizQuestion, hasAnswered });
+    console.log('🎯 [handleQuizAnswer] Appelé avec:', {
+      answer,
+      sessionId,
+      hasSessionId: !!sessionId,
+      trackNumber: quizQuestion?.trackNumber,
+      hasAnswered,
+      selectedPlayer,
+      playerName,
+      playerFirebaseKey
+    });
 
-    if (!sessionId || !quizQuestion || hasAnswered) {
-      console.log('❌ Impossible de répondre:', { sessionId, quizQuestion, hasAnswered });
+    if (!sessionId) {
+      console.error('❌ [handleQuizAnswer] SessionId manquant !');
+      alert('Erreur : Pas de session ID. Rechargez la page.');
+      return;
+    }
+
+    if (!quizQuestion) {
+      console.error('❌ [handleQuizAnswer] Pas de question Quiz !');
+      return;
+    }
+
+    if (hasAnswered) {
+      console.warn('⚠️ [handleQuizAnswer] Vous avez déjà répondu');
       return;
     }
 
@@ -352,37 +372,48 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
     setSelectedAnswer(answer);
     setHasAnswered(true);
 
-    // Lire le temps de réponse depuis le chrono Firebase
-    const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
-    const chronoSnapshot = await get(chronoRef);
-    const chrono = chronoSnapshot.val() || 0;
+    try {
+      // Lire le temps de réponse depuis le chrono Firebase
+      const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
+      const chronoSnapshot = await get(chronoRef);
+      const chrono = chronoSnapshot.val() || 0;
 
-    // Envoyer la réponse à Firebase
-    const playerId = selectedPlayer?.id || `temp_${playerName}`;
-    const answerPath = `sessions/${sessionId}/quiz_answers/${quizQuestion.trackNumber}/${playerId}`;
-    const answerRef = ref(database, answerPath);
+      // Envoyer la réponse à Firebase
+      const playerId = selectedPlayer?.id || `temp_${playerName}`;
+      const answerPath = `sessions/${sessionId}/quiz_answers/${quizQuestion.trackNumber}/${playerId}`;
+      const answerRef = ref(database, answerPath);
 
-    const answerData = {
-      playerName: selectedPlayer?.name || playerName,
-      answer: answer, // 'A', 'B', 'C', 'D'
-      time: chrono,
-      timestamp: Date.now(),
-      isCorrect: null // Sera calculé après révélation
-    };
+      const answerData = {
+        playerName: selectedPlayer?.name || playerName,
+        answer: answer, // 'A', 'B', 'C', 'D'
+        time: chrono,
+        timestamp: Date.now(),
+        isCorrect: null // Sera calculé après révélation
+      };
 
-    console.log('📤 Envoi réponse Quiz à Firebase:', {
-      path: answerPath,
-      playerId,
-      data: answerData
-    });
+      console.log('📤 [handleQuizAnswer] Envoi réponse Quiz à Firebase:', {
+        path: answerPath,
+        fullPath: `sessions/${sessionId}/quiz_answers/${quizQuestion.trackNumber}/${playerId}`,
+        playerId,
+        playerName: answerData.playerName,
+        trackNumber: quizQuestion.trackNumber,
+        answer: answerData.answer,
+        time: chrono,
+        data: answerData
+      });
 
-    await set(answerRef, answerData);
+      await set(answerRef, answerData);
 
-    console.log('✅ Réponse Quiz envoyée avec succès');
+      console.log('✅ [handleQuizAnswer] Réponse Quiz envoyée avec succès à Firebase !');
+      console.log('👀 [handleQuizAnswer] La TV devrait maintenant voir cette réponse dans quiz_answers');
 
-    // Vibration feedback
-    if (navigator.vibrate) {
-      navigator.vibrate(100);
+      // Vibration feedback
+      if (navigator.vibrate) {
+        navigator.vibrate(100);
+      }
+    } catch (error) {
+      console.error('❌ [handleQuizAnswer] Erreur lors de l\'envoi:', error);
+      alert('Erreur lors de l\'envoi de la réponse : ' + error.message);
     }
   };
 
@@ -497,7 +528,7 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
         Firebase Path (players): sessions/{sessionId}/players_session/team1/{playerFirebaseKey || '???'}
       </div>
       <div>
-        Firebase Path (answer): sessions/{sessionId}/quiz_answers/{quizQuestion?.trackNumber || '???'}/{selectedPlayer?.id || `temp_${playerName}` || '???'}
+        Firebase Path (answer): sessions/{sessionId}/quiz_answers/{quizQuestion?.trackNumber ?? '???'}/{selectedPlayer?.id || `temp_${playerName}` || '???'}
       </div>
     </div>
   );
