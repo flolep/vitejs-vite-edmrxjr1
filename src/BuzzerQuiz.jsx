@@ -412,8 +412,36 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
         navigator.vibrate(100);
       }
     } catch (error) {
-      console.error('❌ [handleQuizAnswer] Erreur lors de l\'envoi:', error);
-      alert('Erreur lors de l\'envoi de la réponse : ' + error.message);
+      console.error('❌ [handleQuizAnswer] Erreur lors de l\'envoi:', {
+        errorMessage: error.message,
+        errorCode: error.code,
+        errorStack: error.stack,
+        errorName: error.name,
+        fullError: JSON.stringify(error, Object.getOwnPropertyNames(error))
+      });
+
+      // Message d'erreur plus détaillé
+      let userMessage = 'Erreur lors de l\'envoi de la réponse';
+
+      if (error.code === 'PERMISSION_DENIED') {
+        userMessage = '🚫 Permission Firebase refusée.\n\n' +
+          'Les règles de sécurité doivent être déployées.\n' +
+          'Demandez au créateur de déployer les nouvelles règles via Firebase Console.';
+        console.error('💡 Solution: Déployer database.rules.json via Firebase Console > Realtime Database > Rules');
+      } else if (error.message && error.message.includes('IndexedDB')) {
+        userMessage = '⚠️ Safari bloque le stockage local.\n\n' +
+          'Désactivez le mode navigation privée et réessayez.';
+      } else if (error.message && error.message.includes('network')) {
+        userMessage = '📡 Erreur réseau.\n\nVérifiez votre connexion Internet.';
+      } else {
+        userMessage = `Erreur: ${error.code || error.message}`;
+      }
+
+      alert(userMessage);
+
+      // Remettre l'état pour permettre un nouvel essai
+      setHasAnswered(false);
+      setSelectedAnswer(null);
     }
   };
 
