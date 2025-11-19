@@ -12,6 +12,61 @@ import { PreferencesScreen } from './components/buzzer/screens/PreferencesScreen
 import { QuizInterface } from './components/buzzer/QuizInterface';
 
 /**
+ * Enregistre le joueur dans Firebase players_session/team1
+ * (Mode Quiz : tous les joueurs sont dans team1)
+ */
+async function registerPlayerInFirebase(sessionId, player, photoData = null) {
+  if (!sessionId || !player) {
+    console.error('❌ Impossible d\'enregistrer le joueur : session ou player manquant');
+    return null;
+  }
+
+  const teamKey = 'team1'; // Mode Quiz : tous les joueurs dans team1
+  const playersRef = ref(database, `sessions/${sessionId}/players_session/${teamKey}`);
+
+  try {
+    // Vérifier si un joueur avec le même nom existe déjà
+    const snapshot = await new Promise((resolve) => {
+      onValue(playersRef, resolve, { onlyOnce: true });
+    });
+
+    const existingPlayers = snapshot.val() || {};
+    let existingPlayerKey = null;
+
+    // Chercher si ce joueur existe déjà (même nom)
+    for (const [key, existingPlayer] of Object.entries(existingPlayers)) {
+      if (existingPlayer.name === player.name) {
+        existingPlayerKey = key;
+        console.log(`🔍 Joueur "${player.name}" déjà présent avec la clé:`, key);
+        break;
+      }
+    }
+
+    // Utiliser la clé existante ou créer une nouvelle
+    const playerKey = existingPlayerKey || `player_${Date.now()}`;
+    const playerRef = ref(database, `sessions/${sessionId}/players_session/${teamKey}/${playerKey}`);
+
+    const playerData = {
+      id: player.id || `temp_${player.name}`,
+      name: player.name,
+      photo: player.photo || photoData || null,
+      points: 0,
+      buzzes: 0,
+      consecutiveCorrect: 0,
+      joinedAt: existingPlayerKey ? existingPlayers[existingPlayerKey].joinedAt : Date.now()
+    };
+
+    await set(playerRef, playerData);
+    console.log('✅ Joueur enregistré dans players_session/team1, clé:', playerKey);
+
+    return playerKey;
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'enregistrement du joueur:', error);
+    return null;
+  }
+}
+
+/**
  * Mode Quiz avec QCM
  * Flux : session → name → select → photo → preferences → quiz
  */
@@ -30,6 +85,7 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
   const [playerName, setPlayerName] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [playerFirebaseKey, setPlayerFirebaseKey] = useState(null);
 
   // États préférences
   const [playerAge, setPlayerAge] = useState('');
@@ -47,6 +103,15 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
     totalPoints: 0,
     recognizedSongs: []
   });
+
+  // Initialiser le joueur depuis localStorage au chargement
+  useEffect(() => {
+    const savedData = localStorage.load();
+    if (savedData?.playerFirebaseKey) {
+      setPlayerFirebaseKey(savedData.playerFirebaseKey);
+      console.log('🔄 Clé Firebase restaurée depuis localStorage:', savedData.playerFirebaseKey);
+    }
+  }, []);
 
   // Écouter la question Quiz depuis Firebase
   useEffect(() => {
@@ -108,9 +173,16 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
 
   // ========== HANDLERS - SELECT SCREEN ==========
 
-  const handleSelectPlayer = (player) => {
+  const handleSelectPlayer = async (player) => {
     setSelectedPlayer(player);
     localStorage.save({ selectedPlayer: player, playerName: player.name });
+
+    // Enregistrer le joueur dans Firebase players_session/team1
+    const firebaseKey = await registerPlayerInFirebase(sessionId, player);
+    if (firebaseKey) {
+      setPlayerFirebaseKey(firebaseKey);
+      localStorage.save({ playerFirebaseKey: firebaseKey });
+    }
 
     // Mode Quiz : aller directement aux préférences ou au quiz
     const gameStarted = localStorage.load()?.gameAlreadyStarted === true;
@@ -129,8 +201,24 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
 
   // ========== HANDLERS - PHOTO SCREEN ==========
 
-  const handleSkipPhoto = () => {
+  const handleSkipPhoto = async () => {
     camera.stopCamera();
+
+    // Créer un joueur sans photo
+    const playerWithoutPhoto = {
+      name: playerName,
+      photo: null
+    };
+
+    setSelectedPlayer(playerWithoutPhoto);
+    localStorage.save({ selectedPlayer: playerWithoutPhoto, playerName });
+
+    // Enregistrer le joueur dans Firebase players_session/team1
+    const firebaseKey = await registerPlayerInFirebase(sessionId, playerWithoutPhoto);
+    if (firebaseKey) {
+      setPlayerFirebaseKey(firebaseKey);
+      localStorage.save({ playerFirebaseKey: firebaseKey });
+    }
 
     const gameStarted = localStorage.load()?.gameAlreadyStarted === true;
     if (gameStarted) {
@@ -161,16 +249,31 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
       setSelectedPlayer(newPlayer);
       localStorage.save({ selectedPlayer: newPlayer, playerName, photoData: camera.photoData });
 
+      // Enregistrer le joueur dans Firebase players_session/team1
+      const firebaseKey = await registerPlayerInFirebase(sessionId, newPlayer, camera.photoData);
+      if (firebaseKey) {
+        setPlayerFirebaseKey(firebaseKey);
+        localStorage.save({ playerFirebaseKey: firebaseKey });
+      }
+
       setStep('preferences');
     } catch (err) {
       console.error('Erreur création joueur:', err);
       setError('Erreur lors de la sauvegarde. Continuons quand même !');
 
       // Fallback
-      setTimeout(() => {
+      setTimeout(async () => {
         const fallbackPlayer = { name: playerName };
         setSelectedPlayer(fallbackPlayer);
         localStorage.save({ selectedPlayer: fallbackPlayer, playerName, photoData: camera.photoData });
+
+        // Enregistrer le joueur fallback dans Firebase
+        const firebaseKey = await registerPlayerInFirebase(sessionId, fallbackPlayer, camera.photoData);
+        if (firebaseKey) {
+          setPlayerFirebaseKey(firebaseKey);
+          localStorage.save({ playerFirebaseKey: firebaseKey });
+        }
+
         setStep('preferences');
       }, 2000);
     } finally {
