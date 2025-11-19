@@ -17,7 +17,7 @@ import { QuizInterface } from './components/buzzer/QuizInterface';
  */
 export default function BuzzerQuiz() {
   // Hooks personnalisés
-  const { sessionId, sessionValid, setSessionValid, verifySession, isPlaying } = useBuzzerSession();
+  const { sessionId, sessionValid, isLoading, isPlaying } = useBuzzerSession();
   const localStorage = useBuzzerLocalStorage();
   const camera = useBuzzerCamera();
 
@@ -47,13 +47,6 @@ export default function BuzzerQuiz() {
     totalPoints: 0,
     recognizedSongs: []
   });
-
-  // Vérifier la session au montage
-  useEffect(() => {
-    if (sessionId) {
-      verifySession(sessionId);
-    }
-  }, [sessionId]);
 
   // Écouter la question Quiz depuis Firebase
   useEffect(() => {
@@ -370,6 +363,19 @@ export default function BuzzerQuiz() {
 
   // ========== RENDU DES ÉCRANS ==========
 
+  // Écran de chargement pendant la vérification de la session
+  if (isLoading) {
+    return (
+      <div className="bg-gradient flex-center">
+        <div className="text-center">
+          <h2 className="title">Chargement...</h2>
+          <div style={{ fontSize: '3rem', marginTop: '1rem' }}>⏳</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Session invalide après vérification
   if (!sessionValid) {
     return (
       <div className="bg-gradient flex-center">

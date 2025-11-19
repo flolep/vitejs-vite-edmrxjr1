@@ -10,6 +10,7 @@ import { ref, onValue } from 'firebase/database';
 export function useBuzzerSession() {
   const [sessionId, setSessionId] = useState('');
   const [sessionValid, setSessionValid] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [playMode, setPlayMode] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
 
@@ -26,40 +27,46 @@ export function useBuzzerSession() {
       const savedSessionId = localStorage.getItem('sessionId');
       if (savedSessionId) {
         setSessionId(savedSessionId);
+      } else {
+        setIsLoading(false); // Pas de session, arrêter le chargement
       }
     }
   }, []);
 
-  // Vérifier que la session existe et est active
-  const verifySession = async (id) => {
-    const sessionRef = ref(database, `sessions/${id}`);
-    return new Promise((resolve) => {
-      onValue(sessionRef, (snapshot) => {
-        if (snapshot.exists() && snapshot.val().active) {
-          setSessionValid(true);
+  // Vérifier automatiquement la session quand sessionId change
+  useEffect(() => {
+    if (!sessionId) return;
 
-          const sessionData = snapshot.val();
+    console.log('🔍 [useBuzzerSession] Vérification session:', sessionId);
+    setIsLoading(true);
 
-          // Détecter si la partie a déjà démarré
-          const gameStarted = sessionData.isPlaying === true || (sessionData.currentTrack && sessionData.currentTrack > 0);
+    const sessionRef = ref(database, `sessions/${sessionId}`);
+    const unsubscribe = onValue(sessionRef, (snapshot) => {
+      if (snapshot.exists() && snapshot.val().active) {
+        const sessionData = snapshot.val();
 
-          // Stocker le flag dans localStorage
-          if (gameStarted) {
-            console.log('⚡ La partie a déjà démarré');
-            localStorage.setItem('gameAlreadyStarted', 'true');
-          } else {
-            console.log('⏸️ La partie n\'a pas encore démarré');
-            localStorage.setItem('gameAlreadyStarted', 'false');
-          }
+        console.log('✅ [useBuzzerSession] Session valide:', sessionId);
+        setSessionValid(true);
 
-          resolve(true);
+        // Détecter si la partie a déjà démarré
+        const gameStarted = sessionData.isPlaying === true || (sessionData.currentTrack && sessionData.currentTrack > 0);
+
+        if (gameStarted) {
+          console.log('⚡ La partie a déjà démarré');
+          localStorage.setItem('gameAlreadyStarted', 'true');
         } else {
-          setSessionValid(false);
-          resolve(false);
+          console.log('⏸️ La partie n\'a pas encore démarré');
+          localStorage.setItem('gameAlreadyStarted', 'false');
         }
-      }, { onlyOnce: true });
-    });
-  };
+      } else {
+        console.warn('❌ [useBuzzerSession] Session invalide:', sessionId);
+        setSessionValid(false);
+      }
+      setIsLoading(false);
+    }, { onlyOnce: true });
+
+    return () => unsubscribe();
+  }, [sessionId]);
 
   // Écouter playMode depuis Firebase
   useEffect(() => {
@@ -94,8 +101,8 @@ export function useBuzzerSession() {
     setSessionId,
     sessionValid,
     setSessionValid,
+    isLoading,
     playMode,
-    isPlaying,
-    verifySession
+    isPlaying
   };
 }
