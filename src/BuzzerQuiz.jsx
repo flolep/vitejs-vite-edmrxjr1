@@ -15,9 +15,9 @@ import { QuizInterface } from './components/buzzer/QuizInterface';
  * Mode Quiz avec QCM
  * Flux : session → name → select → photo → preferences → quiz
  */
-export default function BuzzerQuiz() {
+export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
   // Hooks personnalisés
-  const { sessionId, sessionValid, isLoading, isPlaying } = useBuzzerSession();
+  const { sessionId, sessionValid, isLoading, isPlaying } = useBuzzerSession(sessionIdFromRouter);
   const localStorage = useBuzzerLocalStorage();
   const camera = useBuzzerCamera();
 

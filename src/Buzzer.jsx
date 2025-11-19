@@ -77,6 +77,7 @@ export default function Buzzer() {
   // Routage vers le bon composant
   console.log('🔀 [Buzzer Router] Routage final:', {
     playMode,
+    sessionId,
     comparaison: `playMode === 'quiz' ? ${playMode === 'quiz'}`,
     typePlayMode: typeof playMode,
     composantRendu: playMode === 'quiz' ? 'BuzzerQuiz' : 'BuzzerTeam'
@@ -84,10 +85,10 @@ export default function Buzzer() {
 
   if (playMode === 'quiz') {
     console.log('✅ [Buzzer Router] → Affichage BuzzerQuiz');
-    return <BuzzerQuiz />;
+    return <BuzzerQuiz sessionIdFromRouter={sessionId} />;
   }
 
   // Par défaut, mode Team
   console.log('✅ [Buzzer Router] → Affichage BuzzerTeam (défaut)');
-  return <BuzzerTeam />;
+  return <BuzzerTeam sessionIdFromRouter={sessionId} />;
 }
