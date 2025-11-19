@@ -11,6 +11,18 @@ import { PhotoScreen } from './components/buzzer/screens/PhotoScreen';
 import { PreferencesScreen } from './components/buzzer/screens/PreferencesScreen';
 import { QuizInterface } from './components/buzzer/QuizInterface';
 
+// 🔍 Logs de diagnostic de l'environnement
+console.log('🔍 [BuzzerQuiz] Diagnostic environnement:', {
+  userAgent: navigator.userAgent,
+  platform: navigator.platform,
+  isSafari: /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent),
+  isIOS: /iPhone|iPad|iPod/.test(navigator.userAgent),
+  isPrivateMode: 'storage' in navigator && navigator.storage ? 'normal' : 'peut-être privé',
+  databaseURL: database.app.options.databaseURL,
+  hasIndexedDB: 'indexedDB' in window,
+  hasLocalStorage: 'localStorage' in window
+});
+
 /**
  * Enregistre le joueur dans Firebase players_session/team1
  * (Mode Quiz : tous les joueurs sont dans team1)
