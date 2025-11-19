@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { database } from './firebase';
-import { ref, set, onValue, remove } from 'firebase/database';
+import { ref, set, onValue, remove, get } from 'firebase/database';
 import { airtableService } from './airtableService';
 import { n8nService } from './n8nService';
+import { QuizInterface } from './components/buzzer/QuizInterface';
 
 export default function BuzzerQuiz() {
   // États de session
@@ -28,12 +29,20 @@ export default function BuzzerQuiz() {
   const [specialPhrase, setSpecialPhrase] = useState('');
 
   // États spécifiques au mode Quiz
-  const [quizAnswers, setQuizAnswers] = useState([]); // Les 4 réponses [A, B, C, D]
+  const [quizQuestion, setQuizQuestion] = useState(null); // { trackNumber, answers: [...], correctAnswer, revealed, nextSongTriggerPlayerId }
   const [selectedAnswer, setSelectedAnswer] = useState(null); // Réponse sélectionnée
   const [hasAnswered, setHasAnswered] = useState(false);
-  const [isRevealed, setIsRevealed] = useState(false);
   const [leaderboard, setLeaderboard] = useState([]);
   const [currentTrack, setCurrentTrack] = useState(0);
+
+  // États pour statistiques personnelles
+  const [showStats, setShowStats] = useState(false);
+  const [personalStats, setPersonalStats] = useState({
+    totalBuzzes: 0,
+    winningBuzzes: 0,
+    totalPoints: 0,
+    recognizedSongs: []
+  });
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -148,10 +157,12 @@ export default function BuzzerQuiz() {
     const quizRef = ref(database, `sessions/${sessionId}/quiz`);
     const unsubscribe = onValue(quizRef, (snapshot) => {
       const quizData = snapshot.val();
-      if (quizData && quizData.answers) {
-        setQuizAnswers(quizData.answers);
+      if (quizData) {
+        setQuizQuestion(quizData);
         setCurrentTrack(quizData.trackNumber || 0);
-        setIsRevealed(quizData.revealed || false);
+        console.log('🎯 Question Quiz:', quizData);
+      } else {
+        setQuizQuestion(null);
       }
     });
 
@@ -398,34 +409,155 @@ export default function BuzzerQuiz() {
     };
   }, [step, photoData]);
 
-  // Envoyer la réponse du joueur
-  const handleSelectAnswer = async (answerLabel) => {
-    if (hasAnswered || !isPlaying) return;
+  // Envoyer la réponse du joueur (avec lecture du chrono)
+  const handleQuizAnswer = async (answer) => {
+    console.log('🎯 handleQuizAnswer appelé avec:', { answer, sessionId, quizQuestion, hasAnswered, selectedPlayer, playerName });
 
-    setSelectedAnswer(answerLabel);
+    if (!sessionId || !quizQuestion || hasAnswered) {
+      console.log('❌ Impossible de répondre:', { sessionId, quizQuestion, hasAnswered });
+      return;
+    }
+
+    // Marquer comme répondu localement IMMÉDIATEMENT
+    setSelectedAnswer(answer);
     setHasAnswered(true);
 
-    const playerId = selectedPlayer?.id || `temp_${playerName}`;
-    const answerRef = ref(database, `sessions/${sessionId}/quiz_answers/${currentTrack}/${playerId}`);
+    // Lire le temps de réponse depuis le chrono Firebase
+    const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
+    const chronoSnapshot = await get(chronoRef);
+    const chrono = chronoSnapshot.val() || 0;
 
-    await set(answerRef, {
+    // Envoyer la réponse à Firebase
+    const playerId = selectedPlayer?.id || `temp_${playerName}`;
+    const answerPath = `sessions/${sessionId}/quiz_answers/${quizQuestion.trackNumber}/${playerId}`;
+    const answerRef = ref(database, answerPath);
+
+    const answerData = {
       playerName: selectedPlayer?.name || playerName,
+      answer: answer, // 'A', 'B', 'C', 'D'
+      time: chrono,
+      timestamp: Date.now(),
+      isCorrect: null // Sera calculé après révélation
+    };
+
+    console.log('📤 Envoi réponse Quiz à Firebase:', {
+      path: answerPath,
       playerId,
-      answer: answerLabel,
-      time: Date.now(),
-      timestamp: Date.now()
+      data: answerData
     });
 
-    console.log(`✅ Réponse ${answerLabel} envoyée`);
+    await set(answerRef, answerData);
+
+    console.log('✅ Réponse Quiz envoyée avec succès:', {
+      player: selectedPlayer?.name || playerName,
+      answer,
+      time: chrono,
+      trackNumber: quizQuestion.trackNumber,
+      path: answerPath
+    });
+
+    // Vibration feedback
+    if (navigator.vibrate) {
+      navigator.vibrate(100);
+    }
+  };
+
+  // Passer à la chanson suivante (joueur le plus rapide uniquement)
+  const handleNextSong = () => {
+    if (!sessionId) {
+      console.error('❌ Pas de sessionId pour passer à la chanson suivante');
+      return;
+    }
+
+    console.log('➡️ Passage à la chanson suivante demandé par le joueur le plus rapide');
+
+    // Notifier le Master de passer à la chanson suivante
+    const nextSongRequestRef = ref(database, `sessions/${sessionId}/quiz_next_song_request`);
+    set(nextSongRequestRef, {
+      timestamp: Date.now(),
+      playerId: selectedPlayer?.id || `temp_${playerName}`,
+      playerName: selectedPlayer?.name || playerName
+    }).then(() => {
+      console.log('✅ Demande de passage à la chanson suivante envoyée');
+    }).catch(error => {
+      console.error('❌ Erreur lors de l\'envoi de la demande:', error);
+    });
+  };
+
+  // Charger les statistiques personnelles du joueur
+  const loadPersonalStats = () => {
+    if (!sessionId || !selectedPlayer) return;
+
+    // Charger le classement général
+    const leaderboardRef = ref(database, `sessions/${sessionId}/quiz_leaderboard`);
+    onValue(leaderboardRef, (leaderboardSnapshot) => {
+      const leaderboardData = leaderboardSnapshot.val();
+
+      if (leaderboardData) {
+        // Trouver les stats du joueur actuel (leaderboardData est un objet avec playerId comme clés)
+        const playerData = leaderboardData[selectedPlayer?.id || `temp_${playerName}`];
+
+        if (playerData) {
+          // Charger les détails des réponses pour avoir les chansons reconnues
+          const allAnswersRef = ref(database, `sessions/${sessionId}/quiz_answers`);
+          onValue(allAnswersRef, (answersSnapshot) => {
+            const allAnswersData = answersSnapshot.val();
+            const recognizedSongs = [];
+
+            if (allAnswersData) {
+              // Parcourir toutes les chansons
+              Object.keys(allAnswersData).forEach(trackNumber => {
+                const trackAnswers = allAnswersData[trackNumber];
+
+                // Trouver la réponse du joueur pour cette chanson
+                const playerId = selectedPlayer?.id || `temp_${playerName}`;
+                const playerAnswer = trackAnswers[playerId];
+
+                // Si le joueur a répondu correctement
+                if (playerAnswer && playerAnswer.isCorrect) {
+                  recognizedSongs.push({
+                    title: playerAnswer.songTitle || 'Inconnu',
+                    artist: playerAnswer.songArtist || 'Inconnu',
+                    time: playerAnswer.time,
+                    points: playerAnswer.points || 0,
+                    trackNumber: parseInt(trackNumber) + 1
+                  });
+                }
+              });
+            }
+
+            setPersonalStats({
+              totalBuzzes: playerData.totalAnswers || 0,
+              winningBuzzes: playerData.correctAnswers || 0,
+              totalPoints: playerData.totalPoints || 0,
+              recognizedSongs: recognizedSongs,
+              percentageContribution: '0' // Pas de concept d'équipe en Quiz
+            });
+
+            setShowStats(true);
+          }, { onlyOnce: true });
+        } else {
+          // Joueur pas encore dans le leaderboard
+          setPersonalStats({
+            totalBuzzes: 0,
+            winningBuzzes: 0,
+            totalPoints: 0,
+            recognizedSongs: [],
+            percentageContribution: '0'
+          });
+          setShowStats(true);
+        }
+      }
+    }, { onlyOnce: true });
   };
 
   // Réinitialiser quand une nouvelle question arrive
   useEffect(() => {
-    if (quizAnswers.length > 0 && !isRevealed) {
+    if (quizQuestion && !quizQuestion.revealed) {
       setHasAnswered(false);
       setSelectedAnswer(null);
     }
-  }, [currentTrack, quizAnswers, isRevealed]);
+  }, [currentTrack, quizQuestion]);
 
   // ========== ÉCRANS ==========
 
@@ -872,163 +1004,23 @@ export default function BuzzerQuiz() {
     );
   }
 
-  // ÉCRAN 5 : Mode Quiz - QCM
+  // ÉCRAN 5 : Mode Quiz - Utilise QuizInterface
   if (step === 'quiz') {
-    const myRank = leaderboard.findIndex(p => p.playerId === (selectedPlayer?.id || `temp_${playerName}`)) + 1;
-    const myScore = leaderboard.find(p => p.playerId === (selectedPlayer?.id || `temp_${playerName}`));
-
     return (
-      <div className="bg-gradient flex-center" style={{ padding: '1rem' }}>
-        <div style={{ maxWidth: '600px', width: '100%' }}>
-          {/* En-tête avec nom et classement */}
-          <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
-            {selectedPlayer?.photo && (
-              <img
-                src={selectedPlayer.photo}
-                alt={selectedPlayer.name}
-                style={{
-                  width: '60px',
-                  height: '60px',
-                  borderRadius: '50%',
-                  objectFit: 'cover',
-                  margin: '0 auto 0.5rem',
-                  border: '3px solid #fbbf24'
-                }}
-              />
-            )}
-            <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>
-              {selectedPlayer?.name || playerName}
-            </h2>
-            {myScore && (
-              <div style={{ fontSize: '1.25rem', color: '#fbbf24' }}>
-                {myRank > 0 && `#${myRank} - `}{myScore.totalPoints} pts
-              </div>
-            )}
-          </div>
-
-          {/* Questions QCM */}
-          {quizAnswers.length > 0 ? (
-            <div style={{
-              backgroundColor: 'rgba(0, 0, 0, 0.3)',
-              borderRadius: '1rem',
-              padding: '1.5rem',
-              marginBottom: '1.5rem'
-            }}>
-              <h3 style={{ fontSize: '1.25rem', marginBottom: '1rem', textAlign: 'center' }}>
-                🎯 Quelle est cette chanson ?
-              </h3>
-
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '0.75rem'
-              }}>
-                {quizAnswers.map((answer, index) => {
-                  const label = answer.label || String.fromCharCode(65 + index);
-                  const isSelected = selectedAnswer === label;
-                  const isCorrect = answer.isCorrect;
-                  const showCorrect = isRevealed && isCorrect;
-                  const showWrong = isRevealed && isSelected && !isCorrect;
-
-                  return (
-                    <button
-                      key={index}
-                      onClick={() => handleSelectAnswer(label)}
-                      disabled={hasAnswered || !isPlaying}
-                      style={{
-                        padding: '1rem',
-                        backgroundColor: showCorrect
-                          ? 'rgba(16, 185, 129, 0.3)'
-                          : showWrong
-                          ? 'rgba(239, 68, 68, 0.3)'
-                          : isSelected
-                          ? 'rgba(251, 191, 36, 0.3)'
-                          : 'rgba(255, 255, 255, 0.1)',
-                        border: showCorrect
-                          ? '3px solid #10b981'
-                          : showWrong
-                          ? '3px solid #ef4444'
-                          : isSelected
-                          ? '3px solid #fbbf24'
-                          : '2px solid rgba(255, 255, 255, 0.2)',
-                        borderRadius: '0.75rem',
-                        color: 'white',
-                        cursor: (hasAnswered || !isPlaying) ? 'not-allowed' : 'pointer',
-                        transition: 'all 0.2s',
-                        opacity: (hasAnswered || !isPlaying) ? 0.7 : 1
-                      }}
-                    >
-                      <div style={{ fontSize: '1.75rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
-                        {label} {showCorrect && '✅'} {showWrong && '❌'}
-                      </div>
-                      <div style={{ fontSize: '0.9rem', fontWeight: '500' }}>
-                        {answer.text || `${answer.artist} - ${answer.title}`}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {!isPlaying && !isRevealed && (
-                <div style={{ marginTop: '1rem', textAlign: 'center', opacity: 0.7 }}>
-                  ⏸️ En attente de la musique...
-                </div>
-              )}
-
-              {hasAnswered && !isRevealed && (
-                <div style={{ marginTop: '1rem', textAlign: 'center', color: '#10b981' }}>
-                  ✅ Réponse enregistrée !
-                </div>
-              )}
-            </div>
-          ) : (
-            <div style={{
-              backgroundColor: 'rgba(0, 0, 0, 0.3)',
-              borderRadius: '1rem',
-              padding: '2rem',
-              textAlign: 'center',
-              marginBottom: '1.5rem'
-            }}>
-              <p style={{ fontSize: '1.25rem', opacity: 0.7 }}>
-                ⏳ En attente de la prochaine question...
-              </p>
-            </div>
-          )}
-
-          {/* Mini classement */}
-          {leaderboard.length > 0 && (
-            <div style={{
-              backgroundColor: 'rgba(0, 0, 0, 0.3)',
-              borderRadius: '1rem',
-              padding: '1rem'
-            }}>
-              <h3 style={{ fontSize: '1.1rem', marginBottom: '0.75rem', textAlign: 'center' }}>
-                🏆 Classement
-              </h3>
-              <div style={{ fontSize: '0.85rem' }}>
-                {leaderboard.slice(0, 5).map((player, index) => (
-                  <div
-                    key={index}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      padding: '0.5rem',
-                      backgroundColor: player.playerId === (selectedPlayer?.id || `temp_${playerName}`)
-                        ? 'rgba(251, 191, 36, 0.2)'
-                        : 'transparent',
-                      borderRadius: '0.5rem',
-                      marginBottom: '0.25rem'
-                    }}
-                  >
-                    <span>{index + 1}. {player.playerName}</span>
-                    <span style={{ fontWeight: 'bold' }}>{player.totalPoints} pts</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+      <QuizInterface
+        selectedPlayer={selectedPlayer}
+        playerName={playerName}
+        quizQuestion={quizQuestion}
+        selectedAnswer={selectedAnswer}
+        hasAnswered={hasAnswered}
+        isPlaying={isPlaying}
+        onAnswerSelect={handleQuizAnswer}
+        loadPersonalStats={loadPersonalStats}
+        showStats={showStats}
+        setShowStats={setShowStats}
+        personalStats={personalStats}
+        onNextSong={handleNextSong}
+      />
     );
   }
 
