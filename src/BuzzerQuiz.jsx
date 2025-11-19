@@ -466,10 +466,47 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
 
   // ========== RENDU DES ÉCRANS ==========
 
+  // 🐛 Panneau de debug (affiché sur tous les écrans)
+  const debugPanel = (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.9)',
+      color: '#0f0',
+      padding: '10px',
+      fontSize: '11px',
+      fontFamily: 'monospace',
+      zIndex: 9999,
+      borderBottom: '2px solid #0f0',
+      maxHeight: '200px',
+      overflow: 'auto'
+    }}>
+      <div>🐛 DEBUG MODE QUIZ</div>
+      <div>Session: {sessionId || 'null'}</div>
+      <div>Step: {step}</div>
+      <div>PlayerName: {playerName || 'null'}</div>
+      <div>SelectedPlayer: {selectedPlayer ? JSON.stringify({ id: selectedPlayer.id, name: selectedPlayer.name }) : 'null'}</div>
+      <div>PlayerFirebaseKey: {playerFirebaseKey || 'null'}</div>
+      <div>QuizQuestion: {quizQuestion ? `Track ${quizQuestion.trackNumber}, Revealed: ${quizQuestion.revealed}` : 'null'}</div>
+      <div>HasAnswered: {hasAnswered ? 'true' : 'false'}</div>
+      <div>SelectedAnswer: {selectedAnswer || 'null'}</div>
+      <div>IsPlaying: {isPlaying ? 'true' : 'false'}</div>
+      <div style={{ marginTop: '5px', borderTop: '1px solid #0f0', paddingTop: '5px' }}>
+        Firebase Path (players): sessions/{sessionId}/players_session/team1/{playerFirebaseKey || '???'}
+      </div>
+      <div>
+        Firebase Path (answer): sessions/{sessionId}/quiz_answers/{quizQuestion?.trackNumber || '???'}/{selectedPlayer?.id || `temp_${playerName}` || '???'}
+      </div>
+    </div>
+  );
+
   // Écran de chargement pendant la vérification de la session
   if (isLoading) {
     return (
       <div className="bg-gradient flex-center">
+        {debugPanel}
         <div className="text-center">
           <h2 className="title">Chargement...</h2>
           <div style={{ fontSize: '3rem', marginTop: '1rem' }}>⏳</div>
@@ -482,6 +519,7 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
   if (!sessionValid) {
     return (
       <div className="bg-gradient flex-center">
+        {debugPanel}
         <div className="text-center">
           <h2 className="title">⚠️ Session invalide</h2>
           <p>Scannez le QR Code pour rejoindre la partie.</p>
@@ -492,74 +530,89 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
 
   if (step === 'name') {
     return (
-      <NameScreen
-        playerName={playerName}
-        onPlayerNameChange={setPlayerName}
-        onSubmit={handleSearchPlayer}
-        isSearching={isSearching}
-        error={error}
-      />
+      <>
+        {debugPanel}
+        <NameScreen
+          playerName={playerName}
+          onPlayerNameChange={setPlayerName}
+          onSubmit={handleSearchPlayer}
+          isSearching={isSearching}
+          error={error}
+        />
+      </>
     );
   }
 
   if (step === 'select') {
     return (
-      <SelectScreen
-        searchResults={searchResults}
-        onSelectPlayer={handleSelectPlayer}
-        onCreateNew={handleCreateNewPlayer}
-      />
+      <>
+        {debugPanel}
+        <SelectScreen
+          searchResults={searchResults}
+          onSelectPlayer={handleSelectPlayer}
+          onCreateNew={handleCreateNewPlayer}
+        />
+      </>
     );
   }
 
   if (step === 'photo') {
     return (
-      <PhotoScreen
-        videoRef={camera.videoRef}
-        canvasRef={camera.canvasRef}
-        photoData={camera.photoData}
-        onTakePhoto={camera.takeSelfie}
-        onRetake={camera.retakeSelfie}
-        onConfirm={handleConfirmSelfie}
-        onSkip={handleSkipPhoto}
-        isConfirming={isSearching}
-        error={camera.error}
-      />
+      <>
+        {debugPanel}
+        <PhotoScreen
+          videoRef={camera.videoRef}
+          canvasRef={camera.canvasRef}
+          photoData={camera.photoData}
+          onTakePhoto={camera.takeSelfie}
+          onRetake={camera.retakeSelfie}
+          onConfirm={handleConfirmSelfie}
+          onSkip={handleSkipPhoto}
+          isConfirming={isSearching}
+          error={camera.error}
+        />
+      </>
     );
   }
 
   if (step === 'preferences') {
     return (
-      <PreferencesScreen
-        playerAge={playerAge}
-        onPlayerAgeChange={setPlayerAge}
-        selectedGenres={selectedGenres}
-        onToggleGenre={handleToggleGenre}
-        specialPhrase={specialPhrase}
-        onSpecialPhraseChange={setSpecialPhrase}
-        onSubmit={handleSubmitPreferences}
-        isSubmitting={isSearching}
-        error={error}
-      />
+      <>
+        {debugPanel}
+        <PreferencesScreen
+          playerAge={playerAge}
+          onPlayerAgeChange={setPlayerAge}
+          selectedGenres={selectedGenres}
+          onToggleGenre={handleToggleGenre}
+          specialPhrase={specialPhrase}
+          onSpecialPhraseChange={setSpecialPhrase}
+          onSubmit={handleSubmitPreferences}
+          isSubmitting={isSearching}
+          error={error}
+        />
+      </>
     );
   }
 
   if (step === 'quiz') {
     return (
-      <QuizInterface
-        selectedPlayer={selectedPlayer}
-        playerName={playerName}
-        quizQuestion={quizQuestion}
-        selectedAnswer={selectedAnswer}
-        hasAnswered={hasAnswered}
-        isPlaying={isPlaying}
-        onAnswerSelect={handleQuizAnswer}
-        loadPersonalStats={loadPersonalStats}
-        showStats={showStats}
-        setShowStats={setShowStats}
-        personalStats={personalStats}
-        onNextSong={handleNextSong}
-      />
+      <>
+        {debugPanel}
+        <QuizInterface
+          selectedPlayer={selectedPlayer}
+          playerName={playerName}
+          quizQuestion={quizQuestion}
+          selectedAnswer={selectedAnswer}
+          hasAnswered={hasAnswered}
+          isPlaying={isPlaying}
+          onAnswerSelect={handleQuizAnswer}
+          loadPersonalStats={loadPersonalStats}
+          showStats={showStats}
+          setShowStats={setShowStats}
+          personalStats={personalStats}
+          onNextSong={handleNextSong}
+        />
+      </>
     );
   }
 
