@@ -866,23 +866,24 @@ const loadPersonalStats = () => {
       top: '0.5rem',
       left: '0.5rem',
       right: '0.5rem',
-      backgroundColor: 'rgba(0, 0, 0, 0.9)',
+      backgroundColor: '#000000',  // Fond complètement opaque
       color: '#00ff00',
       padding: '0.75rem',
-      fontSize: '0.7rem',
+      fontSize: '0.8rem',
       fontFamily: 'monospace',
-      zIndex: 9999,
+      zIndex: 99999,  // Z-index encore plus élevé
       borderRadius: '0.5rem',
-      border: '2px solid #00ff00',
-      lineHeight: '1.4'
+      border: '4px solid #00ff00',  // Bordure encore plus épaisse
+      lineHeight: '1.4',
+      boxShadow: '0 0 20px rgba(0, 255, 0, 0.5)'  // Effet lumineux
     }}>
-      <div style={{ fontWeight: 'bold', marginBottom: '0.25rem' }}>🐛 DEBUG INFO</div>
-      <div>Étape: {step}</div>
-      <div>Nom: {selectedPlayer?.name || playerName || 'N/A'}</div>
-      <div>Photo: {selectedPlayer?.photo || photoData ? '✓ OUI' : '✗ NON'}</div>
-      <div>Session: {sessionId || 'N/A'}</div>
-      {team && <div>Team: {team}</div>}
-      {playerFirebaseKey && <div>Key: {playerFirebaseKey.substring(0, 15)}...</div>}
+      <div style={{ fontWeight: 'bold', marginBottom: '0.25rem', fontSize: '0.9rem' }}>🐛 DEBUG INFO</div>
+      <div>Étape: <strong>{step}</strong></div>
+      <div>Nom: <strong>{selectedPlayer?.name || playerName || 'N/A'}</strong></div>
+      <div>Photo: <strong>{selectedPlayer?.photo || photoData ? '✓ OUI' : '✗ NON'}</strong></div>
+      <div>Session: <strong>{sessionId || 'N/A'}</strong></div>
+      {team && <div>Team: <strong>{team}</strong></div>}
+      {playerFirebaseKey && <div>Key: <strong>{playerFirebaseKey.substring(0, 15)}...</strong></div>}
     </div>
   );
 
