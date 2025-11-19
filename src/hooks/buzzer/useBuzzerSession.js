@@ -8,7 +8,7 @@ import { ref, onValue } from 'firebase/database';
  * Vérifie que la session existe et est active
  */
 export function useBuzzerSession(sessionIdFromProps = null) {
-  const [sessionId, setSessionId] = useState(sessionIdFromProps || '');
+  const [sessionId, setSessionId] = useState('');
   const [sessionValid, setSessionValid] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [playMode, setPlayMode] = useState(null);
@@ -16,26 +16,31 @@ export function useBuzzerSession(sessionIdFromProps = null) {
 
   // Récupérer le sessionId depuis l'URL au chargement (sauf si fourni en props)
   useEffect(() => {
+    // PRIORITÉ 1 : sessionId passé en props (depuis le router)
     if (sessionIdFromProps) {
-      // Si fourni en props, l'utiliser directement
+      console.log('🔑 [useBuzzerSession] SessionId reçu des props:', sessionIdFromProps);
       setSessionId(sessionIdFromProps);
       setIsLoading(false); // Le router a déjà vérifié
       setSessionValid(true); // Assumé valide si le router l'a passé
       return;
     }
 
+    // PRIORITÉ 2 : sessionId dans l'URL
     const urlParams = new URLSearchParams(window.location.search);
     const sessionParam = urlParams.get('session');
 
     if (sessionParam) {
+      console.log('🔑 [useBuzzerSession] SessionId trouvé dans URL:', sessionParam);
       setSessionId(sessionParam);
       localStorage.setItem('sessionId', sessionParam);
     } else {
-      // Fallback sur localStorage si pas dans l'URL
+      // PRIORITÉ 3 : Fallback sur localStorage
       const savedSessionId = localStorage.getItem('sessionId');
       if (savedSessionId) {
+        console.log('🔑 [useBuzzerSession] SessionId trouvé dans localStorage:', savedSessionId);
         setSessionId(savedSessionId);
       } else {
+        console.warn('⚠️ [useBuzzerSession] Aucun sessionId trouvé');
         setIsLoading(false); // Pas de session, arrêter le chargement
       }
     }
