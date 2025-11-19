@@ -4,18 +4,26 @@ import { ref, onValue } from 'firebase/database';
 
 /**
  * Hook pour gérer la validation et l'écoute de la session Firebase
- * Récupère le sessionId depuis l'URL ou localStorage
+ * Récupère le sessionId depuis l'URL ou localStorage (ou depuis les props si fourni)
  * Vérifie que la session existe et est active
  */
-export function useBuzzerSession() {
-  const [sessionId, setSessionId] = useState('');
+export function useBuzzerSession(sessionIdFromProps = null) {
+  const [sessionId, setSessionId] = useState(sessionIdFromProps || '');
   const [sessionValid, setSessionValid] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [playMode, setPlayMode] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
 
-  // Récupérer le sessionId depuis l'URL au chargement
+  // Récupérer le sessionId depuis l'URL au chargement (sauf si fourni en props)
   useEffect(() => {
+    if (sessionIdFromProps) {
+      // Si fourni en props, l'utiliser directement
+      setSessionId(sessionIdFromProps);
+      setIsLoading(false); // Le router a déjà vérifié
+      setSessionValid(true); // Assumé valide si le router l'a passé
+      return;
+    }
+
     const urlParams = new URLSearchParams(window.location.search);
     const sessionParam = urlParams.get('session');
 
@@ -31,11 +39,11 @@ export function useBuzzerSession() {
         setIsLoading(false); // Pas de session, arrêter le chargement
       }
     }
-  }, []);
+  }, [sessionIdFromProps]);
 
-  // Vérifier automatiquement la session quand sessionId change
+  // Vérifier automatiquement la session quand sessionId change (sauf si vient des props)
   useEffect(() => {
-    if (!sessionId) return;
+    if (!sessionId || sessionIdFromProps) return; // Skip si vient des props (déjà vérifié par router)
 
     console.log('🔍 [useBuzzerSession] Vérification session:', sessionId);
     setIsLoading(true);
@@ -66,7 +74,7 @@ export function useBuzzerSession() {
     }, { onlyOnce: true });
 
     return () => unsubscribe();
-  }, [sessionId]);
+  }, [sessionId, sessionIdFromProps]);
 
   // Écouter playMode depuis Firebase
   useEffect(() => {

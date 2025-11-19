@@ -14,9 +14,9 @@ import { PreferencesScreen } from './components/buzzer/screens/PreferencesScreen
  * Mode Équipe avec Buzzer
  * Flux : session → name → select → photo → TEAM → preferences → game
  */
-export default function BuzzerTeam() {
+export default function BuzzerTeam({ sessionIdFromRouter = null }) {
   // Hooks personnalisés
-  const { sessionId, sessionValid, isLoading, isPlaying } = useBuzzerSession();
+  const { sessionId, sessionValid, isLoading, isPlaying } = useBuzzerSession(sessionIdFromRouter);
   const localStorage = useBuzzerLocalStorage();
   const camera = useBuzzerCamera();
 
