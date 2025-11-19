@@ -72,15 +72,25 @@ export default function Buzzer() {
     const unsubscribe = onValue(sessionRef, (snapshot) => {
       if (snapshot.exists()) {
         const sessionData = snapshot.val();
-        const mode = sessionData.playMode || 'team';
+        const mode = sessionData.playMode;
+
         console.log('🎮 [Buzzer Router] Session data:', {
           playMode: sessionData.playMode,
           gameMode: sessionData.gameMode,
           musicSource: sessionData.musicSource,
-          modeDetecte: mode
+          modeDetecte: mode,
+          playModeExiste: sessionData.playMode !== undefined
         });
-        setPlayMode(mode);
-        setIsLoading(false);
+
+        // IMPORTANT : Ne pas utiliser de valeur par défaut !
+        // Attendre que playMode soit explicitement défini
+        if (mode) {
+          setPlayMode(mode);
+          setIsLoading(false);
+        } else {
+          console.warn('⚠️ [Buzzer Router] playMode non défini dans la session, en attente...');
+          // Garder isLoading = true pour attendre que le Master définisse le mode
+        }
       } else {
         console.warn('⚠️ [Buzzer Router] Session introuvable:', sessionId);
         setIsLoading(false);
