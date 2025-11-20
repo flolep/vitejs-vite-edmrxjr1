@@ -62,6 +62,7 @@ async function registerPlayerInFirebase(sessionId, player, photoData = null) {
       id: player.id || `temp_${player.name}`,
       name: player.name,
       photo: player.photo || photoData || null,
+      connected: true, // ✅ IMPORTANT : permet au Master de voir ce joueur dans allQuizPlayers
       points: 0,
       buzzes: 0,
       consecutiveCorrect: 0,
@@ -568,7 +569,11 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
         Firebase Path (players): sessions/{sessionId}/players_session/team1/{playerFirebaseKey || '???'}
       </div>
       <div>
-        Firebase Path (answer): sessions/{sessionId}/quiz_answers/{quizQuestion?.trackNumber ?? '???'}/{selectedPlayer?.id || `temp_${playerName}` || '???'}
+        Firebase Path (answer): sessions/{sessionId}/quiz_answers/{
+          quizQuestion !== null && quizQuestion !== undefined
+            ? quizQuestion.trackNumber
+            : '???'
+        }/{selectedPlayer?.id || `temp_${playerName}` || '???'}
       </div>
     </div>
   );
