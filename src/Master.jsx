@@ -1376,7 +1376,7 @@ export default function Master({
                   return (
                   <div
                     key={index}
-                    onClick={() => jumpToTrack(trackNumber)} {/* ✅ Passer trackNumber (1-based) */}
+                    onClick={() => jumpToTrack(trackNumber)}
                     style={{
                       padding: '0.6rem',
                       marginBottom: '0.4rem',
@@ -1393,7 +1393,7 @@ export default function Master({
                       }
                     }}
                     onMouseLeave={(e) => {
-                      if (trackNumber !== currentTrack) { {/* ✅ Utiliser trackNumber au lieu de index */}
+                      if (trackNumber !== currentTrack) {
                         e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
                         e.currentTarget.style.transform = 'translateX(0)';
                       }
@@ -1408,7 +1408,7 @@ export default function Master({
                       </div>
                     )}
                   </div>
-                  ); {/* ✅ Fermer le return */}
+                  );
                 })}
               </div>
             </div>
