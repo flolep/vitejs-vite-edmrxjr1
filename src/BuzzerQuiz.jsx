@@ -117,6 +117,9 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
     recognizedSongs: []
   });
 
+  // État Debug Panel
+  const [showDebug, setShowDebug] = useState(false);
+
   // Initialiser le joueur depuis localStorage au chargement
   useEffect(() => {
     const savedData = localStorage.load();
@@ -538,42 +541,88 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
 
   // ========== RENDU DES ÉCRANS ==========
 
-  // 🐛 Panneau de debug (affiché sur tous les écrans)
-  const debugPanel = (
+  // 🐛 Bouton Debug (toujours visible en haut à gauche)
+  const debugButton = (
+    <button
+      onClick={() => setShowDebug(!showDebug)}
+      style={{
+        position: 'fixed',
+        top: '1rem',
+        left: '1rem',
+        backgroundColor: showDebug ? 'rgba(239, 68, 68, 0.5)' : 'rgba(0, 0, 0, 0.3)',
+        border: '2px solid rgba(255, 255, 255, 0.3)',
+        borderRadius: '50%',
+        width: '50px',
+        height: '50px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer',
+        fontSize: '1.5rem',
+        zIndex: 10000
+      }}
+      title="Debug Panel"
+    >
+      🐛
+    </button>
+  );
+
+  // 🐛 Panneau de debug (affiché seulement si showDebug est true)
+  const debugPanel = showDebug && (
     <div style={{
       position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.9)',
-      color: '#0f0',
-      padding: '10px',
-      fontSize: '11px',
-      fontFamily: 'monospace',
+      top: '80px',
+      left: '1rem',
+      backgroundColor: 'rgba(0, 0, 0, 0.95)',
+      border: '2px solid rgba(255, 255, 255, 0.3)',
+      borderRadius: '1rem',
+      padding: '1rem',
+      maxWidth: '350px',
+      maxHeight: 'calc(100vh - 100px)',
+      overflowY: 'auto',
       zIndex: 9999,
-      borderBottom: '2px solid #0f0',
-      maxHeight: '200px',
-      overflow: 'auto'
+      fontSize: '0.75rem',
+      color: '#fff'
     }}>
-      <div>🐛 DEBUG MODE QUIZ</div>
-      <div>Session: {sessionId || 'null'}</div>
-      <div>Step: {step}</div>
-      <div>PlayerName: {playerName || 'null'}</div>
-      <div>SelectedPlayer: {selectedPlayer ? JSON.stringify({ id: selectedPlayer.id, name: selectedPlayer.name }) : 'null'}</div>
-      <div>PlayerFirebaseKey: {playerFirebaseKey || 'null'}</div>
-      <div>QuizQuestion: {quizQuestion ? `Track ${quizQuestion.trackNumber}, Revealed: ${quizQuestion.revealed}` : 'null'}</div>
-      <div>HasAnswered: {hasAnswered ? 'true' : 'false'}</div>
-      <div>SelectedAnswer: {selectedAnswer || 'null'}</div>
-      <div>IsPlaying: {isPlaying ? 'true' : 'false'}</div>
-      <div style={{ marginTop: '5px', borderTop: '1px solid #0f0', paddingTop: '5px' }}>
-        Firebase Path (players): sessions/{sessionId}/players_session/team1/{playerFirebaseKey || '???'}
+      <div style={{ fontWeight: 'bold', fontSize: '1rem', marginBottom: '0.75rem', borderBottom: '1px solid rgba(255, 255, 255, 0.3)', paddingBottom: '0.5rem' }}>
+        🐛 Debug Panel (Quiz Mode)
       </div>
-      <div>
-        Firebase Path (answer): sessions/{sessionId}/quiz_answers/{
-          quizQuestion !== null && quizQuestion !== undefined
-            ? quizQuestion.trackNumber
-            : '???'
-        }/{selectedPlayer?.id || `temp_${playerName}` || '???'}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        <div>
+          <strong>Session:</strong> {sessionId || 'N/A'}
+        </div>
+        <div>
+          <strong>Step:</strong> {step}
+        </div>
+        <div>
+          <strong>Player Name:</strong> {playerName || 'N/A'}
+        </div>
+        <div>
+          <strong>Selected Player ID:</strong> {selectedPlayer?.id || 'N/A'}
+        </div>
+        <div>
+          <strong>Firebase Key:</strong> {playerFirebaseKey || 'N/A'}
+        </div>
+
+        <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.2)', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
+          <strong>Quiz State:</strong>
+        </div>
+        <div style={{ paddingLeft: '0.5rem' }}>
+          <div>• Track Number: {quizQuestion?.trackNumber || 'N/A'}</div>
+          <div>• Revealed: {quizQuestion?.revealed ? '✅' : '❌'}</div>
+          <div>• Has Answered: {hasAnswered ? '✅' : '❌'}</div>
+          <div>• Selected Answer: {selectedAnswer || 'N/A'}</div>
+          <div>• Is Playing: {isPlaying ? '✅' : '❌'}</div>
+        </div>
+
+        <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.2)', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
+          <strong>Firebase Paths:</strong>
+        </div>
+        <div style={{ paddingLeft: '0.5rem', wordBreak: 'break-all', fontSize: '0.7rem' }}>
+          <div>• Player: sessions/{sessionId}/players_session/team1/{playerFirebaseKey || '???'}</div>
+          <div>• Answer: sessions/{sessionId}/quiz_answers/{quizQuestion?.trackNumber || '???'}/{selectedPlayer?.id || `temp_${playerName}` || '???'}</div>
+        </div>
       </div>
     </div>
   );
@@ -582,6 +631,7 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
   if (isLoading) {
     return (
       <div className="bg-gradient flex-center">
+        {debugButton}
         {debugPanel}
         <div className="text-center">
           <h2 className="title">Chargement...</h2>
@@ -595,6 +645,7 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
   if (!sessionValid) {
     return (
       <div className="bg-gradient flex-center">
+        {debugButton}
         {debugPanel}
         <div className="text-center">
           <h2 className="title">⚠️ Session invalide</h2>
@@ -607,6 +658,7 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
   if (step === 'name') {
     return (
       <>
+        {debugButton}
         {debugPanel}
         <NameScreen
           playerName={playerName}
@@ -622,6 +674,7 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
   if (step === 'select') {
     return (
       <>
+        {debugButton}
         {debugPanel}
         <SelectScreen
           searchResults={searchResults}
@@ -635,6 +688,7 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
   if (step === 'photo') {
     return (
       <>
+        {debugButton}
         {debugPanel}
         <PhotoScreen
           videoRef={camera.videoRef}
@@ -654,6 +708,7 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
   if (step === 'preferences') {
     return (
       <>
+        {debugButton}
         {debugPanel}
         <PreferencesScreen
           playerAge={playerAge}
@@ -673,6 +728,7 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
   if (step === 'quiz') {
     return (
       <>
+        {debugButton}
         {debugPanel}
         <QuizInterface
           selectedPlayer={selectedPlayer}
