@@ -1472,7 +1472,7 @@ export default function Master({
                 playlistLength={playlist.length}
                 isPlaying={isPlaying}
                 currentSong={currentSong}
-                currentTrackData={playlist[currentTrack - 1]} {/* ✅ currentTrack commence à 1 */}
+                currentTrackData={playlist[currentTrack - 1]}
                 currentChrono={currentChrono}
                 availablePoints={availablePoints}
                 songDuration={songDuration}
