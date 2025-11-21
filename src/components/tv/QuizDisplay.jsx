@@ -35,31 +35,8 @@ export function QuizDisplay({
   chrono = 0,
   songDuration = 30
 }) {
-  if (!quizQuestion) {
-    return (
-      <div style={{
-        background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
-        minHeight: '100vh',
-        color: 'white',
-        padding: '3rem',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <h1 style={{ fontSize: '4rem', marginBottom: '2rem', color: '#fbbf24' }}>
-            🎯 MODE QUIZ 🎯
-          </h1>
-          <p style={{ fontSize: '1.5rem', opacity: 0.8 }}>
-            {isPlaying ? 'Génération de la question...' : 'En attente du démarrage...'}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  const { answers, revealed, trackNumber } = quizQuestion;
+  // Extraire les données du quiz si disponibles
+  const { answers, revealed, trackNumber } = quizQuestion || {};
 
   // Calculer les points disponibles avec le système de décompte
   const availablePoints = calculatePoints(chrono, songDuration);
@@ -126,95 +103,114 @@ export function QuizDisplay({
           🎯 MODE QUIZ
         </h1>
 
-        {/* Décompte des points disponibles + chrono */}
-        {!revealed && isPlaying && !allPlayersAnswered && (
-          <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              gap: '3rem',
-              marginBottom: '1rem'
-            }}>
-              {/* Chrono */}
-              <div>
-                <h3 style={{
-                  fontSize: '1.2rem',
-                  marginBottom: '0.5rem',
-                  color: '#fbbf24',
-                  opacity: 0.9
-                }}>
-                  ⏱️ TEMPS
-                </h3>
-                <div style={{
-                  fontSize: '3rem',
-                  fontWeight: 'bold',
-                  color: '#60a5fa',
-                  lineHeight: 1
-                }}>
-                  {chrono.toFixed(1)}s
-                </div>
-              </div>
-
-              {/* Points */}
-              <div>
-                <h3 style={{
-                  fontSize: '1.2rem',
-                  marginBottom: '0.5rem',
-                  color: '#fbbf24',
-                  opacity: 0.9
-                }}>
-                  💰 POINTS
-                </h3>
-                <div style={{
-                  fontSize: '3rem',
-                  fontWeight: 'bold',
-                  color: pointsColor,
-                  lineHeight: 1,
-                  textShadow: `0 0 30px ${pointsColor}`,
-                  animation: isNearCritical ? 'pulse 0.5s infinite' : 'none'
-                }}>
-                  {availablePoints}
-                </div>
-              </div>
+        {/* Message d'attente si pas de question */}
+        {!quizQuestion && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: '60vh'
+          }}>
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ fontSize: '2rem', opacity: 0.8 }}>
+                {isPlaying ? 'Génération de la question...' : 'En attente du démarrage...'}
+              </p>
             </div>
-
-            {/* Alertes paliers */}
-            {isAt5s && (
-              <div style={{
-                marginTop: '0.5rem',
-                fontSize: '1.2rem',
-                color: '#fbbf24',
-                fontWeight: 'bold',
-                animation: 'pulse 0.5s infinite'
-              }}>
-                ⚠️ Palier à 5s !
-              </div>
-            )}
-
-            {isAt15s && (
-              <div style={{
-                marginTop: '0.5rem',
-                fontSize: '1.2rem',
-                color: '#ef4444',
-                fontWeight: 'bold',
-                animation: 'pulse 0.5s infinite'
-              }}>
-                ⚠️ Palier à 15s !
-              </div>
-            )}
           </div>
         )}
 
-        {/* Les 4 options de réponse */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: '1.5rem',
-          marginBottom: '3rem',
-          maxWidth: '1000px',
-          margin: '0 auto 3rem'
-        }}>
+        {/* Contenu du quiz (uniquement si question active) */}
+        {quizQuestion && (
+          <>
+            {/* Décompte des points disponibles + chrono */}
+            {!revealed && isPlaying && !allPlayersAnswered && (
+              <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: '3rem',
+                  marginBottom: '1rem'
+                }}>
+                  {/* Chrono */}
+                  <div>
+                    <h3 style={{
+                      fontSize: '1.2rem',
+                      marginBottom: '0.5rem',
+                      color: '#fbbf24',
+                      opacity: 0.9
+                    }}>
+                      ⏱️ TEMPS
+                    </h3>
+                    <div style={{
+                      fontSize: '3rem',
+                      fontWeight: 'bold',
+                      color: '#60a5fa',
+                      lineHeight: 1
+                    }}>
+                      {chrono.toFixed(1)}s
+                    </div>
+                  </div>
+
+                  {/* Points */}
+                  <div>
+                    <h3 style={{
+                      fontSize: '1.2rem',
+                      marginBottom: '0.5rem',
+                      color: '#fbbf24',
+                      opacity: 0.9
+                    }}>
+                      💰 POINTS
+                    </h3>
+                    <div style={{
+                      fontSize: '3rem',
+                      fontWeight: 'bold',
+                      color: pointsColor,
+                      lineHeight: 1,
+                      textShadow: `0 0 30px ${pointsColor}`,
+                      animation: isNearCritical ? 'pulse 0.5s infinite' : 'none'
+                    }}>
+                      {availablePoints}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Alertes paliers */}
+                {isAt5s && (
+                  <div style={{
+                    marginTop: '0.5rem',
+                    fontSize: '1.2rem',
+                    color: '#fbbf24',
+                    fontWeight: 'bold',
+                    animation: 'pulse 0.5s infinite'
+                  }}>
+                    ⚠️ Palier à 5s !
+                  </div>
+                )}
+
+                {isAt15s && (
+                  <div style={{
+                    marginTop: '0.5rem',
+                    fontSize: '1.2rem',
+                    color: '#ef4444',
+                    fontWeight: 'bold',
+                    animation: 'pulse 0.5s infinite'
+                  }}>
+                    ⚠️ Palier à 15s !
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Les 4 options de réponse */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '1.5rem',
+              marginBottom: '3rem',
+              maxWidth: '1000px',
+              margin: '0 auto 3rem'
+            }}>
           {shuffledAnswers && shuffledAnswers.map((answer) => {
             const showCorrect = revealed && answer.isCorrect;
 
@@ -404,6 +400,8 @@ export function QuizDisplay({
               ))}
             </div>
           </div>
+        )}
+          </>
         )}
       </div>
 
