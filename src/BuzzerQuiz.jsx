@@ -117,8 +117,9 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
     recognizedSongs: []
   });
 
-  // État Debug Panel
+  // État Debug Panel (uniquement visible en mode Test)
   const [showDebug, setShowDebug] = useState(false);
+  const isTestMode = window.localStorage.getItem('quizTestMode') === 'true';
 
   // Initialiser le joueur depuis localStorage au chargement
   useEffect(() => {
@@ -541,8 +542,8 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
 
   // ========== RENDU DES ÉCRANS ==========
 
-  // 🐛 Bouton Debug (toujours visible en haut à gauche)
-  const debugButton = (
+  // 🐛 Bouton Debug (visible uniquement en mode Test)
+  const debugButton = isTestMode && (
     <button
       onClick={() => setShowDebug(!showDebug)}
       style={{
