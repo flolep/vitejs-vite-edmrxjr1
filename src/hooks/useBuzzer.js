@@ -96,9 +96,10 @@ export function useBuzzer(sessionId, isPlaying, currentTrack, playlist, currentC
           teamName: team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2',
           time: buzzTime,
           playerName: buzzData.playerName || 'Anonyme',
-          songTitle: playlist[currentTrack]?.title || 'Inconnu',
-          songArtist: playlist[currentTrack]?.artist || 'Inconnu',
-          trackNumber: currentTrack + 1,
+          // ✅ currentTrack commence à 1, donc accès tableau avec currentTrack - 1
+          songTitle: playlist[currentTrack - 1]?.title || 'Inconnu',
+          songArtist: playlist[currentTrack - 1]?.artist || 'Inconnu',
+          trackNumber: currentTrack, // ✅ Pas besoin de + 1 car commence déjà à 1
           timestamp: Date.now(),
           correct: null,
           points: 0

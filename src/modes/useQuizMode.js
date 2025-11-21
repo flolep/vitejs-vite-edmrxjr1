@@ -24,8 +24,9 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
     console.log('📦 Stockage des données quiz pour', songsData.length, 'chansons');
 
     // Stocker chaque chanson avec ses mauvaises réponses
-    for (let trackNumber = 0; trackNumber < songsData.length; trackNumber++) {
-      const song = songsData[trackNumber];
+    // ✅ Commence à 1 pour que le premier track soit numéro 1 (pas 0)
+    for (let trackNumber = 1; trackNumber <= songsData.length; trackNumber++) {
+      const song = songsData[trackNumber - 1]; // Accès au tableau avec index - 1
 
       if (!song.wrongAnswers || song.wrongAnswers.length < 3) {
         console.warn(`⚠️ Chanson ${trackNumber} n'a pas 3 mauvaises réponses, génération par défaut`);
@@ -227,7 +228,8 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
     const quizRef = ref(database, `sessions/${sessionId}/quiz`);
 
     // Récupérer les infos de la chanson actuelle
-    const currentSong = playlist[currentTrack];
+    // ✅ currentTrack commence à 1, donc on accède à playlist[currentTrack - 1]
+    const currentSong = playlist[currentTrack - 1];
     const songTitle = currentSong?.title || 'Inconnu';
     const songArtist = currentSong?.artist || 'Inconnu';
 
