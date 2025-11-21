@@ -245,10 +245,23 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
         }));
         answersArray.sort((a, b) => a.time - b.time);
 
-        // Déterminer le joueur le plus rapide AVEC LA BONNE RÉPONSE (celui qui déclenche la chanson suivante)
+        // Déterminer qui peut passer à la chanson suivante :
+        // 1. Si bonne réponse : le gagnant le plus rapide
+        // 2. Si aucune bonne réponse : le dernier à avoir répondu (pour ne pas bloquer le jeu)
         const correctAnswer = String.fromCharCode(65 + correctAnswerIndex);
         const winnersOnly = answersArray.filter(answer => answer.answer === correctAnswer);
-        const fastestWinnerId = winnersOnly.length > 0 ? winnersOnly[0].playerId : null;
+
+        let nextSongTriggerId;
+        if (winnersOnly.length > 0) {
+          // Cas 1 : Au moins une bonne réponse → le plus rapide des gagnants
+          nextSongTriggerId = winnersOnly[0].playerId;
+        } else if (answersArray.length > 0) {
+          // Cas 2 : Aucune bonne réponse → le dernier à avoir répondu
+          nextSongTriggerId = answersArray[answersArray.length - 1].playerId;
+        } else {
+          // Cas 3 : Personne n'a répondu → null (animateur doit intervenir)
+          nextSongTriggerId = null;
+        }
 
         // Marquer comme révélé et désigner qui peut passer à la chanson suivante
         onValue(quizRef, (quizSnapshot) => {
@@ -257,7 +270,7 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
             set(quizRef, {
               ...quizData,
               revealed: true,
-              nextSongTriggerPlayerId: fastestWinnerId
+              nextSongTriggerPlayerId: nextSongTriggerId
             });
           }
         }, { onlyOnce: true });
