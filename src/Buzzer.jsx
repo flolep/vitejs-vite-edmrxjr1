@@ -22,18 +22,16 @@ export default function Buzzer() {
     const sessionParam = urlParams.get('session');
 
     if (sessionParam) {
+      // Session dans l'URL : l'utiliser et la sauvegarder
+      console.log('✅ [Buzzer Router] Session trouvée dans l\'URL:', sessionParam);
       setSessionId(sessionParam);
       localStorage.setItem('sessionId', sessionParam);
     } else {
-      // Pas de session dans l'URL, vérifier le localStorage
-      const savedSessionId = localStorage.getItem('sessionId');
-      if (savedSessionId) {
-        setSessionId(savedSessionId);
-      } else {
-        // Aucune session : afficher l'écran de saisie
-        setShowSessionInput(true);
-        setIsLoading(false);
-      }
+      // Pas de session dans l'URL : afficher l'écran de saisie du code
+      // ⚠️ Ne PAS utiliser le localStorage automatiquement car il peut contenir une ancienne session
+      console.log('⚠️ [Buzzer Router] Pas de session dans l\'URL → affichage écran de saisie');
+      setShowSessionInput(true);
+      setIsLoading(false);
     }
   }, []);
 
@@ -62,8 +60,9 @@ export default function Buzzer() {
   // Écouter le mode de jeu depuis Firebase
   useEffect(() => {
     if (!sessionId) {
-      console.log('⚠️ [Buzzer Router] Pas de sessionId');
-      setIsLoading(false);
+      console.log('⚠️ [Buzzer Router] Pas de sessionId - en attente...');
+      // ⚠️ NE PAS mettre isLoading(false) ici !
+      // Il faut attendre d'avoir le sessionId ET le playMode avant de router
       return;
     }
 
