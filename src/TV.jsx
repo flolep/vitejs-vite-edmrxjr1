@@ -3,29 +3,7 @@ import { database } from './firebase';
 import { ref, onValue, set } from 'firebase/database';
 import { QRCodeSVG } from 'qrcode.react';
 import { QuizDisplay } from './components/tv/QuizDisplay';
-
-/**
- * Calcule les points disponibles selon le nouveau système
- */
-function calculatePoints(chrono, songDuration) {
-  const maxPoints = 2500;
-  let availablePoints = maxPoints;
-  
-  if (chrono <= 5) {
-    availablePoints = 2500;
-  } else if (chrono < 15) {
-    const timeInPhase = chrono - 5;
-    const phaseDuration = 10;
-    availablePoints = 2000 - (timeInPhase / phaseDuration) * 1000;
-  } else {
-    const timeAfter15 = chrono - 15;
-    const remainingDuration = Math.max(1, songDuration - 15);
-    const decayRatio = Math.min(1, timeAfter15 / remainingDuration);
-    availablePoints = 500 * (1 - decayRatio);
-  }
-  
-  return Math.max(0, Math.round(availablePoints));
-}
+import { calculatePoints } from './hooks/useScoring';
 
 const PlayerAvatar = ({ player, buzzedPlayerKey, buzzedPlayerName }) => {
   // ✅ CORRECTION : Comparer par firebaseKey au lieu du nom

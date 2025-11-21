@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ref, set, onValue, remove } from 'firebase/database';
 import { database } from '../firebase';
+import { calculatePoints } from '../hooks/useScoring';
 
 /**
  * Hook pour gérer le mode Quiz
@@ -178,20 +179,11 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
       // Compter toutes les réponses
       playerUpdates[answer.playerId].totalAnswers += 1;
 
-      // Calculer les points uniquement pour les bonnes réponses (aligné sur l'affichage TV)
+      // Calculer les points uniquement pour les bonnes réponses
+      // Utilise la fonction centralisée avec la durée de la chanson
       if (answer.isCorrect) {
-        const responseTime = answer.time;
-        let points = 0;
-        if (responseTime <= 5) {
-          points = 2500;
-        } else if (responseTime < 15) {
-          const timeInPhase = responseTime - 5;
-          const phaseDuration = 10;
-          points = Math.round(2000 - (timeInPhase / phaseDuration) * 1000);
-        } else {
-          const timeAfter15 = responseTime - 15;
-          points = Math.max(0, Math.round(500 - (timeAfter15 * 20)));
-        }
+        const songDuration = playlist[currentTrack - 1]?.duration || 30;
+        const points = calculatePoints(answer.time, songDuration);
 
         playerUpdates[answer.playerId].totalPoints += points;
         playerUpdates[answer.playerId].correctAnswers += 1;
@@ -284,25 +276,14 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
         }, { onlyOnce: true });
 
         // Mettre à jour chaque réponse avec correction, points, et infos chanson
+        // Utilise la fonction centralisée avec la durée de la chanson
+        const songDuration = playlist[currentTrack - 1]?.duration || 30;
+
         answersArray.forEach((answer, rank) => {
           const isCorrect = answer.answer === correctAnswer;
 
-          // Calculer les points selon le temps de réponse (aligné sur l'affichage TV)
-          let points = 0;
-          if (isCorrect) {
-            const responseTime = answer.time;
-            if (responseTime <= 5) {
-              points = 2500;
-            } else if (responseTime < 15) {
-              const timeInPhase = responseTime - 5;
-              const phaseDuration = 10;
-              points = Math.round(2000 - (timeInPhase / phaseDuration) * 1000);
-            } else {
-              // Après 15s, points résiduels
-              const timeAfter15 = responseTime - 15;
-              points = Math.max(0, Math.round(500 - (timeAfter15 * 20)));
-            }
-          }
+          // Calculer les points avec la fonction centralisée
+          const points = isCorrect ? calculatePoints(answer.time, songDuration) : 0;
 
           // Mettre à jour avec la correction, points, et infos chanson
           const playerAnswerRef = ref(database, `sessions/${sessionId}/quiz_answers/${currentTrack}/${answer.playerId}`);

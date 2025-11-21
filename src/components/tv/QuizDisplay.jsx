@@ -1,29 +1,6 @@
 // Affichage TV pour le mode Quiz
 import React from 'react';
-
-/**
- * Calcule les points disponibles selon le système de décompte
- * (copié depuis TV.jsx pour cohérence)
- */
-function calculatePoints(chrono, songDuration) {
-  const maxPoints = 2500;
-  let availablePoints = maxPoints;
-
-  if (chrono <= 5) {
-    availablePoints = 2500;
-  } else if (chrono < 15) {
-    const timeInPhase = chrono - 5;
-    const phaseDuration = 10;
-    availablePoints = 2000 - (timeInPhase / phaseDuration) * 1000;
-  } else {
-    const timeAfter15 = chrono - 15;
-    const remainingDuration = Math.max(1, songDuration - 15);
-    const decayRatio = Math.min(1, timeAfter15 / remainingDuration);
-    availablePoints = 500 * (1 - decayRatio);
-  }
-
-  return Math.max(0, Math.round(availablePoints));
-}
+import { calculatePoints } from '../../hooks/useScoring';
 
 export function QuizDisplay({
   quizQuestion,
@@ -363,7 +340,7 @@ export function QuizDisplay({
                         </div>
                         {isCorrect && (
                           <div style={{ fontSize: '1.25rem', color: '#10b981', fontWeight: 'bold' }}>
-                            +{calculateQuizPoints(playerAnswer.time)} pts
+                            +{calculatePoints(playerAnswer.time, songDuration)} pts
                           </div>
                         )}
                       </>
@@ -483,21 +460,4 @@ export function QuizDisplay({
       </div>
     </div>
   );
-}
-
-// Fonction utilitaire pour calculer les points selon le temps de réponse
-// Alignée sur calculatePoints pour cohérence avec l'affichage
-function calculateQuizPoints(responseTime) {
-  if (responseTime <= 5) {
-    return 2500;
-  } else if (responseTime < 15) {
-    const timeInPhase = responseTime - 5;
-    const phaseDuration = 10;
-    return Math.round(2000 - (timeInPhase / phaseDuration) * 1000);
-  } else {
-    // Après 15s, points résiduels (simplifié à 500 - décroissance)
-    const timeAfter15 = responseTime - 15;
-    const points = Math.max(0, 500 - (timeAfter15 * 20));
-    return Math.round(points);
-  }
 }
