@@ -49,6 +49,9 @@ export default function Buzzer() {
     recognizedSongs: []
   });
 
+  // Debug panel
+  const [showDebug, setShowDebug] = useState(false);
+
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
@@ -1389,6 +1392,30 @@ if (step === 'game') {
 
   return (
     <div className={`${bgClass} flex-center`}>
+      {/* Bouton de debug */}
+      <button
+        onClick={() => setShowDebug(!showDebug)}
+        style={{
+          position: 'fixed',
+          top: '1rem',
+          left: '1rem',
+          backgroundColor: showDebug ? 'rgba(239, 68, 68, 0.5)' : 'rgba(0, 0, 0, 0.3)',
+          border: '2px solid rgba(255, 255, 255, 0.3)',
+          borderRadius: '50%',
+          width: '50px',
+          height: '50px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          fontSize: '1.5rem',
+          zIndex: 100
+        }}
+        title="Debug Panel"
+      >
+        🐛
+      </button>
+
       {/* Bouton de statistiques personnelles */}
       <button
         onClick={loadPersonalStats}
@@ -1504,6 +1531,85 @@ if (step === 'game') {
       {!isPlaying && !someoneBuzzed && !isInCooldown && (
         <div className="mt-8" style={{ fontSize: '0.875rem', opacity: 0.7 }}>
           ⏸️ Attendez que l'animateur lance la musique...
+        </div>
+      )}
+
+      {/* Panneau de debug */}
+      {showDebug && (
+        <div
+          style={{
+            position: 'fixed',
+            top: '80px',
+            left: '1rem',
+            backgroundColor: 'rgba(0, 0, 0, 0.95)',
+            border: '2px solid rgba(255, 255, 255, 0.3)',
+            borderRadius: '1rem',
+            padding: '1rem',
+            maxWidth: '350px',
+            maxHeight: 'calc(100vh - 100px)',
+            overflowY: 'auto',
+            zIndex: 99,
+            fontSize: '0.75rem',
+            color: '#fff'
+          }}
+        >
+          <div style={{ fontWeight: 'bold', fontSize: '1rem', marginBottom: '0.75rem', borderBottom: '1px solid rgba(255, 255, 255, 0.3)', paddingBottom: '0.5rem' }}>
+            🐛 Debug Panel
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <div>
+              <strong>Session:</strong> {sessionId || 'N/A'}
+            </div>
+            <div>
+              <strong>Step:</strong> {step}
+            </div>
+            <div>
+              <strong>Player Name:</strong> {playerName || 'N/A'}
+            </div>
+            <div>
+              <strong>Selected Player ID:</strong> {selectedPlayer?.id || 'N/A'}
+            </div>
+            <div>
+              <strong>Team:</strong> {team || 'N/A'}
+            </div>
+            <div>
+              <strong>Firebase Key:</strong> {playerFirebaseKey || 'N/A'}
+            </div>
+            <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.2)', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
+              <strong>Buzzer State:</strong>
+            </div>
+            <div style={{ paddingLeft: '0.5rem' }}>
+              <div>• Buzzed: {buzzed ? '✅' : '❌'}</div>
+              <div>• Enabled: {buzzerEnabled ? '✅' : '❌'}</div>
+              <div>• Someone Buzzed: {someoneBuzzed ? '✅' : '❌'}</div>
+              <div>• Is Playing: {isPlaying ? '✅' : '❌'}</div>
+              <div>• Can Buzz: {canBuzz ? '✅' : '❌'}</div>
+            </div>
+            <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.2)', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
+              <strong>Cooldown:</strong>
+            </div>
+            <div style={{ paddingLeft: '0.5rem' }}>
+              <div>• In Cooldown: {isInCooldown ? '✅' : '❌'}</div>
+              <div>• End Time: {cooldownEnd ? new Date(cooldownEnd).toLocaleTimeString() : 'N/A'}</div>
+              <div>• Remaining: {cooldownRemaining.toFixed(1)}s</div>
+            </div>
+            <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.2)', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
+              <strong>Scores:</strong>
+            </div>
+            <div style={{ paddingLeft: '0.5rem' }}>
+              <div>• Team 1: {scores.team1}</div>
+              <div>• Team 2: {scores.team2}</div>
+            </div>
+            <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.2)', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
+              <strong>Other:</strong>
+            </div>
+            <div style={{ paddingLeft: '0.5rem' }}>
+              <div>• Playlist ID: {playlistId || 'N/A'}</div>
+              <div>• Session Valid: {sessionValid ? '✅' : '❌'}</div>
+              <div>• Photo Data: {photoData ? '✅' : '❌'}</div>
+            </div>
+          </div>
         </div>
       )}
 
