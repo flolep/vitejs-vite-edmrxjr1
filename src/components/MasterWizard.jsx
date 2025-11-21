@@ -206,6 +206,7 @@ export default function MasterWizard({ onComplete }) {
       updates[`sessions/${newSessionId}/scores`] = { team1: 0, team2: 0 };
       updates[`sessions/${newSessionId}/chrono`] = 0;
       updates[`sessions/${newSessionId}/isPlaying`] = false;
+      updates[`sessions/${newSessionId}/currentTrackNumber`] = 1; // ✅ Initialiser à 1 (première chanson)
       updates[`sessions/${newSessionId}/currentSong`] = null;
       updates[`sessions/${newSessionId}/game_status`] = { ended: false };
       updates[`sessions/${newSessionId}/showQRCode`] = false;
