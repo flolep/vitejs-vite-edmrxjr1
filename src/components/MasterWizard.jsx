@@ -168,15 +168,8 @@ export default function MasterWizard({ onComplete }) {
   const handleSelectSource = async (source) => {
     setMusicSource(source);
 
-    // Si MP3 ou Spotify-auto, forcer le mode Équipe et passer directement au loading
-    if (source === 'mp3' || source === 'spotify-auto') {
-      setPlayMode('team');
-      setGameMode(`${source}-team`);
-      await createSession(source, 'team');
-    } else {
-      // Si Spotify-IA, demander le mode de jeu
-      setStep('gamemode');
-    }
+    // Pour toutes les sources, demander le mode de jeu (team ou quiz)
+    setStep('gamemode');
   };
 
   // ========== ÉTAPE 4 : CHOIX DU MODE DE JEU ==========

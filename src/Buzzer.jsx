@@ -79,13 +79,18 @@ export default function Buzzer() {
           gameMode: sessionData.gameMode,
           musicSource: sessionData.musicSource,
           modeDetecte: mode,
-          playModeExiste: sessionData.playMode !== undefined
+          playModeExiste: sessionData.playMode !== undefined,
+          playModeType: typeof sessionData.playMode,
+          playModeRaw: JSON.stringify(sessionData.playMode)
         });
 
         // IMPORTANT : Ne pas utiliser de valeur par défaut !
         // Attendre que playMode soit explicitement défini
         if (mode) {
-          setPlayMode(mode);
+          // Nettoyer le mode pour éviter les problèmes de casse/espaces
+          const cleanMode = String(mode).trim().toLowerCase();
+          console.log(`✅ [Buzzer Router] playMode détecté et nettoyé: "${cleanMode}" (original: "${mode}")`);
+          setPlayMode(cleanMode);
           setIsLoading(false);
         } else {
           console.warn('⚠️ [Buzzer Router] playMode non défini dans la session, en attente...');
@@ -190,17 +195,21 @@ export default function Buzzer() {
   console.log('🔀 [Buzzer Router] Routage final:', {
     playMode,
     sessionId,
+    playModeNormalized: playMode ? String(playMode).trim().toLowerCase() : null,
     comparaison: `playMode === 'quiz' ? ${playMode === 'quiz'}`,
     typePlayMode: typeof playMode,
     composantRendu: playMode === 'quiz' ? 'BuzzerQuiz' : 'BuzzerTeam'
   });
 
-  if (playMode === 'quiz') {
+  // Normaliser playMode pour la comparaison (case-insensitive)
+  const normalizedMode = playMode ? String(playMode).trim().toLowerCase() : null;
+
+  if (normalizedMode === 'quiz') {
     console.log('✅ [Buzzer Router] → Affichage BuzzerQuiz');
     return <BuzzerQuiz sessionIdFromRouter={sessionId} />;
   }
 
   // Par défaut, mode Team
-  console.log('✅ [Buzzer Router] → Affichage BuzzerTeam (défaut)');
+  console.log('✅ [Buzzer Router] → Affichage BuzzerTeam (défaut)', { normalizedMode });
   return <BuzzerTeam sessionIdFromRouter={sessionId} />;
 }
