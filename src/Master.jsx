@@ -307,14 +307,15 @@ export default function Master({
     const quizRef = ref(database, `sessions/${sessionId}/quiz`);
     const unsubscribe = onValue(quizRef, (snapshot) => {
       const quizData = snapshot.val();
-      if (quizData && quizData.revealed && currentTrack !== null && playlist[currentTrack]) {
+      // ✅ currentTrack commence à 1, donc accès tableau avec currentTrack - 1
+      if (quizData && quizData.revealed && currentTrack !== null && playlist[currentTrack - 1]) {
         // Mettre à jour currentSong avec revealed: true
         updateCurrentSong({
-          title: playlist[currentTrack].title,
-          artist: playlist[currentTrack].artist,
-          imageUrl: playlist[currentTrack].imageUrl,
+          title: playlist[currentTrack - 1].title,
+          artist: playlist[currentTrack - 1].artist,
+          imageUrl: playlist[currentTrack - 1].imageUrl,
           revealed: true,
-          number: currentTrack + 1
+          number: currentTrack // ✅ Pas besoin de + 1 car commence déjà à 1
         });
       }
     });
@@ -694,7 +695,8 @@ export default function Master({
         clearBuzz();
 
         // Play
-        await playerAdapter.play(playlist[currentTrack], currentTrack);
+        // ✅ currentTrack commence à 1, donc accès tableau avec currentTrack - 1
+        await playerAdapter.play(playlist[currentTrack - 1], currentTrack);
         updateIsPlaying(true);
 
         // En mode Quiz, générer les réponses
@@ -704,11 +706,11 @@ export default function Master({
 
         // Mettre à jour la chanson courante
         updateCurrentSong({
-          title: playlist[currentTrack].title,
-          artist: playlist[currentTrack].artist,
-          imageUrl: playlist[currentTrack].imageUrl,
+          title: playlist[currentTrack - 1].title,
+          artist: playlist[currentTrack - 1].artist,
+          imageUrl: playlist[currentTrack - 1].imageUrl,
           revealed: false,
-          number: currentTrack + 1
+          number: currentTrack // ✅ Pas besoin de + 1 car commence déjà à 1
         });
 
         setDebugInfo('▶️ Lecture');
@@ -766,7 +768,8 @@ export default function Master({
     resetChrono();
 
     // Écrire la durée de la chanson dans Firebase
-    const duration = playlist[newTrackIndex]?.duration || 30;
+    // ✅ newTrackIndex commence à 1, donc accès tableau avec - 1
+    const duration = playlist[newTrackIndex - 1]?.duration || 30;
     const durationRef = ref(database, `sessions/${sessionId}/songDuration`);
     set(durationRef, duration);
 
@@ -779,12 +782,12 @@ export default function Master({
       artist: '',
       imageUrl: null,
       revealed: false,
-      number: newTrackIndex + 1
+      number: newTrackIndex // ✅ Pas besoin de + 1 car commence déjà à 1
     });
 
     // Charger l'audio en mode MP3
     if (musicSource === 'mp3' && playerAdapter) {
-      playerAdapter.loadTrack(playlist[newTrackIndex]);
+      playerAdapter.loadTrack(playlist[newTrackIndex - 1]); // ✅ Accès avec - 1
     }
   };
 
@@ -803,7 +806,8 @@ export default function Master({
     resetChrono();
 
     // Écrire la durée de la chanson dans Firebase
-    const duration = playlist[newTrackIndex]?.duration || 30;
+    // ✅ newTrackIndex commence à 1, donc accès tableau avec - 1
+    const duration = playlist[newTrackIndex - 1]?.duration || 30;
     const durationRef = ref(database, `sessions/${sessionId}/songDuration`);
     set(durationRef, duration);
 
@@ -816,31 +820,33 @@ export default function Master({
       artist: '',
       imageUrl: null,
       revealed: false,
-      number: newTrackIndex + 1
+      number: newTrackIndex // ✅ Pas besoin de + 1 car commence déjà à 1
     });
 
     // Charger l'audio en mode MP3
     if (musicSource === 'mp3' && playerAdapter) {
-      playerAdapter.loadTrack(playlist[newTrackIndex]);
+      playerAdapter.loadTrack(playlist[newTrackIndex - 1]); // ✅ Accès avec - 1
     }
   };
 
-  const jumpToTrack = (trackIndex) => {
-    if (trackIndex < 0 || trackIndex >= playlist.length) return;
-    if (trackIndex === currentTrack) return;
+  const jumpToTrack = (trackNumber) => {
+    // ✅ trackNumber commence à 1 maintenant
+    if (trackNumber < 1 || trackNumber > playlist.length) return;
+    if (trackNumber === currentTrack) return;
 
     if (playerAdapter) {
       playerAdapter.pause().catch(console.error);
     }
 
-    updateCurrentTrack(trackIndex);
+    updateCurrentTrack(trackNumber);
     updateIsPlaying(false);
     setBuzzedTeam(null);
     clearBuzz();
     resetChrono();
 
     // Écrire la durée de la chanson dans Firebase
-    const duration = playlist[trackIndex]?.duration || 30;
+    // ✅ Accès au tableau avec trackNumber - 1
+    const duration = playlist[trackNumber - 1]?.duration || 30;
     const durationRef = ref(database, `sessions/${sessionId}/songDuration`);
     set(durationRef, duration);
 
@@ -853,12 +859,12 @@ export default function Master({
       artist: '',
       imageUrl: null,
       revealed: false,
-      number: trackIndex + 1
+      number: trackNumber // ✅ Pas besoin de + 1 car commence déjà à 1
     });
 
     // Charger l'audio en mode MP3
     if (musicSource === 'mp3' && playerAdapter) {
-      playerAdapter.loadTrack(playlist[trackIndex]);
+      playerAdapter.loadTrack(playlist[trackNumber - 1]); // ✅ Accès avec - 1
     }
   };
 
@@ -891,12 +897,13 @@ export default function Master({
       await playerAdapter.pause();
     }
 
+    // ✅ currentTrack commence à 1, donc accès tableau avec currentTrack - 1
     updateCurrentSong({
-      title: playlist[currentTrack].title,
-      artist: playlist[currentTrack].artist,
-      imageUrl: playlist[currentTrack].imageUrl,
+      title: playlist[currentTrack - 1].title,
+      artist: playlist[currentTrack - 1].artist,
+      imageUrl: playlist[currentTrack - 1].imageUrl,
       revealed: true,
-      number: currentTrack + 1
+      number: currentTrack // ✅ Pas besoin de + 1 car commence déjà à 1
     });
 
     setDebugInfo(`✅ Réponse révélée - Chrono figé à ${currentChrono.toFixed(1)}s`);
@@ -920,12 +927,13 @@ export default function Master({
     setBuzzedTeam(null);
     clearBuzz();
 
+    // ✅ currentTrack commence à 1, donc accès tableau avec currentTrack - 1
     updateCurrentSong({
-      title: playlist[currentTrack].title,
-      artist: playlist[currentTrack].artist,
-      imageUrl: playlist[currentTrack].imageUrl,
+      title: playlist[currentTrack - 1].title,
+      artist: playlist[currentTrack - 1].artist,
+      imageUrl: playlist[currentTrack - 1].imageUrl,
       revealed: true,
-      number: currentTrack + 1
+      number: currentTrack // ✅ Pas besoin de + 1 car commence déjà à 1
     });
 
     const teamName = team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2';
@@ -1012,7 +1020,8 @@ export default function Master({
     return <Login onLoginSuccess={() => {}} />;
   }
 
-  const currentSong = playlist[currentTrack];
+  // ✅ currentTrack commence à 1, donc accès tableau avec currentTrack - 1
+  const currentSong = playlist[currentTrack - 1];
   const availablePoints = calculatePoints();
 
   return (
@@ -1362,34 +1371,36 @@ export default function Master({
                 📚 Playlist ({playlist.length})
               </h3>
               <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                {playlist.map((track, index) => (
+                {playlist.map((track, index) => {
+                  const trackNumber = index + 1; // ✅ Convertir index (0-based) en trackNumber (1-based)
+                  return (
                   <div
                     key={index}
-                    onClick={() => jumpToTrack(index)}
+                    onClick={() => jumpToTrack(trackNumber)} {/* ✅ Passer trackNumber (1-based) */}
                     style={{
                       padding: '0.6rem',
                       marginBottom: '0.4rem',
-                      backgroundColor: index === currentTrack ? 'rgba(124, 58, 237, 0.4)' : 'rgba(255, 255, 255, 0.05)',
+                      backgroundColor: trackNumber === currentTrack ? 'rgba(124, 58, 237, 0.4)' : 'rgba(255, 255, 255, 0.05)',
                       borderRadius: '0.5rem',
                       opacity: track.revealed ? 0.4 : 1,
                       cursor: 'pointer',
                       transition: 'transform 0.15s ease, opacity 0.15s ease'
                     }}
                     onMouseEnter={(e) => {
-                      if (index !== currentTrack) {
+                      if (trackNumber !== currentTrack) {
                         e.currentTarget.style.backgroundColor = 'rgba(124, 58, 237, 0.2)';
                         e.currentTarget.style.transform = 'translateX(4px)';
                       }
                     }}
                     onMouseLeave={(e) => {
-                      if (index !== currentTrack) {
+                      if (trackNumber !== currentTrack) { {/* ✅ Utiliser trackNumber au lieu de index */}
                         e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
                         e.currentTarget.style.transform = 'translateX(0)';
                       }
                     }}
                   >
                     <div style={{ fontWeight: '500' }}>
-                      {index + 1}. {track.revealed && '✅ '}{track.title}
+                      {trackNumber}. {track.revealed && '✅ '}{track.title}
                     </div>
                     {track.artist && (
                       <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>
@@ -1397,7 +1408,8 @@ export default function Master({
                       </div>
                     )}
                   </div>
-                ))}
+                  ); {/* ✅ Fermer le return */}
+                })}
               </div>
             </div>
           )}
@@ -1460,7 +1472,7 @@ export default function Master({
                 playlistLength={playlist.length}
                 isPlaying={isPlaying}
                 currentSong={currentSong}
-                currentTrackData={playlist[currentTrack]}
+                currentTrackData={playlist[currentTrack - 1]} {/* ✅ currentTrack commence à 1 */}
                 currentChrono={currentChrono}
                 availablePoints={availablePoints}
                 songDuration={songDuration}

@@ -22,18 +22,16 @@ export default function Buzzer() {
     const sessionParam = urlParams.get('session');
 
     if (sessionParam) {
+      // Session dans l'URL : l'utiliser et la sauvegarder
+      console.log('✅ [Buzzer Router] Session trouvée dans l\'URL:', sessionParam);
       setSessionId(sessionParam);
       localStorage.setItem('sessionId', sessionParam);
     } else {
-      // Pas de session dans l'URL, vérifier le localStorage
-      const savedSessionId = localStorage.getItem('sessionId');
-      if (savedSessionId) {
-        setSessionId(savedSessionId);
-      } else {
-        // Aucune session : afficher l'écran de saisie
-        setShowSessionInput(true);
-        setIsLoading(false);
-      }
+      // Pas de session dans l'URL : afficher l'écran de saisie du code
+      // ⚠️ Ne PAS utiliser le localStorage automatiquement car il peut contenir une ancienne session
+      console.log('⚠️ [Buzzer Router] Pas de session dans l\'URL → affichage écran de saisie');
+      setShowSessionInput(true);
+      setIsLoading(false);
     }
   }, []);
 
@@ -62,8 +60,9 @@ export default function Buzzer() {
   // Écouter le mode de jeu depuis Firebase
   useEffect(() => {
     if (!sessionId) {
-      console.log('⚠️ [Buzzer Router] Pas de sessionId');
-      setIsLoading(false);
+      console.log('⚠️ [Buzzer Router] Pas de sessionId - en attente...');
+      // ⚠️ NE PAS mettre isLoading(false) ici !
+      // Il faut attendre d'avoir le sessionId ET le playMode avant de router
       return;
     }
 
@@ -79,13 +78,18 @@ export default function Buzzer() {
           gameMode: sessionData.gameMode,
           musicSource: sessionData.musicSource,
           modeDetecte: mode,
-          playModeExiste: sessionData.playMode !== undefined
+          playModeExiste: sessionData.playMode !== undefined,
+          playModeType: typeof sessionData.playMode,
+          playModeRaw: JSON.stringify(sessionData.playMode)
         });
 
         // IMPORTANT : Ne pas utiliser de valeur par défaut !
         // Attendre que playMode soit explicitement défini
         if (mode) {
-          setPlayMode(mode);
+          // Nettoyer le mode pour éviter les problèmes de casse/espaces
+          const cleanMode = String(mode).trim().toLowerCase();
+          console.log(`✅ [Buzzer Router] playMode détecté et nettoyé: "${cleanMode}" (original: "${mode}")`);
+          setPlayMode(cleanMode);
           setIsLoading(false);
         } else {
           console.warn('⚠️ [Buzzer Router] playMode non défini dans la session, en attente...');
@@ -190,17 +194,21 @@ export default function Buzzer() {
   console.log('🔀 [Buzzer Router] Routage final:', {
     playMode,
     sessionId,
+    playModeNormalized: playMode ? String(playMode).trim().toLowerCase() : null,
     comparaison: `playMode === 'quiz' ? ${playMode === 'quiz'}`,
     typePlayMode: typeof playMode,
     composantRendu: playMode === 'quiz' ? 'BuzzerQuiz' : 'BuzzerTeam'
   });
 
-  if (playMode === 'quiz') {
+  // Normaliser playMode pour la comparaison (case-insensitive)
+  const normalizedMode = playMode ? String(playMode).trim().toLowerCase() : null;
+
+  if (normalizedMode === 'quiz') {
     console.log('✅ [Buzzer Router] → Affichage BuzzerQuiz');
     return <BuzzerQuiz sessionIdFromRouter={sessionId} />;
   }
 
   // Par défaut, mode Team
-  console.log('✅ [Buzzer Router] → Affichage BuzzerTeam (défaut)');
+  console.log('✅ [Buzzer Router] → Affichage BuzzerTeam (défaut)', { normalizedMode });
   return <BuzzerTeam sessionIdFromRouter={sessionId} />;
 }

@@ -10,7 +10,7 @@ export function useGameSession(sessionId) {
   const [scores, setScores] = useState({ team1: 0, team2: 0 });
   const [currentChrono, setCurrentChrono] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTrack, setCurrentTrack] = useState(0);
+  const [currentTrack, setCurrentTrack] = useState(1); // ✅ Commence à 1 au lieu de 0
   const [songDuration, setSongDuration] = useState(0);
 
   const currentChronoRef = useRef(0);
