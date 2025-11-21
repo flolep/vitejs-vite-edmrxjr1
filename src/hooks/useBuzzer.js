@@ -9,6 +9,8 @@ import { ref, set, remove, onValue } from 'firebase/database';
 export function useBuzzer(sessionId, isPlaying, currentTrack, playlist, currentChronoRef, updateIsPlaying, playerAdapter) {
   const [buzzedTeam, setBuzzedTeam] = useState(null);
   const [buzzedPlayerKey, setBuzzedPlayerKey] = useState(null);
+  const [buzzedPlayerName, setBuzzedPlayerName] = useState(null);
+  const [buzzedPlayerPhoto, setBuzzedPlayerPhoto] = useState(null);
   const buzzerSoundRef = useRef(null);
 
   // Créer le son de buzzer
@@ -46,12 +48,28 @@ export function useBuzzer(sessionId, isPlaying, currentTrack, playlist, currentC
     const unsubscribe = onValue(buzzRef, (snapshot) => {
       const buzzData = snapshot.val();
 
+      console.log('👂 [useBuzzer] Firebase notification:', {
+        hasBuzzData: !!buzzData,
+        isPlaying,
+        buzzData
+      });
+
       if (buzzData && isPlaying) {
         const { team } = buzzData;
         const buzzTime = currentChronoRef.current;
 
+        console.log('🔔 [useBuzzer] Buzz reçu et traité:', {
+          team,
+          playerName: buzzData.playerName,
+          playerPhoto: buzzData.playerPhoto,
+          playerFirebaseKey: buzzData.playerFirebaseKey,
+          fullBuzzData: buzzData
+        });
+
         setBuzzedTeam(team);
         setBuzzedPlayerKey(buzzData.playerFirebaseKey || null);
+        setBuzzedPlayerName(buzzData.playerName || 'Anonyme');
+        setBuzzedPlayerPhoto(buzzData.playerPhoto || null);
 
         // ✅ ARRÊTER LA MUSIQUE ET LE CHRONO
         // 1. Arrêter le lecteur audio/Spotify
@@ -99,6 +117,8 @@ export function useBuzzer(sessionId, isPlaying, currentTrack, playlist, currentC
   const clearBuzz = () => {
     setBuzzedTeam(null);
     setBuzzedPlayerKey(null);
+    setBuzzedPlayerName(null);
+    setBuzzedPlayerPhoto(null);
     if (sessionId) {
       const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
       remove(buzzRef);
@@ -108,6 +128,8 @@ export function useBuzzer(sessionId, isPlaying, currentTrack, playlist, currentC
   return {
     buzzedTeam,
     buzzedPlayerKey,
+    buzzedPlayerName,
+    buzzedPlayerPhoto,
     setBuzzedTeam,
     clearBuzz
   };

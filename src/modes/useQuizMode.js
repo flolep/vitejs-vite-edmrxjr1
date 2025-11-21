@@ -13,53 +13,102 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
   const [leaderboard, setLeaderboard] = useState([]); // Classement temps réel
 
   /**
-   * Génère 4 réponses dont 1 correcte pour le track actuel
-   * À adapter selon la logique de génération des réponses
+   * Stocke les données quiz (wrongAnswers) pour toutes les chansons
+   * À appeler lors du chargement initial de la playlist générée par l'IA
+   * @param {Array} songsData - Tableau de chansons avec format:
+   *   [{ uri, title, artist, wrongAnswers: ["Artist - Title", ...] }]
    */
-  const generateQuizAnswers = (track, allTracks) => {
-    if (!track) return;
+  const storeQuizData = async (songsData) => {
+    if (!sessionId || !songsData || songsData.length === 0) return;
 
-    // La réponse correcte
-    const correctAnswer = {
-      title: track.title,
-      artist: track.artist,
-      isCorrect: true
-    };
+    console.log('📦 Stockage des données quiz pour', songsData.length, 'chansons');
 
-    // Générer 3 réponses incorrectes (artistes différents de la playlist)
-    const wrongAnswers = allTracks
-      .filter(t => t.artist !== track.artist && t.artist) // Artistes différents
-      .sort(() => Math.random() - 0.5) // Mélanger
-      .slice(0, 3) // Prendre 3
-      .map(t => ({
-        title: t.title,
-        artist: t.artist,
+    // Stocker chaque chanson avec ses mauvaises réponses
+    for (let trackNumber = 0; trackNumber < songsData.length; trackNumber++) {
+      const song = songsData[trackNumber];
+
+      if (!song.wrongAnswers || song.wrongAnswers.length < 3) {
+        console.warn(`⚠️ Chanson ${trackNumber} n'a pas 3 mauvaises réponses, génération par défaut`);
+        continue;
+      }
+
+      const quizDataRef = ref(database, `sessions/${sessionId}/quiz_data/${trackNumber}`);
+      await set(quizDataRef, {
+        correctAnswer: {
+          title: song.title,
+          artist: song.artist,
+          uri: song.uri
+        },
+        wrongAnswers: song.wrongAnswers.slice(0, 3) // S'assurer qu'on a exactement 3
+      });
+    }
+
+    console.log('✅ Données quiz stockées dans Firebase');
+  };
+
+  /**
+   * Génère 4 réponses mélangées pour le track actuel
+   * Lit les données depuis quiz_data/{trackNumber} stockées précédemment
+   */
+  const generateQuizAnswers = async (trackNumber) => {
+    if (!sessionId || trackNumber === undefined) return;
+
+    console.log('🎯 Génération des réponses pour la chanson', trackNumber);
+
+    // Lire les données depuis Firebase
+    const quizDataRef = ref(database, `sessions/${sessionId}/quiz_data/${trackNumber}`);
+
+    onValue(quizDataRef, (snapshot) => {
+      const quizData = snapshot.val();
+
+      if (!quizData) {
+        console.error('❌ Aucune donnée quiz trouvée pour le track', trackNumber);
+        return;
+      }
+
+      const { correctAnswer, wrongAnswers } = quizData;
+
+      // Formater la bonne réponse
+      const correctAnswerFormatted = {
+        text: `${correctAnswer.artist} - ${correctAnswer.title}`,
+        isCorrect: true
+      };
+
+      // Formater les mauvaises réponses
+      const wrongAnswersFormatted = wrongAnswers.map(wa => ({
+        text: wa,
         isCorrect: false
       }));
 
-    // Mélanger toutes les réponses
-    const allAnswers = [correctAnswer, ...wrongAnswers].sort(() => Math.random() - 0.5);
+      // Mélanger toutes les réponses
+      const allAnswers = [correctAnswerFormatted, ...wrongAnswersFormatted]
+        .sort(() => Math.random() - 0.5);
 
-    // Trouver l'index de la bonne réponse après mélange
-    const correctIndex = allAnswers.findIndex(a => a.isCorrect);
+      // Trouver l'index de la bonne réponse après mélange
+      const correctIndex = allAnswers.findIndex(a => a.isCorrect);
 
-    setQuizAnswers(allAnswers);
-    setCorrectAnswerIndex(correctIndex);
+      setQuizAnswers(allAnswers);
+      setCorrectAnswerIndex(correctIndex);
 
-    // Stocker dans Firebase pour synchroniser avec les joueurs
-    if (sessionId) {
+      // Stocker dans Firebase pour synchroniser avec les joueurs
       const quizRef = ref(database, `sessions/${sessionId}/quiz`);
       set(quizRef, {
-        trackNumber: currentTrack,
+        trackNumber: trackNumber,
         answers: allAnswers.map((a, idx) => ({
           label: String.fromCharCode(65 + idx), // A, B, C, D
-          text: `${a.artist} - ${a.title}`,
+          text: a.text,
           isCorrect: a.isCorrect
         })),
         correctAnswer: String.fromCharCode(65 + correctIndex), // A, B, C ou D
         revealed: false
       });
-    }
+
+      console.log('✅ Quiz généré:', {
+        trackNumber,
+        correctAnswer: String.fromCharCode(65 + correctIndex),
+        answers: allAnswers.map(a => a.text)
+      });
+    }, { onlyOnce: true });
   };
 
   /**
@@ -68,9 +117,16 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
   useEffect(() => {
     if (!sessionId) return;
 
-    const answersRef = ref(database, `sessions/${sessionId}/quiz_answers/${currentTrack}`);
+    const answersPath = `sessions/${sessionId}/quiz_answers/${currentTrack}`;
+    const answersRef = ref(database, answersPath);
+
+    console.log('👂 Écoute des réponses Quiz sur:', answersPath);
+
     const unsubscribe = onValue(answersRef, (snapshot) => {
       const answersData = snapshot.val();
+
+      console.log('📥 Réponses reçues de Firebase:', { currentTrack, answersData });
+
       if (answersData) {
         const answersList = Object.entries(answersData).map(([playerId, answer]) => ({
           playerId,
@@ -83,10 +139,16 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
 
         // Trier par temps de réponse
         answersList.sort((a, b) => a.time - b.time);
+
+        console.log('✅ Réponses traitées:', answersList);
+
         setPlayerAnswers(answersList);
 
         // Calculer le classement
         updateLeaderboard(answersList);
+      } else {
+        console.log('ℹ️ Aucune réponse pour currentTrack:', currentTrack);
+        setPlayerAnswers([]);
       }
     });
 
@@ -97,28 +159,33 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
    * Met à jour le classement général du quiz
    */
   const updateLeaderboard = (answers) => {
-    // Calculer les points pour chaque joueur
-    const playerScores = {};
+    // Calculer les points pour chaque joueur (bonnes et mauvaises réponses)
+    const playerUpdates = {};
 
     answers.forEach((answer, index) => {
+      // Initialiser l'entrée du joueur si nécessaire
+      if (!playerUpdates[answer.playerId]) {
+        playerUpdates[answer.playerId] = {
+          playerId: answer.playerId,
+          playerName: answer.playerName,
+          totalPoints: 0,
+          correctAnswers: 0,
+          totalAnswers: 0
+        };
+      }
+
+      // Compter toutes les réponses
+      playerUpdates[answer.playerId].totalAnswers += 1;
+
+      // Calculer les points uniquement pour les bonnes réponses
       if (answer.isCorrect) {
-        // Points basés sur la rapidité (1er = plus de points)
         const basePoints = 1000;
         const timeBonus = Math.max(0, 500 - (answer.time * 10)); // Décroit avec le temps
         const rankBonus = Math.max(0, 500 - (index * 100)); // Décroit selon le rang
         const points = Math.round(basePoints + timeBonus + rankBonus);
 
-        if (!playerScores[answer.playerId]) {
-          playerScores[answer.playerId] = {
-            playerId: answer.playerId,
-            playerName: answer.playerName,
-            totalPoints: 0,
-            correctAnswers: 0
-          };
-        }
-
-        playerScores[answer.playerId].totalPoints += points;
-        playerScores[answer.playerId].correctAnswers += 1;
+        playerUpdates[answer.playerId].totalPoints += points;
+        playerUpdates[answer.playerId].correctAnswers += 1;
       }
     });
 
@@ -128,22 +195,25 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
       const existingLeaderboard = snapshot.val() || {};
 
       // Fusionner avec les nouveaux scores
-      Object.entries(playerScores).forEach(([playerId, data]) => {
+      Object.entries(playerUpdates).forEach(([playerId, data]) => {
         if (!existingLeaderboard[playerId]) {
+          // Nouveau joueur
           existingLeaderboard[playerId] = data;
         } else {
+          // Joueur existant - incrémenter les valeurs
           existingLeaderboard[playerId].totalPoints += data.totalPoints;
           existingLeaderboard[playerId].correctAnswers += data.correctAnswers;
+          existingLeaderboard[playerId].totalAnswers += data.totalAnswers;
         }
       });
 
-      // Convertir en array et trier
+      // Convertir en array et trier pour l'affichage
       const leaderboardArray = Object.values(existingLeaderboard)
         .sort((a, b) => b.totalPoints - a.totalPoints);
 
       setLeaderboard(leaderboardArray);
 
-      // Mettre à jour Firebase
+      // Sauvegarder dans Firebase (toujours comme objet pour cohérence)
       set(leaderboardRef, existingLeaderboard);
     }, { onlyOnce: true });
   };
@@ -152,36 +222,68 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
    * Révèle la bonne réponse et valide les réponses des joueurs
    */
   const revealQuizAnswer = async () => {
-    if (!sessionId) return;
+    if (!sessionId || currentTrack === null) return;
 
     const quizRef = ref(database, `sessions/${sessionId}/quiz`);
 
-    // Marquer comme révélé
-    onValue(quizRef, (snapshot) => {
-      const quizData = snapshot.val();
-      if (quizData) {
-        set(quizRef, {
-          ...quizData,
-          revealed: true
-        });
-      }
-    }, { onlyOnce: true });
+    // Récupérer les infos de la chanson actuelle
+    const currentSong = playlist[currentTrack];
+    const songTitle = currentSong?.title || 'Inconnu';
+    const songArtist = currentSong?.artist || 'Inconnu';
 
     // Valider les réponses des joueurs
     const answersRef = ref(database, `sessions/${sessionId}/quiz_answers/${currentTrack}`);
     onValue(answersRef, (snapshot) => {
       const answersData = snapshot.val();
       if (answersData) {
-        Object.entries(answersData).forEach(([playerId, answer]) => {
+        // Convertir en array et trier par temps de réponse pour calculer le rang
+        const answersArray = Object.entries(answersData).map(([playerId, answer]) => ({
+          playerId,
+          ...answer
+        }));
+        answersArray.sort((a, b) => a.time - b.time);
+
+        // Déterminer le joueur le plus rapide (celui qui déclenche la chanson suivante)
+        const fastestPlayerId = answersArray.length > 0 ? answersArray[0].playerId : null;
+
+        // Marquer comme révélé et désigner qui peut passer à la chanson suivante
+        onValue(quizRef, (quizSnapshot) => {
+          const quizData = quizSnapshot.val();
+          if (quizData) {
+            set(quizRef, {
+              ...quizData,
+              revealed: true,
+              nextSongTriggerPlayerId: fastestPlayerId
+            });
+          }
+        }, { onlyOnce: true });
+
+        // Mettre à jour chaque réponse avec correction, points, et infos chanson
+        answersArray.forEach((answer, rank) => {
           const isCorrect = answer.answer === String.fromCharCode(65 + correctAnswerIndex);
 
-          // Mettre à jour avec la correction
-          const playerAnswerRef = ref(database, `sessions/${sessionId}/quiz_answers/${currentTrack}/${playerId}`);
+          // Calculer les points (même formule que calculateQuizPoints dans QuizDisplay.jsx)
+          let points = 0;
+          if (isCorrect) {
+            const basePoints = 1000;
+            const timeBonus = Math.max(0, 500 - (answer.time * 10));
+            const rankBonus = Math.max(0, 500 - (rank * 100));
+            points = Math.round(basePoints + timeBonus + rankBonus);
+          }
+
+          // Mettre à jour avec la correction, points, et infos chanson
+          const playerAnswerRef = ref(database, `sessions/${sessionId}/quiz_answers/${currentTrack}/${answer.playerId}`);
           set(playerAnswerRef, {
             ...answer,
-            isCorrect
+            isCorrect,
+            points,
+            songTitle,
+            songArtist
           });
         });
+
+        // Note: Le classement sera automatiquement mis à jour par updateLeaderboard()
+        // qui est appelé par le useEffect écoutant quiz_answers quand isCorrect est ajouté
       }
     }, { onlyOnce: true });
   };
@@ -224,6 +326,7 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
     correctAnswerIndex,
     playerAnswers,
     leaderboard,
+    storeQuizData,
     generateQuizAnswers,
     revealQuizAnswer,
     resetQuiz

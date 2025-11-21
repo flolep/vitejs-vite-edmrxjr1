@@ -1,0 +1,375 @@
+{
+  "name": "Blindtest Game - Quiz Mode Playlist Generator v3.0.4 (Parallel)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "blindtest-quiz-mode",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-quiz-input",
+      "name": "Quiz Mode Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [0, 300],
+      "webhookId": "quiz-mode-webhook-id"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ✅ Parser le body correctement (comme dans batch)\nconst input = $json.body;\n\nconsole.log('═══════════════════════════════════════');\nconsole.log('Type du body:', typeof input);\nconsole.log('Body reçu:', input);\n\nlet data;\n\n// Cas 1 : Le body est déjà un objet\nif (typeof input === 'object' && input !== null) {\n  console.log('✅ Body déjà parsé comme objet');\n  data = input;\n}\n// Cas 2 : Le body est une string JSON\nelse if (typeof input === 'string') {\n  console.log('🔄 Body est une string, parsing nécessaire');\n  try {\n    data = JSON.parse(input);\n    console.log('✅ Parsing JSON réussi');\n  } catch (e) {\n    console.log('❌ Erreur parsing:', e.message);\n    throw new Error(`Impossible de parser le JSON: ${e.message}`);\n  }\n}\nelse {\n  throw new Error(`Type de body inattendu: ${typeof input}`);\n}\n\n// Validation\nif (!data.playlistId) {\n  throw new Error('playlistId manquant');\n}\nif (!data.age) {\n  throw new Error('age manquant');\n}\nif (!Array.isArray(data.genres) || data.genres.length === 0) {\n  throw new Error('genres manquant ou vide');\n}\n\nconsole.log('✅ Données Quiz validées:');\nconsole.log('  PlaylistId:', data.playlistId);\nconsole.log('  Age:', data.age);\nconsole.log('  Genres:', data.genres);\nconsole.log('═══════════════════════════════════════');\n\nreturn [{\n  json: {\n    playlistId: data.playlistId,\n    age: data.age,\n    genres: data.genres,\n    genre1Preferences: data.genre1Preferences || '',\n    genre2Preferences: data.genre2Preferences || '',\n    genre3Preferences: data.genre3Preferences || ''\n  }\n}];"
+      },
+      "id": "parse-json-body",
+      "name": "Parse JSON Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [224, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "prompt-1",
+              "name": "prompt",
+              "type": "string",
+              "value": "=You are a music expert. Based on the following player information, recommend exactly 10 songs that would be perfect for a blindtest QUIZ game.\n\n  Player Age: {{ $json.age }}\n  Favorite Genres: {{ $json.genres.join(\", \") }}\n  Genre 1 Preferences: {{ $json.genre1Preferences }}\n  Genre 2 Preferences: {{ $json.genre2Preferences }}\n  Genre 3 Preferences: {{ $json.genre3Preferences }}\n\n  RESPOND WITH ONLY VALID JSON in this exact format, with no markdown code blocks or explanations:\n  [\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"},\n    {\"artist\": \"Artist Name\", \"song\": \"Song Title\"}\n  ]\n\n  Make sure songs are popular, well-known, and on Spotify. These will be the CORRECT answers for the quiz. No markdown formatting."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "format-quiz-data",
+      "name": "Format Quiz Input",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [448, 300]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [672, 300],
+      "id": "ai-generate-songs",
+      "name": "AI Agent - Generate Songs",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-3.5-turbo",
+          "mode": "list",
+          "cachedResultName": "gpt-3.5-turbo"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [576, 540],
+      "id": "openai-model-songs",
+      "name": "OpenAI Chat Model (GPT-3.5)",
+      "credentials": {
+        "openAiApi": {
+          "id": "ytGgzcq7Rtx4z7WA",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the AI response to get songs list\nconst response = $input.item.json;\n\nconsole.log('🎵 Parsing AI song recommendations...');\nconsole.log('Received data type:', typeof response);\n\n// If the response is directly an array, use it\nlet songs = Array.isArray(response) ? response : response.output || response.text;\n\n// If still not an array, try parsing as string\nif (typeof songs === 'string') {\n  songs = JSON.parse(songs);\n}\n\n// Final validation\nif (!Array.isArray(songs)) {\n  throw new Error(`Expected array but got: ${typeof songs}`);\n}\n\n// ✅ Récupérer le playlistId depuis Parse JSON Body\nconst playlistId = $('Parse JSON Body').first().json.playlistId;\n\nconsole.log(`✅ Processing ${songs.length} songs for Quiz mode (Parallel workflow v3.0.4)`);\nconsole.log(`   PlaylistId: ${playlistId}`);\nconsole.log('   Songs will be sent to 2 parallel branches:');\nconsole.log('   - BRANCH A: Spotify search & playlist creation');\nconsole.log('   - BRANCH B: AI wrong answers generation');\n\n// Return each song for parallel processing in BOTH branches\n// Note: n8n Code node has only ONE output that connects to BOTH branches\nreturn songs.map((song, index) => ({\n  json: {\n    artist: song.artist,\n    song: song.song,\n    searchQuery: `${song.song} ${song.artist}`,\n    index: index,\n    playlistId: playlistId\n  }\n}));"
+      },
+      "id": "parse-songs",
+      "name": "Parse Song List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [896, 300]
+    },
+    {
+      "parameters": {
+        "resource": "track",
+        "operation": "search",
+        "query": "={{ $json.searchQuery }}",
+        "limit": 1,
+        "filters": {}
+      },
+      "id": "search-spotify",
+      "name": "🅰️ Search Song on Spotify",
+      "type": "n8n-nodes-base.spotify",
+      "typeVersion": 1,
+      "position": [1120, 100],
+      "credentials": {
+        "spotifyOAuth2Api": {
+          "id": "XFtc8avtF5O4GuHO",
+          "name": "Spotify account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🅰️ BRANCHE A : Aggregate Spotify tracks for playlist creation\n// ✅ ALIGNED WITH BATCH WORKFLOW (working version)\nconst allItems = $input.all();\nconst trackUris = [];\nconst trackData = [];\n\nconsole.log('🅰️ [BRANCH A] Aggregating Spotify tracks...');\n\nfor (const item of allItems) {\n  const track = item.json;\n  \n  // ✅ Check track.name too, like in Batch workflow\n  if (track && track.id && track.uri && track.name) {\n    trackUris.push(track.uri);  // ✅ Push full URIs, not just IDs\n    trackData.push({\n      id: track.id,\n      uri: track.uri,\n      title: track.name,\n      artist: track.artists?.[0]?.name || 'Unknown'\n    });\n    \n    console.log(`  ✓ ${track.name} by ${track.artists?.[0]?.name}`);\n  } else {\n    console.warn('  ⚠️ Invalid track data:', track);\n  }\n}\n\nif (trackUris.length === 0) {\n  throw new Error('No valid Spotify tracks found');\n}\n\n// ✅ Create comma-separated string like Batch workflow\nconst trackUrisString = trackUris.join(',');\n\n// Get playlistId from Parse JSON Body\nconst playlistId = $('Parse JSON Body').first().json.playlistId;\n\nconsole.log(`✅ [BRANCH A] Found ${trackUris.length} Spotify tracks`);\nconsole.log(`   Ready to add to playlist: ${playlistId}`);\n\nreturn [{\n  json: {\n    trackUris: trackUris,  // ✅ Array of URIs\n    trackUrisString: trackUrisString,  // ✅ CRITICAL: Comma-separated string for Spotify API\n    trackIds: trackUris.map(uri => uri.split(':')[2]),  // Extract IDs for reference\n    trackData: trackData,\n    playlistId: playlistId,\n    totalTracks: trackUris.length,\n    branchName: 'SPOTIFY'\n  }\n}];"
+      },
+      "id": "aggregate-spotify",
+      "name": "🅰️ Aggregate Spotify Tracks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1344, 100]
+    },
+    {
+      "parameters": {
+        "resource": "playlist",
+        "id": "={{ $json.playlistId }}",
+        "trackID": "={{ $json.trackUrisString }}",
+        "additionalFields": {}
+      },
+      "id": "add-to-playlist",
+      "name": "🅰️ Add Songs to Playlist",
+      "type": "n8n-nodes-base.spotify",
+      "typeVersion": 1,
+      "position": [1568, 100],
+      "credentials": {
+        "spotifyOAuth2Api": {
+          "id": "XFtc8avtF5O4GuHO",
+          "name": "Spotify account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🅰️ Propagate Spotify data from Aggregate node to Merge\n// The \"Add Songs to Playlist\" node only returns snapshot_id, not trackData\n// So we need to retrieve trackData from the Aggregate node\n\nconst aggregateData = $('🅰️ Aggregate Spotify Tracks').first().json;\nconst addResult = $input.first().json;\n\nconsole.log('🅰️ [BRANCH A] Propagating Spotify data to merge...');\nconsole.log('   Playlist add result:', addResult.snapshot_id || 'success');\nconsole.log('   Propagating trackData for', aggregateData.totalTracks, 'tracks');\n\n// Return the aggregate data (which contains trackData) for the Merge node\nreturn [{\n  json: {\n    ...aggregateData,\n    playlistAddSuccess: true,\n    playlistSnapshot: addResult.snapshot_id || null\n  }\n}];"
+      },
+      "id": "propagate-spotify-data",
+      "name": "🅰️ Propagate Spotify Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1792, 100]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "wrong-answers-prompt",
+              "name": "wrongAnswersPrompt",
+              "type": "string",
+              "value": "=For this song, generate 3 WRONG answers for a music quiz. The wrong answers must be:\n\nCorrect answer: {{ $json.artist }} - {{ $json.song }}\n\nRules:\n- 3 real, well-known songs from the SAME or SIMILAR genre\n- Same musical era (±5 years if possible)\n- Comparable popularity level\n- Format: \"Artist - Song Title\"\n- DO NOT repeat the correct answer\n- Make them credible but clearly different songs\n\nRESPOND WITH ONLY VALID JSON in this exact format:\n[\"Artist 1 - Song Title 1\", \"Artist 2 - Song Title 2\", \"Artist 3 - Song Title 3\"]\n\nNo markdown, no explanations, just the JSON array."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "format-wrong-answers-prompt",
+      "name": "🅱️ Format Wrong Answers Prompt",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [1120, 500]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.wrongAnswersPrompt }}",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [1344, 500],
+      "id": "ai-generate-wrong-answers",
+      "name": "🅱️ AI Agent - Generate Wrong Answers",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-3.5-turbo",
+          "mode": "list",
+          "cachedResultName": "gpt-3.5-turbo"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [1248, 740],
+      "id": "openai-model-wrong-answers",
+      "name": "OpenAI Chat Model (GPT-3.5) Wrong",
+      "credentials": {
+        "openAiApi": {
+          "id": "ytGgzcq7Rtx4z7WA",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🅱️ Parse wrong answers from AI\nconst wrongAnswersResponse = $input.item.json;\nconst songData = $node['Parse Song List'].item.json;\n\nconsole.log(`🅱️ [BRANCH B] Parsing wrong answers for: ${songData.song}`);\n\nlet wrongAnswers = wrongAnswersResponse;\n\n// Handle different response formats\nif (typeof wrongAnswers === 'string') {\n  wrongAnswers = JSON.parse(wrongAnswers);\n} else if (wrongAnswers.output) {\n  wrongAnswers = typeof wrongAnswers.output === 'string' \n    ? JSON.parse(wrongAnswers.output) \n    : wrongAnswers.output;\n} else if (wrongAnswers.text) {\n  wrongAnswers = typeof wrongAnswers.text === 'string' \n    ? JSON.parse(wrongAnswers.text) \n    : wrongAnswers.text;\n}\n\n// Ensure we have exactly 3 wrong answers\nif (!Array.isArray(wrongAnswers) || wrongAnswers.length < 3) {\n  console.warn('  ⚠️ Invalid wrong answers, using fallback');\n  wrongAnswers = [\n    `Unknown Artist 1 - Song ${songData.index + 1}A`,\n    `Unknown Artist 2 - Song ${songData.index + 1}B`,\n    `Unknown Artist 3 - Song ${songData.index + 1}C`\n  ];\n}\n\nwrongAnswers = wrongAnswers.slice(0, 3);\n\nconsole.log('  ✓ Wrong answers:', wrongAnswers);\n\nreturn [{\n  json: {\n    index: songData.index,\n    artist: songData.artist,\n    song: songData.song,\n    wrongAnswers: wrongAnswers\n  }\n}];"
+      },
+      "id": "parse-wrong-answers",
+      "name": "🅱️ Parse Wrong Answers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1568, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🅱️ BRANCHE B : Aggregate all wrong answers\nconst allItems = $input.all();\nconst wrongAnswersMap = {};\n\nconsole.log('🅱️ [BRANCH B] Aggregating wrong answers...');\n\nfor (const item of allItems) {\n  const data = item.json;\n  \n  wrongAnswersMap[data.index] = {\n    artist: data.artist,\n    song: data.song,\n    wrongAnswers: data.wrongAnswers\n  };\n  \n  console.log(`  ✓ [${data.index}] ${data.song} - ${data.wrongAnswers.length} wrong answers`);\n}\n\nconst totalWrongAnswers = Object.keys(wrongAnswersMap).length;\n\nif (totalWrongAnswers === 0) {\n  throw new Error('No wrong answers generated');\n}\n\nconsole.log(`✅ [BRANCH B] Collected wrong answers for ${totalWrongAnswers} songs`);\n\nreturn [{\n  json: {\n    wrongAnswersMap: wrongAnswersMap,\n    totalWrongAnswers: totalWrongAnswers,\n    branchName: 'WRONG_ANSWERS'\n  }\n}];"
+      },
+      "id": "aggregate-wrong-answers",
+      "name": "🅱️ Aggregate Wrong Answers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1792, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔀 MERGE : Combine results from both branches\nconst allInputs = $input.all();\n\nconsole.log('🔀 [MERGE] Combining results from parallel branches...');\nconsole.log(`   Received ${allInputs.length} inputs`);\n\n// Identify which input is which branch\nlet spotifyData = null;\nlet wrongAnswersData = null;\n\nfor (const input of allInputs) {\n  const data = input.json;\n  \n  if (data.branchName === 'SPOTIFY') {\n    spotifyData = data;\n    console.log('   ✓ Found BRANCH A (Spotify) data');\n  } else if (data.branchName === 'WRONG_ANSWERS') {\n    wrongAnswersData = data;\n    console.log('   ✓ Found BRANCH B (Wrong Answers) data');\n  } else if (data.trackData) {\n    // Fallback: detect by structure\n    spotifyData = data;\n    console.log('   ✓ Detected BRANCH A data by structure');\n  } else if (data.wrongAnswersMap) {\n    wrongAnswersData = data;\n    console.log('   ✓ Detected BRANCH B data by structure');\n  }\n}\n\nif (!spotifyData) {\n  throw new Error('Missing Spotify data from BRANCH A');\n}\n\nif (!wrongAnswersData) {\n  throw new Error('Missing Wrong Answers data from BRANCH B');\n}\n\n// Combine Spotify tracks with their wrong answers\nconst songsData = [];\n\nfor (let i = 0; i < spotifyData.trackData.length; i++) {\n  const track = spotifyData.trackData[i];\n  const wrongAnswersInfo = wrongAnswersData.wrongAnswersMap[i];\n  \n  if (!wrongAnswersInfo) {\n    console.warn(`  ⚠️ Missing wrong answers for track ${i}: ${track.title}`);\n    continue;\n  }\n  \n  songsData.push({\n    uri: track.uri,\n    title: track.title,\n    artist: track.artist,\n    wrongAnswers: wrongAnswersInfo.wrongAnswers\n  });\n  \n  console.log(`  ✓ [${i}] ${track.title} - ${track.artist}`);\n  console.log(`       Wrong: ${wrongAnswersInfo.wrongAnswers.join(', ')}`);\n}\n\nconsole.log(`✅ [MERGE] Successfully combined ${songsData.length} songs with wrong answers`);\n\nreturn [{\n  json: {\n    songs: songsData,\n    totalSongs: songsData.length,\n    playlistId: spotifyData.playlistId\n  }\n}];"
+      },
+      "id": "merge-results",
+      "name": "🔀 Merge Spotify + Wrong Answers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2016, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "success",
+              "name": "success",
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "id": "playlistId",
+              "name": "playlistId",
+              "type": "string",
+              "value": "={{ $json.playlistId }}"
+            },
+            {
+              "id": "totalSongs",
+              "name": "totalSongs",
+              "type": "number",
+              "value": "={{ $json.totalSongs }}"
+            },
+            {
+              "id": "songs",
+              "name": "songs",
+              "type": "array",
+              "value": "={{ $json.songs }}"
+            },
+            {
+              "id": "version",
+              "name": "version",
+              "type": "string",
+              "value": "3.0.4-parallel"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "format-response",
+      "name": "Format Success Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [2240, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "send-response",
+      "name": "Send Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2464, 300]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Quiz Mode Webhook": {
+      "main": [[{"node": "Parse JSON Body", "type": "main", "index": 0}]]
+    },
+    "Parse JSON Body": {
+      "main": [[{"node": "Format Quiz Input", "type": "main", "index": 0}]]
+    },
+    "Format Quiz Input": {
+      "main": [[{"node": "AI Agent - Generate Songs", "type": "main", "index": 0}]]
+    },
+    "AI Agent - Generate Songs": {
+      "main": [[{"node": "Parse Song List", "type": "main", "index": 0}]]
+    },
+    "OpenAI Chat Model (GPT-3.5)": {
+      "ai_languageModel": [[{"node": "AI Agent - Generate Songs", "type": "ai_languageModel", "index": 0}]]
+    },
+    "Parse Song List": {
+      "main": [
+        [
+          {"node": "🅰️ Search Song on Spotify", "type": "main", "index": 0},
+          {"node": "🅱️ Format Wrong Answers Prompt", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "🅰️ Search Song on Spotify": {
+      "main": [[{"node": "🅰️ Aggregate Spotify Tracks", "type": "main", "index": 0}]]
+    },
+    "🅰️ Aggregate Spotify Tracks": {
+      "main": [[{"node": "🅰️ Add Songs to Playlist", "type": "main", "index": 0}]]
+    },
+    "🅰️ Add Songs to Playlist": {
+      "main": [[{"node": "🅰️ Propagate Spotify Data", "type": "main", "index": 0}]]
+    },
+    "🅰️ Propagate Spotify Data": {
+      "main": [[{"node": "🔀 Merge Spotify + Wrong Answers", "type": "main", "index": 0}]]
+    },
+    "🅱️ Format Wrong Answers Prompt": {
+      "main": [[{"node": "🅱️ AI Agent - Generate Wrong Answers", "type": "main", "index": 0}]]
+    },
+    "🅱️ AI Agent - Generate Wrong Answers": {
+      "main": [[{"node": "🅱️ Parse Wrong Answers", "type": "main", "index": 0}]]
+    },
+    "OpenAI Chat Model (GPT-3.5) Wrong": {
+      "ai_languageModel": [[{"node": "🅱️ AI Agent - Generate Wrong Answers", "type": "ai_languageModel", "index": 0}]]
+    },
+    "🅱️ Parse Wrong Answers": {
+      "main": [[{"node": "🅱️ Aggregate Wrong Answers", "type": "main", "index": 0}]]
+    },
+    "🅱️ Aggregate Wrong Answers": {
+      "main": [[{"node": "🔀 Merge Spotify + Wrong Answers", "type": "main", "index": 0}]]
+    },
+    "🔀 Merge Spotify + Wrong Answers": {
+      "main": [[{"node": "Format Success Response", "type": "main", "index": 0}]]
+    },
+    "Format Success Response": {
+      "main": [[{"node": "Send Response", "type": "main", "index": 0}]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "quiz-mode-v3.0.4-parallel",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "94b9168551008d33a984c826b7246a9b011ffc20d1040c638e77929747a45f99"
+  },
+  "id": "QuizModePlaylistGeneratorParallel",
+  "tags": [
+    {
+      "createdAt": "2025-10-12T08:27:32.015Z",
+      "updatedAt": "2025-10-12T08:27:32.015Z",
+      "id": "pestZUqJUXuCf3nU",
+      "name": "BlindTest"
+    }
+  ]
+}

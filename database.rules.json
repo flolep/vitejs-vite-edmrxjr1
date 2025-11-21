@@ -55,6 +55,22 @@
         "playerSongs": {
           ".read": "root.child('sessions').child($sessionId).child('active').val() === true",
           ".write": "auth != null && root.child('sessions').child($sessionId).child('createdBy').val() === auth.uid"
+        },
+        "quiz": {
+          ".read": "root.child('sessions').child($sessionId).child('active').val() === true",
+          ".write": "auth != null && root.child('sessions').child($sessionId).child('createdBy').val() === auth.uid"
+        },
+        "quiz_answers": {
+          ".read": "root.child('sessions').child($sessionId).child('active').val() === true",
+          ".write": "root.child('sessions').child($sessionId).child('active').val() === true"
+        },
+        "quiz_leaderboard": {
+          ".read": "root.child('sessions').child($sessionId).child('active').val() === true",
+          ".write": "auth != null && root.child('sessions').child($sessionId).child('createdBy').val() === auth.uid"
+        },
+        "quiz_next_song_request": {
+          ".read": "root.child('sessions').child($sessionId).child('active').val() === true",
+          ".write": "root.child('sessions').child($sessionId).child('active').val() === true"
         }
       }
     }

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { database } from './firebase';
 import { ref, onValue, set } from 'firebase/database';
 import { QRCodeSVG } from 'qrcode.react';
+import { QuizDisplay } from './components/tv/QuizDisplay';
 
 /**
  * Calcule les points disponibles selon le nouveau système
@@ -166,6 +167,44 @@ export default function TV() {
 
   // État pour le QR Code
   const [showQRCode, setShowQRCode] = useState(false);
+
+  // 🎯 États Mode Quiz
+  const [playMode, setPlayMode] = useState('team'); // 'team' | 'quiz'
+  const [quizQuestion, setQuizQuestion] = useState(null); // { trackNumber, answers: [...], correctAnswer, revealed }
+  const [quizAnswers, setQuizAnswers] = useState([]); // Réponses des joueurs pour la chanson actuelle
+  const [quizLeaderboard, setQuizLeaderboard] = useState([]); // Classement général du quiz
+  const [allPlayers, setAllPlayers] = useState([]); // Tous les joueurs connectés (pour mode Quiz)
+
+  // 🔊 Ref pour le son de buzzer en mode Quiz
+  const buzzerSoundRef = useRef(null);
+  const previousAnswersCountRef = useRef(0);
+
+  // 🔊 Créer le son de buzzer (même son qu'en mode Équipe)
+  useEffect(() => {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+    const playBuzzerSound = () => {
+      const now = audioContext.currentTime;
+      const osc1 = audioContext.createOscillator();
+      const gain1 = audioContext.createGain();
+
+      osc1.connect(gain1);
+      gain1.connect(audioContext.destination);
+
+      osc1.frequency.setValueAtTime(800, now);
+      osc1.frequency.exponentialRampToValueAtTime(400, now + 0.1);
+      osc1.type = 'sawtooth';
+
+      gain1.gain.setValueAtTime(0, now);
+      gain1.gain.linearRampToValueAtTime(0.5, now + 0.01);
+      gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+
+      osc1.start(now);
+      osc1.stop(now + 0.3);
+    };
+
+    buzzerSoundRef.current = { play: playBuzzerSound };
+  }, []);
 
   // Vérifier le code de session depuis l'URL
   useEffect(() => {
@@ -395,6 +434,114 @@ export default function TV() {
     });
     return () => unsubscribe();
   }, [sessionValid, sessionId]);
+
+  // 🎯 Écouter le mode de jeu (team | quiz)
+  useEffect(() => {
+    if (!sessionValid || !sessionId) return;
+    const playModeRef = ref(database, `sessions/${sessionId}/playMode`);
+    const unsubscribe = onValue(playModeRef, (snapshot) => {
+      const mode = snapshot.val();
+      if (mode) {
+        setPlayMode(mode);
+        console.log('🎮 Mode de jeu TV:', mode);
+      }
+    });
+    return () => unsubscribe();
+  }, [sessionValid, sessionId]);
+
+  // 🎯 Écouter la question Quiz actuelle
+  useEffect(() => {
+    if (!sessionValid || !sessionId || playMode !== 'quiz') return;
+    const quizRef = ref(database, `sessions/${sessionId}/quiz`);
+    const unsubscribe = onValue(quizRef, (snapshot) => {
+      const quizData = snapshot.val();
+      setQuizQuestion(quizData);
+      if (quizData) {
+        console.log('🎯 Question Quiz TV:', quizData);
+      }
+    });
+    return () => unsubscribe();
+  }, [sessionValid, sessionId, playMode]);
+
+  // 🎯 Écouter les réponses des joueurs pour la chanson actuelle
+  useEffect(() => {
+    if (!sessionValid || !sessionId || playMode !== 'quiz' || playingTrackNumber === null) return;
+
+    // Réinitialiser le compteur de réponses quand on change de chanson
+    previousAnswersCountRef.current = 0;
+
+    const answersRef = ref(database, `sessions/${sessionId}/quiz_answers/${playingTrackNumber}`);
+    const unsubscribe = onValue(answersRef, (snapshot) => {
+      const answersData = snapshot.val();
+      if (answersData) {
+        const answersList = Object.entries(answersData).map(([playerId, answer]) => ({
+          playerId,
+          playerName: answer.playerName,
+          answer: answer.answer,
+          time: answer.time,
+          timestamp: answer.timestamp,
+          isCorrect: answer.isCorrect
+        }));
+        // Trier par temps de réponse
+        answersList.sort((a, b) => a.time - b.time);
+
+        // 🔊 Jouer le son de buzzer si une nouvelle réponse est arrivée
+        const newAnswersCount = answersList.length;
+        if (newAnswersCount > previousAnswersCountRef.current && previousAnswersCountRef.current > 0) {
+          // Une nouvelle réponse est arrivée
+          if (buzzerSoundRef.current) {
+            buzzerSoundRef.current.play();
+            console.log('🔊 [QUIZ] Buzzer joué pour nouvelle réponse');
+          }
+        }
+        previousAnswersCountRef.current = newAnswersCount;
+
+        setQuizAnswers(answersList);
+      } else {
+        setQuizAnswers([]);
+        previousAnswersCountRef.current = 0;
+      }
+    });
+    return () => unsubscribe();
+  }, [sessionValid, sessionId, playMode, playingTrackNumber]);
+
+  // 🎯 Écouter le leaderboard général du quiz
+  useEffect(() => {
+    if (!sessionValid || !sessionId || playMode !== 'quiz') return;
+    const leaderboardRef = ref(database, `sessions/${sessionId}/quiz_leaderboard`);
+    const unsubscribe = onValue(leaderboardRef, (snapshot) => {
+      const leaderboardData = snapshot.val();
+      if (leaderboardData) {
+        const leaderboardArray = Object.values(leaderboardData)
+          .sort((a, b) => b.totalPoints - a.totalPoints);
+        setQuizLeaderboard(leaderboardArray);
+      } else {
+        setQuizLeaderboard([]);
+      }
+    });
+    return () => unsubscribe();
+  }, [sessionValid, sessionId, playMode]);
+
+  // 🎯 Écouter tous les joueurs connectés (pour mode Quiz)
+  useEffect(() => {
+    if (!sessionValid || !sessionId || playMode !== 'quiz') return;
+    const playersRef = ref(database, `sessions/${sessionId}/players_session/team1`);
+    const unsubscribe = onValue(playersRef, (snapshot) => {
+      const playersData = snapshot.val();
+      if (playersData) {
+        const playersList = Object.entries(playersData).map(([key, player]) => ({
+          id: player.id || key,
+          name: player.name,
+          photo: player.photo,
+          firebaseKey: key
+        }));
+        setAllPlayers(playersList);
+      } else {
+        setAllPlayers([]);
+      }
+    });
+    return () => unsubscribe();
+  }, [sessionValid, sessionId, playMode]);
 
   // Calculer les points disponibles avec le nouveau système
   const availablePoints = calculatePoints(chrono, songDuration);
@@ -672,6 +819,23 @@ return (
   );
 }
 
+// 🎯 MODE QUIZ : Afficher l'interface Quiz
+if (playMode === 'quiz') {
+  return (
+    <QuizDisplay
+      quizQuestion={quizQuestion}
+      quizAnswers={quizAnswers}
+      quizLeaderboard={quizLeaderboard}
+      allPlayers={allPlayers}
+      isPlaying={isPlaying}
+      gameStatus={gameEnded ? 'stopped' : 'playing'}
+      chrono={chrono}
+      songDuration={songDuration}
+    />
+  );
+}
+
+// 👥 MODE TEAM : Afficher l'interface classique
 return (
   <div style={{
     background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
@@ -680,7 +844,7 @@ return (
     padding: '2rem',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
   }}>
-    
+
     {/* ===== TITRE CENTRÉ EN HAUT ===== */}
     <h1 style={{
       fontSize: '4rem',

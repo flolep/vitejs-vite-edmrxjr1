@@ -2,6 +2,17 @@
 // On passe par une Netlify Function pour éviter les problèmes CORS
 const N8N_PROXY_URL = '/.netlify/functions/n8n-proxy';
 
+// Import stubs pour le mode Test
+import { generateStubBatch, generateStubPlaylist } from './utils/quizStubs';
+
+/**
+ * Vérifie si le mode Test est activé
+ * @returns {boolean}
+ */
+function isTestModeEnabled() {
+  return localStorage.getItem('quizTestMode') === 'true';
+}
+
 export const n8nService = {
   /**
    * Crée une playlist vide sur Spotify via n8n (VERSION SIMPLE - Animateur unique)
@@ -213,36 +224,29 @@ export const n8nService = {
   },
 
   /**
-   * Génère une playlist Quiz avec questions à choix multiples
-   * Chaque chanson est accompagnée de 3 mauvaises réponses (faux titre ou artiste)
-   * @param {object} params - Les paramètres
-   * @param {string} params.playlistId - ID de la playlist à remplir
-   * @param {number} params.age - Âge du joueur
-   * @param {array} params.genres - Liste de 3 genres musicaux favoris
-   * @param {string} params.genre1Preferences - Préférences détaillées (optionnel)
-   * @param {string} params.genre2Preferences - Préférences détaillées (optionnel)
-   * @param {string} params.genre3Preferences - Préférences détaillées (optionnel)
-   * @returns {Promise<{success: boolean, playlistId: string, totalSongs: number, songs: array}>}
+   * Génère les mauvaises réponses pour une liste de chansons (Mode Quiz)
+   * @param {array} songs - Liste des chansons {artist, title, uri}
+   * @returns {Promise<{success: boolean, totalSongs: number, wrongAnswers: object}>}
    */
-  async fillPlaylistQuizMode({
-    playlistId,
-    age,
-    genres,
-    genre1Preferences = '',
-    genre2Preferences = '',
-    genre3Preferences = ''
-  }) {
+  async generateWrongAnswers(songs) {
+    // 🎭 Mode Test : Utiliser des stubs au lieu d'appeler n8n/OpenAI
+    if (isTestModeEnabled()) {
+      console.log('🎭 [TEST MODE ACTIVÉ] Utilisation des stubs au lieu de n8n');
+      return await generateStubBatch(songs);
+    }
+
+    // Mode Production : Appel réel à n8n
     try {
       const payload = {
-        playlistId: playlistId,
-        age: age,
-        genres: genres,
-        genre1Preferences: genre1Preferences,
-        genre2Preferences: genre2Preferences,
-        genre3Preferences: genre3Preferences
+        songs: songs
       };
 
-      console.log('🎯 Génération playlist Quiz via n8n:', payload);
+      console.log(`🎲 Génération des mauvaises réponses pour ${songs.length} chansons via n8n`);
+      console.log(`⏱️ Cette opération peut prendre jusqu'à 2 minutes...`);
+
+      // Créer un AbortController pour timeout de 120 secondes
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutes
 
       const response = await fetch(N8N_PROXY_URL, {
         method: 'POST',
@@ -250,10 +254,13 @@ export const n8nService = {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          endpoint: 'blindtest-quiz-mode',
+          endpoint: 'blindtest-wrong-answers',
           payload: payload
-        })
+        }),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -261,26 +268,85 @@ export const n8nService = {
       }
 
       const data = await response.json();
-      console.log('✅ Playlist Quiz générée:', data);
-
-      // Format attendu de la réponse:
-      // {
-      //   success: true,
-      //   playlistId: "xxx",
-      //   totalSongs: 10,
-      //   songs: [
-      //     {
-      //       uri: "spotify:track:xxx",
-      //       title: "Song Title",
-      //       artist: "Artist Name",
-      //       correctAnswer: "Song Title - Artist Name",
-      //       wrongAnswers: ["Wrong 1", "Wrong 2", "Wrong 3"],
-      //       allAnswers: ["Correct", "Wrong 1", "Wrong 2", "Wrong 3"] // Mélangées
-      //     }
-      //   ]
-      // }
+      console.log(`✅ Mauvaises réponses générées pour ${data.totalSongs} chansons`);
 
       return data;
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        console.error('❌ Timeout après 2 minutes');
+        throw new Error('La génération a pris trop de temps. Le workflow continue en arrière-plan sur n8n.');
+      }
+      console.error('❌ Erreur génération mauvaises réponses:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * 🆕 Génère une playlist Quiz avec questions à choix multiples (2 workflows séparés)
+   * Architecture améliorée : Workflow 1 (Batch) + Workflow 2 (Wrong Answers)
+   *
+   * @param {object} params - Les paramètres
+   * @param {string} params.playlistId - ID de la playlist à remplir
+   * @param {array} params.players - Tableau des joueurs avec leurs préférences
+   * @returns {Promise<{success: boolean, playlistId: string, totalSongs: number, songs: array}>}
+   */
+  async fillPlaylistQuizMode({ playlistId, players }) {
+    try {
+      console.log('🎯 Génération playlist Quiz (Architecture 2 workflows)');
+      console.log(`   📊 ${players.length} joueur(s)`);
+
+      // ===== WORKFLOW 1 : Génération de la playlist (réutilise Batch) =====
+      console.log('🎵 [1/2] Génération de la playlist Spotify...');
+
+      const playlistResponse = await this.generatePlaylistWithAllPreferences({
+        playlistId,
+        players
+      });
+
+      console.log(`✅ [1/2] Playlist générée : ${playlistResponse.totalSongs} chansons`);
+
+      // ===== WORKFLOW 2 : Génération des mauvaises réponses =====
+      console.log('🎲 [2/2] Génération des mauvaises réponses...');
+
+      // Formater les chansons pour le workflow Wrong Answers
+      const songsForWrongAnswers = playlistResponse.songs.map((song, index) => ({
+        artist: song.artist,
+        title: song.title,
+        uri: song.uri
+      }));
+
+      const wrongAnswersResponse = await this.generateWrongAnswers(songsForWrongAnswers);
+
+      console.log(`✅ [2/2] Mauvaises réponses générées pour ${wrongAnswersResponse.totalSongs} chansons`);
+
+      // ===== FUSION DES RÉSULTATS =====
+      const songsWithWrongAnswers = playlistResponse.songs.map((song, index) => {
+        const wrongAnswersData = wrongAnswersResponse.wrongAnswers[index];
+
+        return {
+          uri: song.uri,
+          title: song.title,
+          artist: song.artist,
+          wrongAnswers: wrongAnswersData ? wrongAnswersData.wrongAnswers : [
+            `Fallback 1 - Song ${index + 1}A`,
+            `Fallback 2 - Song ${index + 1}B`,
+            `Fallback 3 - Song ${index + 1}C`
+          ]
+        };
+      });
+
+      const result = {
+        success: true,
+        playlistId: playlistResponse.playlistId,
+        totalSongs: playlistResponse.totalSongs,
+        songs: songsWithWrongAnswers
+      };
+
+      console.log('✅ Playlist Quiz complète générée avec succès');
+      console.log(`   🎵 ${result.totalSongs} chansons`);
+      console.log(`   🎲 ${result.totalSongs * 3} mauvaises réponses`);
+
+      return result;
     } catch (error) {
       console.error('❌ Erreur génération playlist Quiz:', error);
       throw error;
@@ -329,6 +395,13 @@ export const n8nService = {
         }
       });
 
+      // 🎭 Mode Test : Utiliser des stubs au lieu d'appeler n8n/OpenAI
+      if (isTestModeEnabled()) {
+        console.log('🎭 [TEST MODE ACTIVÉ] Génération playlist avec stubs au lieu de n8n/OpenAI');
+        return await generateStubPlaylist({ playlistId, players });
+      }
+
+      // Mode Production : Appel réel à n8n
       const payload = {
         playlistId: playlistId,
         players: players
