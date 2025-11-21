@@ -178,12 +178,20 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
       // Compter toutes les réponses
       playerUpdates[answer.playerId].totalAnswers += 1;
 
-      // Calculer les points uniquement pour les bonnes réponses
+      // Calculer les points uniquement pour les bonnes réponses (aligné sur l'affichage TV)
       if (answer.isCorrect) {
-        const basePoints = 1000;
-        const timeBonus = Math.max(0, 500 - (answer.time * 10)); // Décroit avec le temps
-        const rankBonus = Math.max(0, 500 - (index * 100)); // Décroit selon le rang
-        const points = Math.round(basePoints + timeBonus + rankBonus);
+        const responseTime = answer.time;
+        let points = 0;
+        if (responseTime <= 5) {
+          points = 2500;
+        } else if (responseTime < 15) {
+          const timeInPhase = responseTime - 5;
+          const phaseDuration = 10;
+          points = Math.round(2000 - (timeInPhase / phaseDuration) * 1000);
+        } else {
+          const timeAfter15 = responseTime - 15;
+          points = Math.max(0, Math.round(500 - (timeAfter15 * 20)));
+        }
 
         playerUpdates[answer.playerId].totalPoints += points;
         playerUpdates[answer.playerId].correctAnswers += 1;
@@ -279,13 +287,21 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
         answersArray.forEach((answer, rank) => {
           const isCorrect = answer.answer === correctAnswer;
 
-          // Calculer les points (même formule que calculateQuizPoints dans QuizDisplay.jsx)
+          // Calculer les points selon le temps de réponse (aligné sur l'affichage TV)
           let points = 0;
           if (isCorrect) {
-            const basePoints = 1000;
-            const timeBonus = Math.max(0, 500 - (answer.time * 10));
-            const rankBonus = Math.max(0, 500 - (rank * 100));
-            points = Math.round(basePoints + timeBonus + rankBonus);
+            const responseTime = answer.time;
+            if (responseTime <= 5) {
+              points = 2500;
+            } else if (responseTime < 15) {
+              const timeInPhase = responseTime - 5;
+              const phaseDuration = 10;
+              points = Math.round(2000 - (timeInPhase / phaseDuration) * 1000);
+            } else {
+              // Après 15s, points résiduels
+              const timeAfter15 = responseTime - 15;
+              points = Math.max(0, Math.round(500 - (timeAfter15 * 20)));
+            }
           }
 
           // Mettre à jour avec la correction, points, et infos chanson

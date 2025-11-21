@@ -363,7 +363,7 @@ export function QuizDisplay({
                         </div>
                         {isCorrect && (
                           <div style={{ fontSize: '1.25rem', color: '#10b981', fontWeight: 'bold' }}>
-                            +{calculateQuizPoints(playerAnswer.time, index)} pts
+                            +{calculateQuizPoints(playerAnswer.time)} pts
                           </div>
                         )}
                       </>
@@ -485,10 +485,19 @@ export function QuizDisplay({
   );
 }
 
-// Fonction utilitaire pour calculer les points (dupliquée depuis useQuizMode)
-function calculateQuizPoints(responseTime, rank) {
-  const basePoints = 1000;
-  const timeBonus = Math.max(0, 500 - (responseTime * 10));
-  const rankBonus = Math.max(0, 500 - (rank * 100));
-  return Math.round(basePoints + timeBonus + rankBonus);
+// Fonction utilitaire pour calculer les points selon le temps de réponse
+// Alignée sur calculatePoints pour cohérence avec l'affichage
+function calculateQuizPoints(responseTime) {
+  if (responseTime <= 5) {
+    return 2500;
+  } else if (responseTime < 15) {
+    const timeInPhase = responseTime - 5;
+    const phaseDuration = 10;
+    return Math.round(2000 - (timeInPhase / phaseDuration) * 1000);
+  } else {
+    // Après 15s, points résiduels (simplifié à 500 - décroissance)
+    const timeAfter15 = responseTime - 15;
+    const points = Math.max(0, 500 - (timeAfter15 * 20));
+    return Math.round(points);
+  }
 }
