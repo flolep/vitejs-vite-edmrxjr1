@@ -106,7 +106,7 @@ export function QuizInterface({
             {canTriggerNextSong && (
               <div style={{
                 position: 'absolute',
-                bottom: '-25px',
+                top: '-30px',
                 left: '50%',
                 transform: 'translateX(-50%)',
                 backgroundColor: '#ef4444',
@@ -118,7 +118,7 @@ export function QuizInterface({
                 whiteSpace: 'nowrap',
                 boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
               }}>
-                👆 Cliquez pour continuer
+                👇 Cliquez pour continuer
               </div>
             )}
           </div>
