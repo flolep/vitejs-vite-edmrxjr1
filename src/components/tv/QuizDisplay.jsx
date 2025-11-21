@@ -341,21 +341,19 @@ export function QuizDisplay({
                     <div style={{ fontSize: '1.5rem', marginRight: '1rem', minWidth: '40px' }}>
                       {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`}
                     </div>
-                    <div style={{ flex: 1, fontSize: '1.25rem', fontWeight: 'bold' }}>
-                      {playerAnswer.playerName}
-                    </div>
 
-                    {/* Avant révélation : "A répondu en X.X s" */}
-                    {!revealed && (
-                      <div style={{ fontSize: '1.25rem', opacity: 0.8, fontStyle: 'italic' }}>
-                        ✓ A répondu en {playerAnswer.time.toFixed(1)} s
-                      </div>
-                    )}
+                    {/* Prénom + temps de réponse (toujours affiché comme une phrase) */}
+                    <div style={{ flex: 1, fontSize: '1.25rem' }}>
+                      <span style={{ fontWeight: 'bold' }}>{playerAnswer.playerName}</span>
+                      <span style={{ opacity: 0.8, fontStyle: 'italic' }}>
+                        {' '}a répondu en {playerAnswer.time.toFixed(1)} s
+                      </span>
+                    </div>
 
                     {/* Après révélation : réponse + correct/incorrect + points */}
                     {revealed && (
                       <>
-                        <div style={{ fontSize: '1.25rem', marginRight: '1.5rem' }}>
+                        <div style={{ fontSize: '1.25rem', marginRight: '1rem' }}>
                           → <span style={{ fontWeight: 'bold', color: '#fbbf24' }}>
                             {playerAnswer.answer}
                           </span>
