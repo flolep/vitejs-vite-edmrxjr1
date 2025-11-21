@@ -245,8 +245,10 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
         }));
         answersArray.sort((a, b) => a.time - b.time);
 
-        // Déterminer le joueur le plus rapide (celui qui déclenche la chanson suivante)
-        const fastestPlayerId = answersArray.length > 0 ? answersArray[0].playerId : null;
+        // Déterminer le joueur le plus rapide AVEC LA BONNE RÉPONSE (celui qui déclenche la chanson suivante)
+        const correctAnswer = String.fromCharCode(65 + correctAnswerIndex);
+        const winnersOnly = answersArray.filter(answer => answer.answer === correctAnswer);
+        const fastestWinnerId = winnersOnly.length > 0 ? winnersOnly[0].playerId : null;
 
         // Marquer comme révélé et désigner qui peut passer à la chanson suivante
         onValue(quizRef, (quizSnapshot) => {
@@ -255,14 +257,14 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
             set(quizRef, {
               ...quizData,
               revealed: true,
-              nextSongTriggerPlayerId: fastestPlayerId
+              nextSongTriggerPlayerId: fastestWinnerId
             });
           }
         }, { onlyOnce: true });
 
         // Mettre à jour chaque réponse avec correction, points, et infos chanson
         answersArray.forEach((answer, rank) => {
-          const isCorrect = answer.answer === String.fromCharCode(65 + correctAnswerIndex);
+          const isCorrect = answer.answer === correctAnswer;
 
           // Calculer les points (même formule que calculateQuizPoints dans QuizDisplay.jsx)
           let points = 0;
