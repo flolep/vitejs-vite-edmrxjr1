@@ -111,8 +111,8 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
   const [hasAnswered, setHasAnswered] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [personalStats, setPersonalStats] = useState({
-    totalBuzzes: 0,
-    winningBuzzes: 0,
+    totalAnswers: 0,
+    correctAnswers: 0,
     totalPoints: 0,
     recognizedSongs: []
   });
@@ -517,22 +517,20 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
             }
 
             setPersonalStats({
-              totalBuzzes: playerData.totalAnswers || 0,
-              winningBuzzes: playerData.correctAnswers || 0,
+              totalAnswers: playerData.totalAnswers || 0,
+              correctAnswers: playerData.correctAnswers || 0,
               totalPoints: playerData.totalPoints || 0,
-              recognizedSongs: recognizedSongs,
-              percentageContribution: '0'
+              recognizedSongs: recognizedSongs
             });
 
             setShowStats(true);
           }, { onlyOnce: true });
         } else {
           setPersonalStats({
-            totalBuzzes: 0,
-            winningBuzzes: 0,
+            totalAnswers: 0,
+            correctAnswers: 0,
             totalPoints: 0,
-            recognizedSongs: [],
-            percentageContribution: '0'
+            recognizedSongs: []
           });
           setShowStats(true);
         }
