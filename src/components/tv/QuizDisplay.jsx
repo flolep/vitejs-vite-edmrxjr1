@@ -10,7 +10,8 @@ export function QuizDisplay({
   isPlaying,
   gameStatus,
   chrono = 0,
-  songDuration = 30
+  songDuration = 30,
+  currentSong = null
 }) {
   // Extraire les données du quiz si disponibles
   const { answers, revealed, trackNumber } = quizQuestion || {};
@@ -277,6 +278,45 @@ export function QuizDisplay({
             );
           })}
         </div>
+
+        {/* Affichage de la pochette et infos chanson après révélation */}
+        {revealed && currentSong?.revealed && (
+          <div style={{
+            backgroundColor: 'rgba(0, 0, 0, 0.3)',
+            borderRadius: '1.5rem',
+            padding: '1.5rem',
+            maxWidth: '1000px',
+            margin: '0 auto 2rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '2rem'
+          }}>
+            {/* Pochette */}
+            {currentSong.imageUrl && (
+              <img
+                src={currentSong.imageUrl}
+                alt={currentSong.title}
+                style={{
+                  width: '100px',
+                  height: '100px',
+                  borderRadius: '1rem',
+                  objectFit: 'cover',
+                  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)'
+                }}
+              />
+            )}
+            {/* Titre et artiste */}
+            <div style={{ textAlign: 'left' }}>
+              <div style={{ fontSize: '1.75rem', fontWeight: 'bold', marginBottom: '0.25rem', color: '#fbbf24' }}>
+                {currentSong.title}
+              </div>
+              <div style={{ fontSize: '1.25rem', opacity: 0.8 }}>
+                {currentSong.artist}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Classement de la chanson actuelle */}
         {quizAnswers.length > 0 && (
