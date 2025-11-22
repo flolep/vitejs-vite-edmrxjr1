@@ -699,6 +699,11 @@ export default function Master({
         await playerAdapter.play(playlist[currentTrack - 1], currentTrack);
         updateIsPlaying(true);
 
+        // Écrire la durée de la chanson dans Firebase (important pour le calcul des points)
+        const duration = playlist[currentTrack - 1]?.duration || 30;
+        const durationRef = ref(database, `sessions/${sessionId}/songDuration`);
+        set(durationRef, duration);
+
         // En mode Quiz, générer les réponses
         if (playMode === 'quiz') {
           quizMode.generateQuizAnswers(currentTrack);
