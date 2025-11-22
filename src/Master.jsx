@@ -58,7 +58,12 @@ export default function Master({
   const [showEndGameConfirm, setShowEndGameConfirm] = useState(false);
   const [showCooldownSettings, setShowCooldownSettings] = useState(false);
   const [showFirebaseCleanup, setShowFirebaseCleanup] = useState(false);
+  const [showNewGameModal, setShowNewGameModal] = useState(false);
   const [debugInfo, setDebugInfo] = useState('');
+
+  // États pour la configuration de nouvelle partie
+  const [selectedPlayMode, setSelectedPlayMode] = useState('team'); // 'team' | 'quiz'
+  const [selectedMusicSource, setSelectedMusicSource] = useState('mp3'); // 'mp3' | 'spotify-auto' | 'spotify-ai'
 
   // États de cooldown
   const [cooldownThreshold, setCooldownThreshold] = useState(2);
@@ -1019,6 +1024,65 @@ export default function Master({
     }, { onlyOnce: true });
   };
 
+  /**
+   * Créer une nouvelle partie avec les paramètres sélectionnés
+   */
+  const handleCreateNewGame = async () => {
+    // Générer un code de session à 4 chiffres
+    const newSessionId = Math.floor(1000 + Math.random() * 9000).toString();
+
+    console.log('🎮 Création nouvelle partie:', {
+      sessionId: newSessionId,
+      playMode: selectedPlayMode,
+      musicSource: selectedMusicSource
+    });
+
+    // Désactiver l'ancienne session si elle existe
+    if (sessionId) {
+      await deactivatePreviousSession(sessionId);
+    }
+
+    // Créer la session dans Firebase
+    const sessionRef = ref(database, `sessions/${newSessionId}`);
+    await set(sessionRef, {
+      active: true,
+      playMode: selectedPlayMode,
+      musicSource: selectedMusicSource,
+      createdAt: Date.now(),
+      createdBy: user?.uid,
+      scores: { team1: 0, team2: 0 },
+      currentTrackNumber: 1,
+      isPlaying: false,
+      showQRCode: false
+    });
+
+    // Mettre à jour les états locaux
+    setSessionId(newSessionId);
+    setPlayMode(selectedPlayMode);
+    setMusicSource(selectedMusicSource);
+    setPlaylist([]);
+    updateScores({ team1: 0, team2: 0 });
+    updateCurrentTrack(1);
+    updateIsPlaying(false);
+
+    // Fermer la modale
+    setShowNewGameModal(false);
+    setDebugInfo(`✅ Nouvelle partie créée ! Code: ${newSessionId}`);
+  };
+
+  /**
+   * Ouvre la modale appropriée (session existante ou nouvelle partie)
+   */
+  const handlePartieClick = () => {
+    if (sessionId) {
+      // Session existante → afficher modale QR Code
+      setShowSessionModal(true);
+    } else {
+      // Pas de session → afficher modale nouvelle partie
+      setShowNewGameModal(true);
+    }
+  };
+
   // === RENDU ===
 
   if (!user) {
@@ -1060,6 +1124,36 @@ export default function Master({
         </h1>
 
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          {/* Bouton Partie */}
+          <button
+            onClick={handlePartieClick}
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: sessionId ? 'rgba(16, 185, 129, 0.3)' : 'rgba(251, 191, 36, 0.3)',
+              border: sessionId ? '1px solid #10b981' : '1px solid #fbbf24',
+              fontSize: '0.9rem',
+              borderRadius: '0.5rem',
+              color: 'white',
+              cursor: 'pointer',
+              fontWeight: '600',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}
+          >
+            {sessionId ? (
+              <>
+                <span style={{ color: '#10b981' }}>●</span>
+                Partie {sessionId}
+              </>
+            ) : (
+              <>
+                <span>+</span>
+                Nouvelle partie
+              </>
+            )}
+          </button>
+
           {/* Statut Spotify */}
           {spotifyToken && (
             <div style={{
@@ -1108,24 +1202,6 @@ export default function Master({
           )}
 
           {/* Boutons d'actions */}
-          {sessionId && (
-            <button
-              onClick={() => setShowSessionModal(true)}
-              className="btn"
-              style={{
-                padding: '0.5rem 1rem',
-                backgroundColor: 'rgba(124, 58, 237, 0.3)',
-                border: '1px solid #7c3aed',
-                fontSize: '0.85rem',
-                borderRadius: '0.5rem',
-                color: 'white',
-                cursor: 'pointer'
-              }}
-            >
-              📱 Session
-            </button>
-          )}
-
           <button onClick={loadBuzzStats} style={{
             padding: '0.5rem 1rem',
             backgroundColor: 'rgba(124, 58, 237, 0.3)',
@@ -1865,6 +1941,215 @@ export default function Master({
           sessionId={sessionId}
           onClose={() => setShowFirebaseCleanup(false)}
         />
+      )}
+
+      {/* Modal Nouvelle Partie */}
+      {showNewGameModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '2rem'
+          }}
+          onClick={() => setShowNewGameModal(false)}
+        >
+          <div
+            style={{
+              backgroundColor: '#1f2937',
+              borderRadius: '1rem',
+              padding: '2rem',
+              maxWidth: '500px',
+              width: '100%'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ fontSize: '1.5rem', marginBottom: '1.5rem', textAlign: 'center' }}>
+              🎮 Nouvelle Partie
+            </h2>
+
+            {/* Section 1: Mode de jeu */}
+            <div style={{ marginBottom: '1.5rem' }}>
+              <div style={{
+                fontSize: '0.9rem',
+                fontWeight: '600',
+                marginBottom: '0.75rem',
+                opacity: 0.9
+              }}>
+                Mode de jeu
+              </div>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button
+                  onClick={() => setSelectedPlayMode('team')}
+                  style={{
+                    flex: 1,
+                    padding: '1rem',
+                    backgroundColor: selectedPlayMode === 'team' ? 'rgba(59, 130, 246, 0.4)' : 'rgba(0, 0, 0, 0.3)',
+                    border: selectedPlayMode === 'team' ? '2px solid #3b82f6' : '1px solid rgba(255, 255, 255, 0.2)',
+                    borderRadius: '0.75rem',
+                    color: 'white',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>👥</div>
+                  <div style={{ fontWeight: '600' }}>Équipe</div>
+                  <div style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '0.25rem' }}>
+                    2 équipes s'affrontent
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedPlayMode('quiz');
+                    // Forcer IA en mode Quiz si pas déjà Spotify
+                    if (selectedMusicSource === 'mp3') {
+                      setSelectedMusicSource('spotify-ai');
+                    }
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '1rem',
+                    backgroundColor: selectedPlayMode === 'quiz' ? 'rgba(251, 191, 36, 0.4)' : 'rgba(0, 0, 0, 0.3)',
+                    border: selectedPlayMode === 'quiz' ? '2px solid #fbbf24' : '1px solid rgba(255, 255, 255, 0.2)',
+                    borderRadius: '0.75rem',
+                    color: 'white',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>🎯</div>
+                  <div style={{ fontWeight: '600' }}>Quiz</div>
+                  <div style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '0.25rem' }}>
+                    Classement individuel
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Section 2: Type de playlist */}
+            <div style={{ marginBottom: '2rem' }}>
+              <div style={{
+                fontSize: '0.9rem',
+                fontWeight: '600',
+                marginBottom: '0.75rem',
+                opacity: 0.9
+              }}>
+                Source musicale
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  onClick={() => setSelectedMusicSource('mp3')}
+                  disabled={selectedPlayMode === 'quiz'}
+                  style={{
+                    flex: 1,
+                    padding: '0.75rem',
+                    backgroundColor: selectedMusicSource === 'mp3' ? 'rgba(124, 58, 237, 0.4)' : 'rgba(0, 0, 0, 0.3)',
+                    border: selectedMusicSource === 'mp3' ? '2px solid #7c3aed' : '1px solid rgba(255, 255, 255, 0.2)',
+                    borderRadius: '0.5rem',
+                    color: 'white',
+                    cursor: selectedPlayMode === 'quiz' ? 'not-allowed' : 'pointer',
+                    opacity: selectedPlayMode === 'quiz' ? 0.4 : 1,
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ fontSize: '1.25rem' }}>📁</div>
+                  <div style={{ fontSize: '0.8rem', fontWeight: '500', marginTop: '0.25rem' }}>MP3</div>
+                </button>
+                <button
+                  onClick={() => setSelectedMusicSource('spotify-auto')}
+                  disabled={selectedPlayMode === 'quiz'}
+                  style={{
+                    flex: 1,
+                    padding: '0.75rem',
+                    backgroundColor: selectedMusicSource === 'spotify-auto' ? 'rgba(16, 185, 129, 0.4)' : 'rgba(0, 0, 0, 0.3)',
+                    border: selectedMusicSource === 'spotify-auto' ? '2px solid #10b981' : '1px solid rgba(255, 255, 255, 0.2)',
+                    borderRadius: '0.5rem',
+                    color: 'white',
+                    cursor: selectedPlayMode === 'quiz' ? 'not-allowed' : 'pointer',
+                    opacity: selectedPlayMode === 'quiz' ? 0.4 : 1,
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ fontSize: '1.25rem' }}>🎵</div>
+                  <div style={{ fontSize: '0.8rem', fontWeight: '500', marginTop: '0.25rem' }}>Spotify</div>
+                </button>
+                <button
+                  onClick={() => setSelectedMusicSource('spotify-ai')}
+                  style={{
+                    flex: 1,
+                    padding: '0.75rem',
+                    backgroundColor: selectedMusicSource === 'spotify-ai' ? 'rgba(236, 72, 153, 0.4)' : 'rgba(0, 0, 0, 0.3)',
+                    border: selectedMusicSource === 'spotify-ai' ? '2px solid #ec4899' : '1px solid rgba(255, 255, 255, 0.2)',
+                    borderRadius: '0.5rem',
+                    color: 'white',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ fontSize: '1.25rem' }}>🤖</div>
+                  <div style={{ fontSize: '0.8rem', fontWeight: '500', marginTop: '0.25rem' }}>IA</div>
+                  {selectedPlayMode === 'quiz' && (
+                    <div style={{ fontSize: '0.65rem', color: '#fbbf24', marginTop: '0.25rem' }}>
+                      Requis
+                    </div>
+                  )}
+                </button>
+              </div>
+              {selectedPlayMode === 'quiz' && (
+                <div style={{
+                  fontSize: '0.75rem',
+                  opacity: 0.6,
+                  marginTop: '0.5rem',
+                  textAlign: 'center'
+                }}>
+                  Le mode Quiz nécessite la génération IA pour les questions
+                </div>
+              )}
+            </div>
+
+            {/* Boutons d'action */}
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <button
+                onClick={() => setShowNewGameModal(false)}
+                style={{
+                  flex: 1,
+                  padding: '0.875rem',
+                  backgroundColor: 'rgba(156, 163, 175, 0.3)',
+                  border: '1px solid #9ca3af',
+                  borderRadius: '0.5rem',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem'
+                }}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleCreateNewGame}
+                style={{
+                  flex: 1,
+                  padding: '0.875rem',
+                  backgroundColor: 'rgba(16, 185, 129, 0.4)',
+                  border: '1px solid #10b981',
+                  borderRadius: '0.5rem',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                  fontWeight: '600'
+                }}
+              >
+                Démarrer
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Audio caché pour MP3 */}
