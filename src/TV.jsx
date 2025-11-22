@@ -800,16 +800,77 @@ return (
 // 🎯 MODE QUIZ : Afficher l'interface Quiz
 if (playMode === 'quiz') {
   return (
-    <QuizDisplay
-      quizQuestion={quizQuestion}
-      quizAnswers={quizAnswers}
-      quizLeaderboard={quizLeaderboard}
-      allPlayers={allPlayers}
-      isPlaying={isPlaying}
-      gameStatus={gameEnded ? 'stopped' : 'playing'}
-      chrono={chrono}
-      songDuration={songDuration}
-    />
+    <>
+      <QuizDisplay
+        quizQuestion={quizQuestion}
+        quizAnswers={quizAnswers}
+        quizLeaderboard={quizLeaderboard}
+        allPlayers={allPlayers}
+        isPlaying={isPlaying}
+        gameStatus={gameEnded ? 'stopped' : 'playing'}
+        chrono={chrono}
+        songDuration={songDuration}
+      />
+
+      {/* Modale QR Code (même en mode Quiz) */}
+      {showQRCode && sessionId && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          backgroundColor: 'rgba(0, 0, 0, 0.95)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000,
+          flexDirection: 'column'
+        }}>
+          <h1 style={{
+            color: 'white',
+            fontSize: '3rem',
+            marginBottom: '2rem',
+            textAlign: 'center'
+          }}>
+            Rejoignez la partie !
+          </h1>
+
+          <div style={{
+            backgroundColor: 'white',
+            padding: '2rem',
+            borderRadius: '1rem',
+            marginBottom: '2rem',
+            display: 'inline-block'
+          }}>
+            <QRCodeSVG
+              value={`${window.location.origin}/buzzer?session=${sessionId}`}
+              size={300}
+              level="H"
+              includeMargin={true}
+            />
+          </div>
+
+          <div style={{
+            fontSize: '1.5rem',
+            color: '#666',
+            textAlign: 'center'
+          }}>
+            <div style={{ color: 'white', marginBottom: '0.5rem' }}>
+              ou entrez le code :
+            </div>
+            <div style={{
+              color: '#fbbf24',
+              fontSize: '3rem',
+              fontWeight: 'bold',
+              letterSpacing: '0.5rem'
+            }}>
+              {sessionId}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
