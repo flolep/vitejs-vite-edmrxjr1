@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ref, set, onValue, remove } from 'firebase/database';
 import { database } from '../firebase';
+import { calculatePoints } from '../hooks/useScoring';
 
 /**
  * Hook pour gérer le mode Quiz
@@ -179,11 +180,10 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
       playerUpdates[answer.playerId].totalAnswers += 1;
 
       // Calculer les points uniquement pour les bonnes réponses
+      // Utilise la fonction centralisée avec la durée de la chanson
       if (answer.isCorrect) {
-        const basePoints = 1000;
-        const timeBonus = Math.max(0, 500 - (answer.time * 10)); // Décroit avec le temps
-        const rankBonus = Math.max(0, 500 - (index * 100)); // Décroit selon le rang
-        const points = Math.round(basePoints + timeBonus + rankBonus);
+        const songDuration = playlist[currentTrack - 1]?.duration || 30;
+        const points = calculatePoints(answer.time, songDuration);
 
         playerUpdates[answer.playerId].totalPoints += points;
         playerUpdates[answer.playerId].correctAnswers += 1;
@@ -276,17 +276,14 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
         }, { onlyOnce: true });
 
         // Mettre à jour chaque réponse avec correction, points, et infos chanson
+        // Utilise la fonction centralisée avec la durée de la chanson
+        const songDuration = playlist[currentTrack - 1]?.duration || 30;
+
         answersArray.forEach((answer, rank) => {
           const isCorrect = answer.answer === correctAnswer;
 
-          // Calculer les points (même formule que calculateQuizPoints dans QuizDisplay.jsx)
-          let points = 0;
-          if (isCorrect) {
-            const basePoints = 1000;
-            const timeBonus = Math.max(0, 500 - (answer.time * 10));
-            const rankBonus = Math.max(0, 500 - (rank * 100));
-            points = Math.round(basePoints + timeBonus + rankBonus);
-          }
+          // Calculer les points avec la fonction centralisée
+          const points = isCorrect ? calculatePoints(answer.time, songDuration) : 0;
 
           // Mettre à jour avec la correction, points, et infos chanson
           const playerAnswerRef = ref(database, `sessions/${sessionId}/quiz_answers/${currentTrack}/${answer.playerId}`);
