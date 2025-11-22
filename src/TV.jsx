@@ -810,6 +810,7 @@ if (playMode === 'quiz') {
         gameStatus={gameEnded ? 'stopped' : 'playing'}
         chrono={chrono}
         songDuration={songDuration}
+        currentSong={currentSong}
       />
 
       {/* Modale QR Code (même en mode Quiz) */}
@@ -1160,14 +1161,31 @@ return (
         margin: '0 auto'
       }}>
         {currentSong.revealed ? (
-          <>
-            <div style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
-              {currentSong.title}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2rem' }}>
+            {/* Pochette */}
+            {currentSong.imageUrl && (
+              <img
+                src={currentSong.imageUrl}
+                alt={currentSong.title}
+                style={{
+                  width: '120px',
+                  height: '120px',
+                  borderRadius: '1rem',
+                  objectFit: 'cover',
+                  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)'
+                }}
+              />
+            )}
+            {/* Titre et artiste */}
+            <div style={{ textAlign: 'left' }}>
+              <div style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                {currentSong.title}
+              </div>
+              <div style={{ fontSize: '1.5rem', opacity: 0.8 }}>
+                {currentSong.artist}
+              </div>
             </div>
-            <div style={{ fontSize: '1.5rem', opacity: 0.8 }}>
-              {currentSong.artist}
-            </div>
-          </>
+          </div>
         ) : (
           <div style={{ fontSize: '2rem', opacity: 0.5 }}>
             🎵 Mystère...
