@@ -1058,7 +1058,18 @@ return (
             {quizQuestion.answers.map((answer, index) => {
               const isCorrect = answer.label === quizQuestion.correctAnswer && quizRevealed;
               const isWrong = answer.label !== quizQuestion.correctAnswer && quizRevealed;
-              const playersWithThisAnswer = playerAnswers.filter(p => p.answer === answer.label);
+
+              // Trouver les joueurs qui ont choisi cette réponse
+              const playersWhoAnswered = playerAnswers.filter(p => p.answer === answer.label);
+
+              // Récupérer les photos depuis allPlayers (comme dans QuizDisplay)
+              const playersWithThisAnswer = playersWhoAnswered.map(playerAnswer => {
+                const player = allPlayers.find(p => p.name === playerAnswer.playerName);
+                return {
+                  ...playerAnswer,
+                  photo: player?.photo || playerAnswer.playerPhoto
+                };
+              });
 
               return (
                 <div
@@ -1148,7 +1159,7 @@ return (
                           }}
                         >
                           <img
-                            src={player.playerPhoto || `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20'%3E%3Ccircle cx='10' cy='10' r='10' fill='%23666'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='white' font-size='10'%3E${player.playerName?.[0] || '?'}%3C/text%3E%3C/svg%3E`}
+                            src={player.photo || `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20'%3E%3Ccircle cx='10' cy='10' r='10' fill='%23666'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='white' font-size='10'%3E${player.playerName?.[0] || '?'}%3C/text%3E%3C/svg%3E`}
                             alt={player.playerName}
                             style={{
                               width: '20px',
