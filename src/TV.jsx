@@ -1047,17 +1047,17 @@ return (
           </h2>
         </div>
 
-        {/* Answer Cards Grid */}
-        {quizAnswers.length > 0 && (
+        {/* Answer Cards Grid - Affiche les 4 options de réponse */}
+        {quizQuestion?.answers?.length > 0 && (
           <div style={{
             display: 'grid',
             gridTemplateColumns: '1fr 1fr',
             gap: '1rem',
             marginBottom: '1rem'
           }}>
-            {quizAnswers.map((answer, index) => {
-              const isCorrect = answer.isCorrect && quizRevealed;
-              const isWrong = !answer.isCorrect && quizRevealed;
+            {quizQuestion.answers.map((answer, index) => {
+              const isCorrect = answer.label === quizQuestion.correctAnswer && quizRevealed;
+              const isWrong = answer.label !== quizQuestion.correctAnswer && quizRevealed;
               const playersWithThisAnswer = playerAnswers.filter(p => p.answer === answer.label);
 
               return (
@@ -1118,18 +1118,68 @@ return (
                   </div>
                   <div style={{
                     fontSize: '0.9rem',
-                    opacity: 0.7
+                    opacity: 0.7,
+                    marginBottom: playersWithThisAnswer.length > 0 ? '0.75rem' : 0
                   }}>
                     {answer.text?.split(' - ')[1] || 'Titre'}
                   </div>
+
+                  {/* Player Avatars who chose this answer */}
+                  {playersWithThisAnswer.length > 0 && (
+                    <div style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: '0.5rem',
+                      marginTop: '0.5rem',
+                      paddingTop: '0.75rem',
+                      borderTop: '1px solid rgba(255, 255, 255, 0.1)'
+                    }}>
+                      {playersWithThisAnswer.map((player, pIndex) => (
+                        <div
+                          key={player.playerId || pIndex}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                            padding: '0.25rem 0.5rem',
+                            borderRadius: '1rem',
+                            fontSize: '0.75rem'
+                          }}
+                        >
+                          <img
+                            src={player.playerPhoto || `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20'%3E%3Ccircle cx='10' cy='10' r='10' fill='%23666'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='white' font-size='10'%3E${player.playerName?.[0] || '?'}%3C/text%3E%3C/svg%3E`}
+                            alt={player.playerName}
+                            style={{
+                              width: '20px',
+                              height: '20px',
+                              borderRadius: '50%',
+                              objectFit: 'cover',
+                              border: quizRevealed
+                                ? (isCorrect ? '2px solid #22c55e' : '2px solid #ef4444')
+                                : '2px solid transparent'
+                            }}
+                          />
+                          <span style={{
+                            maxWidth: '60px',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {player.playerName}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
         )}
 
-        {/* Fallback for team mode - show current song info */}
-        {quizAnswers.length === 0 && currentSong && (
+        {/* Fallback for team mode - show current song info when no quiz question */}
+        {!quizQuestion?.answers?.length && currentSong && (
           <div style={{
             backgroundColor: COLORS.cardBg,
             borderRadius: '1.5rem',
