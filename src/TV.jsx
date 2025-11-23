@@ -1047,17 +1047,17 @@ return (
           </h2>
         </div>
 
-        {/* Answer Cards Grid */}
-        {quizAnswers.length > 0 && (
+        {/* Answer Cards Grid - Affiche les 4 options de réponse */}
+        {quizQuestion?.answers?.length > 0 && (
           <div style={{
             display: 'grid',
             gridTemplateColumns: '1fr 1fr',
             gap: '1rem',
             marginBottom: '1rem'
           }}>
-            {quizAnswers.map((answer, index) => {
-              const isCorrect = answer.isCorrect && quizRevealed;
-              const isWrong = !answer.isCorrect && quizRevealed;
+            {quizQuestion.answers.map((answer, index) => {
+              const isCorrect = answer.label === quizQuestion.correctAnswer && quizRevealed;
+              const isWrong = answer.label !== quizQuestion.correctAnswer && quizRevealed;
               const playersWithThisAnswer = playerAnswers.filter(p => p.answer === answer.label);
 
               return (
@@ -1128,8 +1128,8 @@ return (
           </div>
         )}
 
-        {/* Fallback for team mode - show current song info */}
-        {quizAnswers.length === 0 && currentSong && (
+        {/* Fallback for team mode - show current song info when no quiz question */}
+        {!quizQuestion?.answers?.length && currentSong && (
           <div style={{
             backgroundColor: COLORS.cardBg,
             borderRadius: '1.5rem',
