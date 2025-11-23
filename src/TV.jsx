@@ -1472,6 +1472,10 @@ return (
             {quizLeaderboard.slice(0, 5).map((player, index) => {
               const currentSongPoints = playerAnswers.find(p => p.playerId === player.playerId)?.isCorrect ? '+90 pts' : '+0 pt';
 
+              // Récupérer la photo depuis allPlayers
+              const playerInfo = allPlayers.find(p => p.name === player.playerName);
+              const playerPhoto = playerInfo?.photo || player.playerPhoto;
+
               return (
                 <div
                   key={player.playerId}
@@ -1494,7 +1498,7 @@ return (
                       {index + 1}
                     </span>
                     <img
-                      src={player.playerPhoto || `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28'%3E%3Ccircle cx='14' cy='14' r='14' fill='%23666'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='white' font-size='12'%3E${player.playerName?.[0] || '?'}%3C/text%3E%3C/svg%3E`}
+                      src={playerPhoto || `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28'%3E%3Ccircle cx='14' cy='14' r='14' fill='%23666'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='white' font-size='12'%3E${player.playerName?.[0] || '?'}%3C/text%3E%3C/svg%3E`}
                       alt={player.playerName}
                       style={{
                         width: '28px',
