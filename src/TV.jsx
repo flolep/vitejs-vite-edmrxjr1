@@ -1043,7 +1043,7 @@ return (
             lineHeight: 1.3,
             marginBottom: '0.5rem'
           }}>
-            4 reponses possibles. Quand la chanson demarre, buzzez des que vous pensez avoir la bonne reponse.
+            Choisis une réponse.
           </h2>
         </div>
 
