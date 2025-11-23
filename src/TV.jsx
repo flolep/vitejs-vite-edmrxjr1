@@ -1312,7 +1312,9 @@ return (
             overflowY: 'auto'
           }}>
             {buzzOrder.map((player, index) => {
-              const answerInfo = quizAnswers.find(a => a.label === player.answer);
+              // Récupérer la photo depuis allPlayers
+              const playerInfo = allPlayers.find(p => p.name === player.playerName);
+              const playerPhoto = playerInfo?.photo || player.playerPhoto;
 
               return (
                 <div
@@ -1338,7 +1340,7 @@ return (
                     {index + 1}
                   </span>
                   <img
-                    src={player.playerPhoto || `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%23666'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='white' font-size='14'%3E${player.playerName?.[0] || '?'}%3C/text%3E%3C/svg%3E`}
+                    src={playerPhoto || `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%23666'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='white' font-size='14'%3E${player.playerName?.[0] || '?'}%3C/text%3E%3C/svg%3E`}
                     alt={player.playerName}
                     style={{
                       width: '32px',
