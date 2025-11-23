@@ -3,6 +3,20 @@ import { database } from './firebase';
 import { ref, onValue, set } from 'firebase/database';
 import { QRCodeSVG } from 'qrcode.react';
 
+// Constantes de design
+const COLORS = {
+  gradientStart: '#e07a5f', // Coral/Salmon
+  gradientEnd: '#1a1a2e',   // Dark
+  accent: '#10b981',        // Teal/Green
+  warning: '#f59e0b',       // Orange
+  danger: '#ef4444',        // Red
+  success: '#22c55e',       // Green
+  textPrimary: '#ffffff',
+  textSecondary: 'rgba(255, 255, 255, 0.7)',
+  cardBg: 'rgba(0, 0, 0, 0.4)',
+  cardBgLight: 'rgba(255, 255, 255, 0.1)',
+};
+
 /**
  * Calcule les points disponibles selon le nouveau système
  */
@@ -166,6 +180,18 @@ export default function TV() {
 
   // État pour le QR Code
   const [showQRCode, setShowQRCode] = useState(false);
+
+  // États pour le mode Quiz
+  const [playMode, setPlayMode] = useState('team'); // 'team' | 'quiz'
+  const [quizAnswers, setQuizAnswers] = useState([]);
+  const [quizRevealed, setQuizRevealed] = useState(false);
+  const [playerAnswers, setPlayerAnswers] = useState([]);
+  const [quizLeaderboard, setQuizLeaderboard] = useState([]);
+  const [buzzOrder, setBuzzOrder] = useState([]);
+  const [totalPlayers, setTotalPlayers] = useState(0);
+  const [currentQuestionNumber, setCurrentQuestionNumber] = useState(1);
+  const [totalQuestions, setTotalQuestions] = useState(10);
+  const [roundStatus, setRoundStatus] = useState('playing'); // 'playing' | 'finished'
 
   // Vérifier le code de session depuis l'URL
   useEffect(() => {
@@ -395,6 +421,113 @@ export default function TV() {
     });
     return () => unsubscribe();
   }, [sessionValid, sessionId]);
+
+  // Écouter le mode de jeu (team/quiz)
+  useEffect(() => {
+    if (!sessionValid || !sessionId) return;
+    const playModeRef = ref(database, `sessions/${sessionId}/playMode`);
+    const unsubscribe = onValue(playModeRef, (snapshot) => {
+      const mode = snapshot.val();
+      if (mode) {
+        setPlayMode(mode);
+      }
+    });
+    return () => unsubscribe();
+  }, [sessionValid, sessionId]);
+
+  // Écouter les données du quiz (réponses possibles)
+  useEffect(() => {
+    if (!sessionValid || !sessionId) return;
+    const quizRef = ref(database, `sessions/${sessionId}/quiz`);
+    const unsubscribe = onValue(quizRef, (snapshot) => {
+      const quizData = snapshot.val();
+      if (quizData) {
+        setQuizAnswers(quizData.answers || []);
+        setQuizRevealed(quizData.revealed || false);
+        setCurrentQuestionNumber((quizData.trackNumber || 0) + 1);
+      } else {
+        setQuizAnswers([]);
+        setQuizRevealed(false);
+      }
+    });
+    return () => unsubscribe();
+  }, [sessionValid, sessionId]);
+
+  // Écouter les réponses des joueurs en mode Quiz
+  useEffect(() => {
+    if (!sessionValid || !sessionId || playMode !== 'quiz') return;
+    const trackNum = playingTrackNumber || 0;
+    const answersRef = ref(database, `sessions/${sessionId}/quiz_answers/${trackNum}`);
+    const unsubscribe = onValue(answersRef, (snapshot) => {
+      const answersData = snapshot.val();
+      if (answersData) {
+        const answersList = Object.entries(answersData).map(([playerId, answer]) => ({
+          playerId,
+          playerName: answer.playerName,
+          playerPhoto: answer.playerPhoto,
+          answer: answer.answer,
+          time: answer.time,
+          isCorrect: answer.isCorrect
+        }));
+        answersList.sort((a, b) => a.time - b.time);
+        setPlayerAnswers(answersList);
+        setBuzzOrder(answersList);
+      } else {
+        setPlayerAnswers([]);
+        setBuzzOrder([]);
+      }
+    });
+    return () => unsubscribe();
+  }, [sessionValid, sessionId, playMode, playingTrackNumber]);
+
+  // Écouter le classement du Quiz
+  useEffect(() => {
+    if (!sessionValid || !sessionId) return;
+    const leaderboardRef = ref(database, `sessions/${sessionId}/quiz_leaderboard`);
+    const unsubscribe = onValue(leaderboardRef, (snapshot) => {
+      const leaderboardData = snapshot.val();
+      if (leaderboardData) {
+        const leaderboardArray = Object.values(leaderboardData)
+          .sort((a, b) => b.totalPoints - a.totalPoints);
+        setQuizLeaderboard(leaderboardArray);
+      } else {
+        setQuizLeaderboard([]);
+      }
+    });
+    return () => unsubscribe();
+  }, [sessionValid, sessionId]);
+
+  // Écouter le nombre total de questions (taille playlist)
+  useEffect(() => {
+    if (!sessionValid || !sessionId) return;
+    const playlistRef = ref(database, `sessions/${sessionId}/playlist`);
+    const unsubscribe = onValue(playlistRef, (snapshot) => {
+      const playlistData = snapshot.val();
+      if (playlistData && Array.isArray(playlistData)) {
+        setTotalQuestions(playlistData.length);
+      }
+    });
+    return () => unsubscribe();
+  }, [sessionValid, sessionId]);
+
+  // Compter le nombre total de joueurs
+  useEffect(() => {
+    if (!sessionValid || !sessionId) return;
+    let total = 0;
+
+    const team1Ref = ref(database, `sessions/${sessionId}/players_session/team1`);
+    const team2Ref = ref(database, `sessions/${sessionId}/players_session/team2`);
+
+    onValue(team1Ref, (snapshot) => {
+      const players = snapshot.val();
+      const count1 = players ? Object.keys(players).length : 0;
+      onValue(team2Ref, (snapshot2) => {
+        const players2 = snapshot2.val();
+        const count2 = players2 ? Object.keys(players2).length : 0;
+        setTotalPlayers(count1 + count2);
+      }, { onlyOnce: true });
+    }, { onlyOnce: true });
+  }, [sessionValid, sessionId, playersTeam1, playersTeam2]);
 
   // Calculer les points disponibles avec le nouveau système
   const availablePoints = calculatePoints(chrono, songDuration);
@@ -670,308 +803,631 @@ return (
       `}</style>
     </div>
   );
-}
+  }
 
-return (
+  // Calculer les statistiques pour l'affichage
+  const correctAnswers = playerAnswers.filter(p => p.isCorrect).length;
+  const wrongAnswers = playerAnswers.filter(p => p.isCorrect === false).length;
+
+  // Formater le temps restant en MM:SS
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const timeRemaining = Math.max(0, songDuration - chrono);
+
+  // MAIN GAME SCREEN
+  return (
   <div style={{
-    background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
+    background: `linear-gradient(135deg, ${COLORS.gradientStart} 0%, ${COLORS.gradientEnd} 50%, ${COLORS.gradientEnd} 100%)`,
     minHeight: '100vh',
     color: 'white',
-    padding: '2rem',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+    padding: '1.5rem 2rem',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    display: 'flex',
+    flexDirection: 'column'
   }}>
-    
-    {/* ===== TITRE CENTRÉ EN HAUT ===== */}
-    <h1 style={{
-      fontSize: '4rem',
-      fontWeight: 'bold',
-      textAlign: 'center',
-      color: '#fbbf24',
-      textShadow: '0 0 20px rgba(251, 191, 36, 0.5)',
-      marginBottom: '3rem'
-    }}>
-      🎵 BLIND TEST 🎵
-    </h1>
 
-    {/* ===== SCORES ET JOUEURS - LAYOUT 2 COLONNES ===== */}
+    {/* ===== HEADER ===== */}
     <div style={{
-      display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
-      gap: '3rem',
-      maxWidth: '1400px',
-      margin: '0 auto',
-      marginBottom: '3rem'
+      display: 'flex',
+      alignItems: 'flex-start',
+      gap: '1.5rem',
+      marginBottom: '1.5rem'
     }}>
-      
-      {/* ===== COLONNE GAUCHE : ÉQUIPE 1 ===== */}
-      <div>
-        {/* Score Équipe 1 */}
-        <div style={{
-          backgroundColor: '#dc2626',
-          borderRadius: '1.5rem',
-          padding: '2rem',
-          textAlign: 'center',
-          transform: buzzedTeam === 'team1' ? 'scale(1.05)' : 'scale(1)',
-          transition: 'transform 0.3s',
-          boxShadow: buzzedTeam === 'team1' ? '0 0 40px rgba(251, 191, 36, 0.8)' : 'none',
-          marginBottom: '2rem'
-        }}>
-          <h2 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>
-            🔴 ÉQUIPE 1
-          </h2>
-          <div style={{ fontSize: '5rem', fontWeight: 'bold', lineHeight: 1 }}>
-            {scores.team1}
-          </div>
-        </div>
+      {/* Badge Question */}
+      <div style={{
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        padding: '0.5rem 1rem',
+        borderRadius: '2rem',
+        fontSize: '0.9rem',
+        fontWeight: '500',
+        whiteSpace: 'nowrap'
+      }}>
+        Question {currentQuestionNumber} / {totalQuestions} · Mode Blind Test
+      </div>
 
-        {/* Joueurs Équipe 1 */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'center',
-          flexWrap: 'wrap',
-          gap: '1rem'
+      {/* Titre et sous-titre */}
+      <div style={{ flex: 1 }}>
+        <h1 style={{
+          fontSize: '1.8rem',
+          fontWeight: 'bold',
+          margin: 0,
+          marginBottom: '0.25rem'
         }}>
-          {playersTeam1.map((player, idx) => (
-            <PlayerAvatar 
-              key={idx} 
-              player={player} 
-              buzzedPlayerKey={buzzedPlayerKey}
-              buzzedPlayerName={buzzedPlayerName}
-            />
-          ))}
-          
-          {playersTeam1.length === 0 && (
-            <div style={{ 
-              opacity: 0.5, 
-              fontSize: '1.2rem',
-              padding: '2rem',
-              textAlign: 'center'
-            }}>
-              En attente de joueurs...
-            </div>
-          )}
+          {currentSong?.revealed
+            ? `Bonne reponse : ${currentSong.artist} - ${currentSong.title}`
+            : isPlaying ? 'Ecoutez et buzzez !' : 'Preparez-vous...'
+          }
+        </h1>
+        <p style={{
+          fontSize: '0.95rem',
+          opacity: 0.7,
+          margin: 0
+        }}>
+          {currentSong?.revealed
+            ? 'La chanson est terminee · Tous les joueurs ont buzze'
+            : isPlaying
+              ? 'La chanson est en cours...'
+              : 'En attente du lancement'
+          }
+        </p>
+      </div>
+    </div>
+
+    {/* ===== CHRONO & POINTS SECTION ===== */}
+    <div style={{
+      textAlign: 'center',
+      marginBottom: '1.5rem'
+    }}>
+      <h2 style={{
+        fontSize: '1rem',
+        fontWeight: '600',
+        marginBottom: '0.5rem',
+        opacity: 0.9
+      }}>
+        Chrono & points
+      </h2>
+      <p style={{
+        fontSize: '0.85rem',
+        opacity: 0.6,
+        marginBottom: '1rem'
+      }}>
+        Plus tu attends, moins tu gagnes
+      </p>
+
+      {/* Pills Temps et Points */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        gap: '1rem',
+        marginBottom: '1rem'
+      }}>
+        <div style={{
+          backgroundColor: COLORS.accent,
+          padding: '0.5rem 1.5rem',
+          borderRadius: '2rem',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center'
+        }}>
+          <span style={{ fontSize: '0.7rem', opacity: 0.8 }}>Temps restant</span>
+          <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{formatTime(timeRemaining)}</span>
+        </div>
+        <div style={{
+          backgroundColor: COLORS.warning,
+          padding: '0.5rem 1.5rem',
+          borderRadius: '2rem',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center'
+        }}>
+          <span style={{ fontSize: '0.7rem', opacity: 0.8 }}>Points restants</span>
+          <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{availablePoints} pts</span>
         </div>
       </div>
 
-      {/* ===== COLONNE DROITE : ÉQUIPE 2 ===== */}
-      <div>
-        {/* Score Équipe 2 */}
-        <div style={{
-          backgroundColor: '#2563eb',
-          borderRadius: '1.5rem',
-          padding: '2rem',
-          textAlign: 'center',
-          transform: buzzedTeam === 'team2' ? 'scale(1.05)' : 'scale(1)',
-          transition: 'transform 0.3s',
-          boxShadow: buzzedTeam === 'team2' ? '0 0 40px rgba(251, 191, 36, 0.8)' : 'none',
-          marginBottom: '2rem'
-        }}>
-          <h2 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>
-            🔵 ÉQUIPE 2
-          </h2>
-          <div style={{ fontSize: '5rem', fontWeight: 'bold', lineHeight: 1 }}>
-            {scores.team2}
-          </div>
-        </div>
-
-        {/* Joueurs Équipe 2 */}
+      {/* Barre de progression gradient */}
+      <div style={{ maxWidth: '500px', margin: '0 auto' }}>
         <div style={{
           display: 'flex',
-          justifyContent: 'center',
-          flexWrap: 'wrap',
-          gap: '1rem'
+          justifyContent: 'space-between',
+          fontSize: '0.75rem',
+          opacity: 0.6,
+          marginBottom: '0.25rem'
         }}>
-          {playersTeam2.map((player, idx) => (
-            <PlayerAvatar 
-              key={idx} 
-              player={player}
-              buzzedPlayerKey={buzzedPlayerKey}
-              buzzedPlayerName={buzzedPlayerName}
-            />
-          ))}
-          
-          {playersTeam2.length === 0 && (
-            <div style={{ 
-              opacity: 0.5, 
-              fontSize: '1.2rem',
-              padding: '2rem',
-              textAlign: 'center'
-            }}>
-              En attente de joueurs...
-            </div>
-          )}
+          <span>Temps</span>
+          <span>Points</span>
+        </div>
+        <div style={{
+          height: '8px',
+          borderRadius: '4px',
+          background: 'linear-gradient(90deg, #22c55e 0%, #84cc16 25%, #eab308 50%, #f97316 75%, #ef4444 100%)',
+          position: 'relative'
+        }}>
+          {/* Indicateur de position */}
+          <div style={{
+            position: 'absolute',
+            left: `${progressPercent}%`,
+            top: '-4px',
+            width: '16px',
+            height: '16px',
+            backgroundColor: 'white',
+            borderRadius: '50%',
+            border: '3px solid #22c55e',
+            transform: 'translateX(-50%)',
+            transition: 'left 0.1s linear'
+          }} />
+        </div>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          fontSize: '0.7rem',
+          marginTop: '0.25rem'
+        }}>
+          <span style={{ color: '#22c55e' }}>Beaucoup de points</span>
+          <span style={{ opacity: 0.5 }}>0 point</span>
         </div>
       </div>
     </div>
 
-    {/* ===== CHRONO ET POINTS (en dessous, centré) ===== */}
-    {(isPlaying || chrono > 0) && (
-      <div style={{
-        backgroundColor: 'rgba(0, 0, 0, 0.3)',
-        borderRadius: '2rem',
-        padding: '3rem',
-        maxWidth: '1200px',
-        margin: '0 auto 3rem'
-      }}>
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: '1fr 1fr', 
-          gap: '3rem' 
-        }}>
-          
-          {/* Chrono */}
-          <div style={{ textAlign: 'center' }}>
-            <h3 style={{
-              fontSize: '2rem',
-              marginBottom: '2rem',
-              color: '#fbbf24'
-            }}>
-              ⏱️ {isPlaying ? 'TEMPS ÉCOULÉ' : 'TEMPS FIGÉ'}
-            </h3>
-            <div style={{
-              fontSize: '6rem',
-              fontWeight: 'bold',
-              color: '#60a5fa',
-              lineHeight: 1,
-              marginBottom: '1rem'
-            }}>
-              {chrono.toFixed(1)}s
-            </div>
-            <div style={{
-              fontSize: '1.5rem',
-              opacity: 0.7
-            }}>
-              / {songDuration.toFixed(0)}s
-            </div>
-          </div>
-
-          {/* Points disponibles */}
-          <div style={{ textAlign: 'center' }}>
-            <h3 style={{
-              fontSize: '2rem',
-              marginBottom: '2rem',
-              color: '#fbbf24'
-            }}>
-              💰 POINTS DISPONIBLES
-            </h3>
-            <div style={{
-              fontSize: '6rem',
-              fontWeight: 'bold',
-              color: pointsColor,
-              lineHeight: 1,
-              marginBottom: '1rem',
-              textShadow: `0 0 30px ${pointsColor}`,
-              animation: isNearCritical ? 'pulse 0.5s infinite' : 'none'
-            }}>
-              {availablePoints}
-            </div>
-            <div style={{
-              fontSize: '1.5rem',
-              opacity: 0.7
-            }}>
-              / 2500 pts
-            </div>
-            
-            {/* Alertes paliers */}
-            {isAt5s && (
-              <div style={{
-                marginTop: '1rem',
-                fontSize: '1.5rem',
-                color: '#fbbf24',
-                fontWeight: 'bold',
-                animation: 'pulse 0.5s infinite'
-              }}>
-                ⚠️ Palier à 5s !
-              </div>
-            )}
-            
-            {isAt15s && (
-              <div style={{
-                marginTop: '1rem',
-                fontSize: '1.5rem',
-                color: '#ef4444',
-                fontWeight: 'bold',
-                animation: 'pulse 0.5s infinite'
-              }}>
-                ⚠️ Palier à 15s !
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    )}
-
-    {/* ===== BARRE DE PROGRESSION ===== */}
-    {(isPlaying || chrono > 0) && (
-      <div style={{
-        maxWidth: '1200px',
-        margin: '0 auto 3rem'
-      }}>
-        <div style={{
-          width: '100%',
-          height: '40px',
-          backgroundColor: 'rgba(255,255,255,0.1)',
-          borderRadius: '20px',
-          overflow: 'hidden',
-          position: 'relative'
-        }}>
-          <div style={{
-            width: `${progressPercent}%`,
-            height: '100%',
-            background: `linear-gradient(90deg, ${pointsColor} 0%, ${pointsColor}88 100%)`,
-            transition: 'width 0.1s linear',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            paddingRight: '1rem',
-            fontSize: '1.2rem',
-            fontWeight: 'bold'
+    {/* ===== MAIN CONTENT AREA ===== */}
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: '1fr 380px',
+      gap: '1.5rem',
+      flex: 1
+    }}>
+      {/* ===== LEFT COLUMN: Instructions + Answer Cards ===== */}
+      <div>
+        {/* Instructions */}
+        <div style={{ marginBottom: '1.5rem' }}>
+          <h2 style={{
+            fontSize: '1.8rem',
+            fontWeight: 'bold',
+            lineHeight: 1.3,
+            marginBottom: '0.5rem'
           }}>
-            {progressPercent > 10 && `${progressPercent.toFixed(0)}%`}
-          </div>
+            4 reponses possibles. Quand la chanson demarre, buzzez des que vous pensez avoir la bonne reponse.
+          </h2>
         </div>
-        
-        {/* Légende des paliers */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginTop: '1rem',
-          fontSize: '0.9rem',
-          opacity: 0.7
-        }}>
-          <div>🟢 0-5s : 2500 pts</div>
-          <div>🟡 5-15s : 2000-1000 pts</div>
-          <div>🔴 15s+ : 1000-0 pts</div>
-        </div>
-      </div>
-    )}
 
-    {/* ===== MORCEAU ACTUEL (en bas, centré) ===== */}
-    {currentSong && (
-      <div style={{
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        borderRadius: '2rem',
-        padding: '2rem',
-        textAlign: 'center',
-        maxWidth: '800px',
-        margin: '0 auto'
-      }}>
-        {currentSong.revealed ? (
-          <>
-            <div style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
-              {currentSong.title}
-            </div>
-            <div style={{ fontSize: '1.5rem', opacity: 0.8 }}>
-              {currentSong.artist}
-            </div>
-          </>
-        ) : (
-          <div style={{ fontSize: '2rem', opacity: 0.5 }}>
-            🎵 Mystère...
+        {/* Answer Cards Grid */}
+        {quizAnswers.length > 0 && (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '1rem',
+            marginBottom: '1rem'
+          }}>
+            {quizAnswers.map((answer, index) => {
+              const isCorrect = answer.isCorrect && quizRevealed;
+              const isWrong = !answer.isCorrect && quizRevealed;
+              const playersWithThisAnswer = playerAnswers.filter(p => p.answer === answer.label);
+
+              return (
+                <div
+                  key={index}
+                  style={{
+                    backgroundColor: isCorrect
+                      ? 'rgba(34, 197, 94, 0.3)'
+                      : COLORS.cardBg,
+                    borderRadius: '1rem',
+                    padding: '1.25rem',
+                    border: isCorrect
+                      ? '2px solid #22c55e'
+                      : '1px solid rgba(255, 255, 255, 0.1)',
+                    position: 'relative'
+                  }}
+                >
+                  {/* Letter Badge */}
+                  <div style={{
+                    width: '2.5rem',
+                    height: '2.5rem',
+                    borderRadius: '50%',
+                    backgroundColor: isCorrect ? '#22c55e' : 'rgba(255, 255, 255, 0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '1.2rem',
+                    fontWeight: 'bold',
+                    marginBottom: '0.75rem'
+                  }}>
+                    {answer.label}
+                  </div>
+
+                  {/* Status Badge */}
+                  {quizRevealed && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '1rem',
+                      right: '1rem',
+                      padding: '0.25rem 0.75rem',
+                      borderRadius: '1rem',
+                      fontSize: '0.75rem',
+                      fontWeight: '600',
+                      backgroundColor: isCorrect ? '#22c55e' : '#ef4444',
+                      color: 'white'
+                    }}>
+                      {isCorrect ? 'Bonne reponse' : 'Mauvaise'}
+                    </div>
+                  )}
+
+                  {/* Artist & Title */}
+                  <div style={{
+                    fontSize: '1.1rem',
+                    fontWeight: '600',
+                    marginBottom: '0.25rem'
+                  }}>
+                    {answer.text?.split(' - ')[0] || 'Artiste'}
+                  </div>
+                  <div style={{
+                    fontSize: '0.9rem',
+                    opacity: 0.7
+                  }}>
+                    {answer.text?.split(' - ')[1] || 'Titre'}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
+
+        {/* Fallback for team mode - show current song info */}
+        {quizAnswers.length === 0 && currentSong && (
+          <div style={{
+            backgroundColor: COLORS.cardBg,
+            borderRadius: '1.5rem',
+            padding: '2rem',
+            textAlign: 'center'
+          }}>
+            {currentSong.revealed ? (
+              <>
+                <div style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                  {currentSong.title}
+                </div>
+                <div style={{ fontSize: '1.5rem', opacity: 0.8 }}>
+                  {currentSong.artist}
+                </div>
+              </>
+            ) : (
+              <div style={{ fontSize: '2rem', opacity: 0.5 }}>
+                Mystere...
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Stats line */}
+        <div style={{
+          fontSize: '0.9rem',
+          opacity: 0.7,
+          marginTop: '0.5rem'
+        }}>
+          {totalPlayers > 0 && (
+            <>
+              {playerAnswers.length} joueur{playerAnswers.length !== 1 ? 's' : ''} ·
+              {correctAnswers} bonne{correctAnswers !== 1 ? 's' : ''} reponse{correctAnswers !== 1 ? 's' : ''} ·
+              {wrongAnswers} mauvaise{wrongAnswers !== 1 ? 's' : ''} reponse{wrongAnswers !== 1 ? 's' : ''}
+            </>
+          )}
+        </div>
       </div>
-    )}
+
+      {/* ===== RIGHT COLUMN: Buzzer Order + Leaderboard ===== */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        {/* Buzzer Order Panel */}
+        <div style={{
+          backgroundColor: COLORS.cardBg,
+          borderRadius: '1rem',
+          padding: '1.25rem',
+          flex: 1
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '1rem'
+          }}>
+            <h3 style={{
+              fontSize: '1rem',
+              fontWeight: '600',
+              margin: 0
+            }}>
+              Ordre des buzzers
+            </h3>
+            <div style={{
+              backgroundColor: COLORS.accent,
+              padding: '0.25rem 0.75rem',
+              borderRadius: '1rem',
+              fontSize: '0.75rem',
+              fontWeight: '500'
+            }}>
+              En direct sur cette chanson
+            </div>
+          </div>
+
+          <p style={{
+            fontSize: '0.8rem',
+            opacity: 0.6,
+            marginBottom: '0.75rem'
+          }}>
+            Les joueurs apparaitront ici au fur et a mesure qu'ils buzzent.
+          </p>
+
+          {/* Progress indicator */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            marginBottom: '1rem'
+          }}>
+            <div style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              backgroundColor: buzzOrder.length > 0 ? '#22c55e' : '#6b7280'
+            }} />
+            <span style={{ fontSize: '0.85rem' }}>
+              {buzzOrder.length} / {totalPlayers || '?'} joueurs ont buzze
+            </span>
+            <div style={{
+              flex: 1,
+              height: '4px',
+              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              borderRadius: '2px',
+              overflow: 'hidden'
+            }}>
+              <div style={{
+                width: totalPlayers > 0 ? `${(buzzOrder.length / totalPlayers) * 100}%` : '0%',
+                height: '100%',
+                backgroundColor: '#22c55e',
+                transition: 'width 0.3s ease'
+              }} />
+            </div>
+          </div>
+
+          {/* Buzzer list */}
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.5rem',
+            maxHeight: '200px',
+            overflowY: 'auto'
+          }}>
+            {buzzOrder.map((player, index) => {
+              const answerInfo = quizAnswers.find(a => a.label === player.answer);
+
+              return (
+                <div
+                  key={player.playerId}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    padding: '0.5rem',
+                    backgroundColor: player.isCorrect
+                      ? 'rgba(34, 197, 94, 0.2)'
+                      : player.isCorrect === false
+                        ? 'rgba(239, 68, 68, 0.1)'
+                        : 'rgba(255, 255, 255, 0.05)',
+                    borderRadius: '0.5rem'
+                  }}
+                >
+                  <span style={{
+                    fontSize: '0.9rem',
+                    fontWeight: '500',
+                    minWidth: '1.5rem'
+                  }}>
+                    {index + 1}
+                  </span>
+                  <img
+                    src={player.playerPhoto || `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%23666'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='white' font-size='14'%3E${player.playerName?.[0] || '?'}%3C/text%3E%3C/svg%3E`}
+                    alt={player.playerName}
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '50%',
+                      objectFit: 'cover',
+                      border: player.isCorrect
+                        ? '2px solid #22c55e'
+                        : player.isCorrect === false
+                          ? '2px solid #ef4444'
+                          : '2px solid transparent'
+                    }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <div style={{
+                      fontSize: '0.9rem',
+                      fontWeight: '500',
+                      color: player.isCorrect ? '#22c55e' : 'white'
+                    }}>
+                      {player.playerName}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>
+                      Reponse {player.answer} · {player.isCorrect ? 'Bonne reponse' : player.isCorrect === false ? 'Mauvaise reponse' : 'En attente'}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '0.85rem', fontWeight: '500' }}>
+                      {player.time?.toFixed(1)}s
+                    </div>
+                    <div style={{
+                      fontSize: '0.75rem',
+                      color: player.isCorrect ? '#22c55e' : '#6b7280'
+                    }}>
+                      {player.isCorrect ? '+120 pts' : '0 pt'}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {buzzOrder.length === 0 && (
+              <div style={{
+                textAlign: 'center',
+                padding: '2rem',
+                opacity: 0.5,
+                fontSize: '0.9rem'
+              }}>
+                En attente des buzzers...
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Leaderboard Panel */}
+        <div style={{
+          backgroundColor: COLORS.cardBg,
+          borderRadius: '1rem',
+          padding: '1.25rem'
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '1rem'
+          }}>
+            <h3 style={{
+              fontSize: '1rem',
+              fontWeight: '600',
+              margin: 0
+            }}>
+              Classement des joueurs
+            </h3>
+            <div style={{
+              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              padding: '0.25rem 0.75rem',
+              borderRadius: '1rem',
+              fontSize: '0.75rem'
+            }}>
+              Classement permanent
+            </div>
+          </div>
+
+          <p style={{
+            fontSize: '0.75rem',
+            opacity: 0.5,
+            marginBottom: '0.75rem'
+          }}>
+            Score total general · Mis a jour a la fin de chaque chanson
+          </p>
+
+          {/* Leaderboard header */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr auto auto',
+            gap: '1rem',
+            fontSize: '0.75rem',
+            opacity: 0.5,
+            marginBottom: '0.5rem',
+            padding: '0 0.5rem'
+          }}>
+            <span>Joueur</span>
+            <span>Total</span>
+            <span>Cette chanson</span>
+          </div>
+
+          {/* Leaderboard entries */}
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.5rem',
+            maxHeight: '180px',
+            overflowY: 'auto'
+          }}>
+            {quizLeaderboard.slice(0, 5).map((player, index) => {
+              const currentSongPoints = playerAnswers.find(p => p.playerId === player.playerId)?.isCorrect ? '+90 pts' : '+0 pt';
+
+              return (
+                <div
+                  key={player.playerId}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr auto auto',
+                    gap: '1rem',
+                    alignItems: 'center',
+                    padding: '0.5rem',
+                    backgroundColor: index < 3 ? 'rgba(251, 191, 36, 0.1)' : 'transparent',
+                    borderRadius: '0.5rem'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{
+                      fontWeight: '500',
+                      minWidth: '1.5rem',
+                      color: index === 0 ? '#fbbf24' : 'white'
+                    }}>
+                      {index + 1}
+                    </span>
+                    <img
+                      src={player.playerPhoto || `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28'%3E%3Ccircle cx='14' cy='14' r='14' fill='%23666'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='white' font-size='12'%3E${player.playerName?.[0] || '?'}%3C/text%3E%3C/svg%3E`}
+                      alt={player.playerName}
+                      style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '50%',
+                        objectFit: 'cover'
+                      }}
+                    />
+                    <span style={{ fontSize: '0.9rem' }}>{player.playerName}</span>
+                  </div>
+                  <span style={{ fontWeight: '600' }}>{player.totalPoints} pts</span>
+                  <span style={{
+                    fontSize: '0.85rem',
+                    color: currentSongPoints.includes('+0') ? '#6b7280' : '#22c55e'
+                  }}>
+                    {currentSongPoints}
+                  </span>
+                </div>
+              );
+            })}
+
+            {quizLeaderboard.length === 0 && (
+              <div style={{
+                textAlign: 'center',
+                padding: '1.5rem',
+                opacity: 0.5,
+                fontSize: '0.85rem'
+              }}>
+                Aucun score pour le moment
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {/* ===== FOOTER ===== */}
+    <div style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: '1.5rem',
+      paddingTop: '1rem'
+    }}>
+      <div style={{
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        padding: '0.75rem 1.5rem',
+        borderRadius: '2rem',
+        fontSize: '0.9rem'
+      }}>
+        {currentSong?.revealed
+          ? 'Manche terminee · Appuyez pour passer a la question suivante'
+          : isPlaying
+            ? 'Manche en cours · Buzzez pour repondre'
+            : 'En attente du lancement de la manche'
+        }
+      </div>
+      <div style={{
+        fontSize: '0.85rem',
+        opacity: 0.5
+      }}>
+        Tous les joueurs voient cet ecran sur la TV partagee.
+      </div>
+    </div>
 
 
     {/* Modale QR Code */}
