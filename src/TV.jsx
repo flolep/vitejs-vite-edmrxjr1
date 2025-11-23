@@ -1316,6 +1316,25 @@ return (
               const playerInfo = allPlayers.find(p => p.name === player.playerName);
               const playerPhoto = playerInfo?.photo || player.playerPhoto;
 
+              // Calculer le dégradé selon si le joueur a la bonne réponse
+              const getBackgroundStyle = () => {
+                if (player.isCorrect) {
+                  // Dégradé du noir vers le vert pour les bonnes réponses
+                  return {
+                    background: 'linear-gradient(90deg, rgba(0, 0, 0, 0.4) 0%, rgba(34, 197, 94, 0.4) 100%)'
+                  };
+                } else if (player.isCorrect === false) {
+                  // Dégradé du noir vers le rouge pour les mauvaises réponses
+                  return {
+                    background: 'linear-gradient(90deg, rgba(0, 0, 0, 0.4) 0%, rgba(239, 68, 68, 0.3) 100%)'
+                  };
+                }
+                // En attente - fond neutre
+                return {
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)'
+                };
+              };
+
               return (
                 <div
                   key={player.playerId}
@@ -1324,11 +1343,7 @@ return (
                     alignItems: 'center',
                     gap: '0.75rem',
                     padding: '0.5rem',
-                    backgroundColor: player.isCorrect
-                      ? 'rgba(34, 197, 94, 0.2)'
-                      : player.isCorrect === false
-                        ? 'rgba(239, 68, 68, 0.1)'
-                        : 'rgba(255, 255, 255, 0.05)',
+                    ...getBackgroundStyle(),
                     borderRadius: '0.5rem'
                   }}
                 >
