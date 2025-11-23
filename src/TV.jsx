@@ -1043,7 +1043,7 @@ return (
             lineHeight: 1.3,
             marginBottom: '0.5rem'
           }}>
-            4 reponses possibles. Quand la chanson demarre, buzzez des que vous pensez avoir la bonne reponse.
+            Choisis une réponse.
           </h2>
         </div>
 
@@ -1083,7 +1083,10 @@ return (
                     border: isCorrect
                       ? '2px solid #22c55e'
                       : '1px solid rgba(255, 255, 255, 0.1)',
-                    position: 'relative'
+                    position: 'relative',
+                    minHeight: '140px',
+                    display: 'flex',
+                    flexDirection: 'column'
                   }}
                 >
                   {/* Letter Badge */}
@@ -1130,21 +1133,19 @@ return (
                   <div style={{
                     fontSize: '0.9rem',
                     opacity: 0.7,
-                    marginBottom: playersWithThisAnswer.length > 0 ? '0.75rem' : 0
+                    flex: 1
                   }}>
                     {answer.text?.split(' - ')[1] || 'Titre'}
                   </div>
 
                   {/* Player Avatars who chose this answer */}
-                  {playersWithThisAnswer.length > 0 && (
-                    <div style={{
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      gap: '0.5rem',
-                      marginTop: '0.5rem',
-                      paddingTop: '0.75rem',
-                      borderTop: '1px solid rgba(255, 255, 255, 0.1)'
-                    }}>
+                  <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '0.5rem',
+                    marginTop: '0.5rem',
+                    minHeight: '28px'
+                  }}>
                       {playersWithThisAnswer.map((player, pIndex) => (
                         <div
                           key={player.playerId || pIndex}
@@ -1181,8 +1182,7 @@ return (
                           </span>
                         </div>
                       ))}
-                    </div>
-                  )}
+                  </div>
                 </div>
               );
             })}
@@ -1472,6 +1472,10 @@ return (
             {quizLeaderboard.slice(0, 5).map((player, index) => {
               const currentSongPoints = playerAnswers.find(p => p.playerId === player.playerId)?.isCorrect ? '+90 pts' : '+0 pt';
 
+              // Récupérer la photo depuis allPlayers
+              const playerInfo = allPlayers.find(p => p.name === player.playerName);
+              const playerPhoto = playerInfo?.photo || player.playerPhoto;
+
               return (
                 <div
                   key={player.playerId}
@@ -1494,7 +1498,7 @@ return (
                       {index + 1}
                     </span>
                     <img
-                      src={player.playerPhoto || `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28'%3E%3Ccircle cx='14' cy='14' r='14' fill='%23666'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='white' font-size='12'%3E${player.playerName?.[0] || '?'}%3C/text%3E%3C/svg%3E`}
+                      src={playerPhoto || `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28'%3E%3Ccircle cx='14' cy='14' r='14' fill='%23666'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='white' font-size='12'%3E${player.playerName?.[0] || '?'}%3C/text%3E%3C/svg%3E`}
                       alt={player.playerName}
                       style={{
                         width: '28px',
