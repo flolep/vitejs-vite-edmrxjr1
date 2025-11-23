@@ -168,15 +168,8 @@ export default function MasterWizard({ onComplete }) {
   const handleSelectSource = async (source) => {
     setMusicSource(source);
 
-    // Si MP3 ou Spotify-auto, forcer le mode Équipe et passer directement au loading
-    if (source === 'mp3' || source === 'spotify-auto') {
-      setPlayMode('team');
-      setGameMode(`${source}-team`);
-      await createSession(source, 'team');
-    } else {
-      // Si Spotify-IA, demander le mode de jeu
-      setStep('gamemode');
-    }
+    // Pour toutes les sources, demander le mode de jeu (team ou quiz)
+    setStep('gamemode');
   };
 
   // ========== ÉTAPE 4 : CHOIX DU MODE DE JEU ==========
@@ -213,6 +206,7 @@ export default function MasterWizard({ onComplete }) {
       updates[`sessions/${newSessionId}/scores`] = { team1: 0, team2: 0 };
       updates[`sessions/${newSessionId}/chrono`] = 0;
       updates[`sessions/${newSessionId}/isPlaying`] = false;
+      updates[`sessions/${newSessionId}/currentTrackNumber`] = 1; // ✅ Initialiser à 1 (première chanson)
       updates[`sessions/${newSessionId}/currentSong`] = null;
       updates[`sessions/${newSessionId}/game_status`] = { ended: false };
       updates[`sessions/${newSessionId}/showQRCode`] = false;
