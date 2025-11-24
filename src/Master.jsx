@@ -617,6 +617,11 @@ export default function Master({
         }
       }
 
+      // 🧹 Réinitialiser le classement avant de stocker les nouvelles données
+      console.log('🧹 Réinitialisation du classement...');
+      setDebugInfo('🧹 Réinitialisation du classement...');
+      await quizMode.resetLeaderboard();
+
       console.log('🎯 Stockage des données Quiz dans Firebase...');
       setDebugInfo('💾 Stockage dans Firebase...');
       await quizMode.storeQuizData(allWrongAnswers);

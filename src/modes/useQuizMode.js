@@ -317,6 +317,35 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
   };
 
   /**
+   * Réinitialise le classement pour une nouvelle partie
+   * À appeler lors du lancement d'une nouvelle partie Quiz
+   */
+  const resetLeaderboard = async () => {
+    console.log('🧹 Réinitialisation du classement Quiz...');
+    setLeaderboard([]);
+
+    if (sessionId) {
+      try {
+        // Supprimer le leaderboard
+        const leaderboardRef = ref(database, `sessions/${sessionId}/quiz_leaderboard`);
+        await remove(leaderboardRef);
+
+        // Supprimer toutes les réponses précédentes
+        const answersRef = ref(database, `sessions/${sessionId}/quiz_answers`);
+        await remove(answersRef);
+
+        // Supprimer les données quiz précédentes
+        const quizDataRef = ref(database, `sessions/${sessionId}/quiz_data`);
+        await remove(quizDataRef);
+
+        console.log('✅ Classement et données Quiz réinitialisés');
+      } catch (error) {
+        console.error('❌ Erreur lors de la réinitialisation:', error);
+      }
+    }
+  };
+
+  /**
    * Écoute le classement en temps réel depuis Firebase
    */
   useEffect(() => {
@@ -343,6 +372,7 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
     storeQuizData,
     generateQuizAnswers,
     revealQuizAnswer,
-    resetQuiz
+    resetQuiz,
+    resetLeaderboard
   };
 }
