@@ -5,6 +5,7 @@ import { airtableService } from './airtableService';
 import { useBuzzerLocalStorage } from './hooks/buzzer/useBuzzerLocalStorage';
 import { useBuzzerCamera } from './hooks/buzzer/useBuzzerCamera';
 import { useBuzzerSession } from './hooks/buzzer/useBuzzerSession';
+import { calculatePoints } from './hooks/useScoring';
 import { NameScreen } from './components/buzzer/screens/NameScreen';
 import { SelectScreen } from './components/buzzer/screens/SelectScreen';
 import { PhotoScreen } from './components/buzzer/screens/PhotoScreen';
@@ -109,6 +110,7 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
   const [quizQuestion, setQuizQuestion] = useState(null);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [hasAnswered, setHasAnswered] = useState(false);
+  const [playerAnswerData, setPlayerAnswerData] = useState(null); // Données de réponse du joueur (incluant points)
   const [showStats, setShowStats] = useState(false);
   const [personalStats, setPersonalStats] = useState({
     totalAnswers: 0,
@@ -153,8 +155,27 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
     if (quizQuestion && !quizQuestion.revealed) {
       setHasAnswered(false);
       setSelectedAnswer(null);
+      setPlayerAnswerData(null);
     }
   }, [quizQuestion?.trackNumber, quizQuestion?.revealed]);
+
+  // Écouter les données de réponse du joueur (incluant points calculés)
+  useEffect(() => {
+    if (!sessionValid || !sessionId || !quizQuestion || !selectedPlayer) return;
+
+    const playerId = selectedPlayer?.id || `temp_${playerName}`;
+    const answerRef = ref(database, `sessions/${sessionId}/quiz_answers/${quizQuestion.trackNumber}/${playerId}`);
+
+    const unsubscribe = onValue(answerRef, (snapshot) => {
+      const answerData = snapshot.val();
+      if (answerData) {
+        setPlayerAnswerData(answerData);
+        console.log('📥 Données réponse du joueur:', answerData);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [sessionValid, sessionId, quizQuestion?.trackNumber, selectedPlayer, playerName]);
 
   // ========== HANDLERS - NAME SCREEN ==========
 
@@ -736,6 +757,7 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
           selectedAnswer={selectedAnswer}
           hasAnswered={hasAnswered}
           isPlaying={isPlaying}
+          playerAnswerData={playerAnswerData}
           onAnswerSelect={handleQuizAnswer}
           loadPersonalStats={loadPersonalStats}
           showStats={showStats}

@@ -399,6 +399,7 @@ export function QuizInterface({
   selectedAnswer,
   hasAnswered,
   isPlaying,
+  playerAnswerData: playerFirebaseData, // Données de réponse incluant les points calculés depuis Firebase
   onAnswerSelect,
   loadPersonalStats,
   showStats,
@@ -472,7 +473,8 @@ export function QuizInterface({
   const getStatusMessage = () => {
     if (revealed) {
       if (isCorrect) {
-        return 'Bonne réponse ! +120 pts';
+        const points = playerFirebaseData?.points || 0;
+        return `Bonne réponse ! +${points} pts`;
       }
       return 'Mauvaise réponse · 0 pt';
     }
