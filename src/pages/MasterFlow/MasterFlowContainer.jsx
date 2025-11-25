@@ -126,8 +126,9 @@ export default function MasterFlowContainer() {
       setFlowState(FLOW_STATES.ACTIVE_GAME);
 
     } catch (error) {
+      // Log de l'erreur en console mais pas de message à l'utilisateur
+      // C'est normal de ne pas avoir de partie en cours
       console.error('❌ Erreur lors de la vérification de partie active:', error);
-      setError('Erreur lors de la vérification de session');
       setFlowState(FLOW_STATES.MODE_SELECTION);
     } finally {
       setIsLoading(false);
