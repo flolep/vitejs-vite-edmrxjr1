@@ -6,7 +6,7 @@ import Login from '../../components/Login';
 
 // Import des étapes
 import StepModeSelection from './steps/StepModeSelection';
-// import StepPlayerConnection from './steps/StepPlayerConnection';
+import StepPlayerConnection from './steps/StepPlayerConnection';
 // import StepReadyToStart from './steps/StepReadyToStart';
 
 // Import de l'interface de partie active
@@ -362,18 +362,12 @@ export default function MasterFlowContainer() {
 
     case FLOW_STATES.PLAYER_CONNECTION:
       return (
-        <div style={{
-          minHeight: '100vh',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          color: 'white',
-          padding: '2rem'
-        }}>
-          <h1>Étape 2: Connexion Joueurs + Config Musique</h1>
-          <p>À implémenter...</p>
-          <button onClick={() => handleConnectionComplete('mp3')}>
-            [DEBUG] Continuer
-          </button>
-        </div>
+        <StepPlayerConnection
+          sessionId={sessionData.sessionId}
+          playMode={sessionData.playMode}
+          onContinue={handleConnectionComplete}
+          onBack={() => setFlowState(FLOW_STATES.MODE_SELECTION)}
+        />
       );
 
     case FLOW_STATES.READY:
