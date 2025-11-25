@@ -1389,7 +1389,7 @@ return (
                       fontSize: '0.75rem',
                       color: player.isCorrect ? '#22c55e' : '#6b7280'
                     }}>
-                      {player.isCorrect ? '+120 pts' : '0 pt'}
+                      {player.isCorrect ? `+${player.points || 0} pts` : '0 pt'}
                     </div>
                   </div>
                 </div>
@@ -1470,7 +1470,8 @@ return (
             overflowY: 'auto'
           }}>
             {quizLeaderboard.slice(0, 5).map((player, index) => {
-              const currentSongPoints = playerAnswers.find(p => p.playerId === player.playerId)?.isCorrect ? '+90 pts' : '+0 pt';
+              const playerAnswer = playerAnswers.find(p => p.playerId === player.playerId);
+              const currentSongPoints = playerAnswer?.isCorrect ? `+${playerAnswer?.points || 0} pts` : '+0 pt';
 
               // Récupérer la photo depuis allPlayers
               const playerInfo = allPlayers.find(p => p.name === player.playerName);
