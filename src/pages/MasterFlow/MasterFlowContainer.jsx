@@ -7,7 +7,7 @@ import Login from '../../components/Login';
 // Import des étapes
 import StepModeSelection from './steps/StepModeSelection';
 import StepPlayerConnection from './steps/StepPlayerConnection';
-// import StepReadyToStart from './steps/StepReadyToStart';
+import StepReadyToStart from './steps/StepReadyToStart';
 
 // Import de l'interface de partie active
 // import ActiveGameContainer from './ActiveGame/ActiveGameContainer';
@@ -372,19 +372,12 @@ export default function MasterFlowContainer() {
 
     case FLOW_STATES.READY:
       return (
-        <div style={{
-          minHeight: '100vh',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          color: 'white',
-          padding: '2rem'
-        }}>
-          <h1>Étape 3: Prêt à démarrer</h1>
-          <p>Mode: {sessionData.playMode}</p>
-          <p>Musique: {sessionData.musicSource}</p>
-          <button onClick={handleStartGame}>
-            🎮 Démarrer la partie
-          </button>
-        </div>
+        <StepReadyToStart
+          sessionId={sessionData.sessionId}
+          sessionData={sessionData}
+          onStartGame={handleStartGame}
+          onBack={() => setFlowState(FLOW_STATES.PLAYER_CONNECTION)}
+        />
       );
 
     case FLOW_STATES.ACTIVE_GAME:
