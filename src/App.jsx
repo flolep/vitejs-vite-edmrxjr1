@@ -4,6 +4,7 @@ import Buzzer from './Buzzer';
 import TV from './TV';
 import SpotifyCallback from './SpotifyCallback';
 import MasterWizard from './components/MasterWizard';
+import MasterFlowContainer from './pages/MasterFlow/MasterFlowContainer';
 
 export default function App() {
   // Initialiser la page depuis l'URL uniquement
@@ -60,13 +61,28 @@ export default function App() {
 
   // Handler du bouton Animateur
   const handleAnimatorClick = () => {
-    // Marquer le wizard en cours
-    localStorage.setItem('wizardInProgress', 'true');
-    setShowWizard(true);
+    // 🆕 Utiliser le nouveau flux refactorisé
+    // Pour revenir à l'ancien wizard, changer useNewFlow = false
+    const useNewFlow = true;
+
+    if (useNewFlow) {
+      // Nouveau flux direct (pas de wizard modal)
+      setPage('master-flow');
+    } else {
+      // Ancien wizard modal
+      localStorage.setItem('wizardInProgress', 'true');
+      setShowWizard(true);
+    }
   };
 
   if (page === 'callback') return <SpotifyCallback />;
 
+  // 🆕 Nouveau flux refactorisé
+  if (page === 'master-flow') {
+    return <MasterFlowContainer />;
+  }
+
+  // Ancien Master (via wizard)
   if (page === 'master') {
     return (
       <Master
