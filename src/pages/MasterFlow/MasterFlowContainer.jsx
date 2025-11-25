@@ -10,7 +10,7 @@ import StepPlayerConnection from './steps/StepPlayerConnection';
 import StepReadyToStart from './steps/StepReadyToStart';
 
 // Import de l'interface de partie active
-// import ActiveGameContainer from './ActiveGame/ActiveGameContainer';
+import ActiveGameContainer from './ActiveGame/ActiveGameContainer';
 
 /**
  * États du flux Master
@@ -383,34 +383,11 @@ export default function MasterFlowContainer() {
     case FLOW_STATES.ACTIVE_GAME:
     case FLOW_STATES.GAME_PLAYING:
       return (
-        <div style={{
-          minHeight: '100vh',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          color: 'white',
-          padding: '2rem'
-        }}>
-          <h1>🎮 PARTIE EN COURS</h1>
-          <p>Session: {sessionData.sessionId}</p>
-          <p>Mode: {sessionData.playMode}</p>
-          <button
-            onClick={handleEndGame}
-            style={{
-              padding: '0.75rem 1.5rem',
-              backgroundColor: '#ef4444',
-              border: 'none',
-              borderRadius: '0.5rem',
-              color: 'white',
-              fontSize: '1rem',
-              cursor: 'pointer',
-              marginTop: '1rem'
-            }}
-          >
-            🏁 Terminer la partie
-          </button>
-          <p style={{ marginTop: '1rem', fontSize: '0.875rem', opacity: 0.7 }}>
-            [TODO: Intégrer ActiveGameContainer ici]
-          </p>
-        </div>
+        <ActiveGameContainer
+          sessionId={sessionData.sessionId}
+          sessionData={sessionData}
+          onEndGame={handleEndGame}
+        />
       );
 
     default:
