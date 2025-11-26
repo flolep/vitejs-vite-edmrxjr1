@@ -6,6 +6,7 @@ import { n8nService } from './n8nService';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { QRCodeSVG } from 'qrcode.react';
 import { deactivatePreviousSession } from './utils/sessionCleanup';
+import { getSessionCode } from './utils/sessionUtils';
 
 // Import des hooks
 import { useGameSession } from './hooks/useGameSession';
@@ -1607,7 +1608,7 @@ export default function Master({
                 color: '#fbbf24',
                 textShadow: '0 0 10px rgba(251, 191, 36, 0.3)'
               }}>
-                {sessionId}
+                {getSessionCode(sessionId)}
               </div>
             </div>
 
@@ -1636,7 +1637,7 @@ export default function Master({
             }}>
               <button
                 onClick={() => {
-                  navigator.clipboard.writeText(sessionId);
+                  navigator.clipboard.writeText(getSessionCode(sessionId));
                   setDebugInfo('✅ Code copié !');
                 }}
                 style={{
