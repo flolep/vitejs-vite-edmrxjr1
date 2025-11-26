@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { database } from '../../../firebase';
 import { ref, onValue, update } from 'firebase/database';
+import { spotifyService } from '../../../spotifyService';
 import PlayerConnectionPanel from './PlayerConnectionPanel';
 import MusicConfigPanel from './MusicConfigPanel';
 
@@ -87,16 +88,13 @@ export default function StepPlayerConnection({
   const handleSpotifyConnect = () => {
     console.log('🔗 Demande de connexion Spotify...');
 
-    // Sauvegarder l'état pour rouvrir après OAuth
+    // Sauvegarder l'état pour revenir après OAuth
     localStorage.setItem('wizardInProgress', 'true');
     localStorage.setItem('pendingSessionId', sessionId);
 
-    // Rediriger vers l'authentification Spotify
-    const clientId = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
-    const redirectUri = `${window.location.origin}/callback`;
-    const scope = 'playlist-read-private playlist-read-collaborative user-read-private user-read-email streaming user-modify-playback-state';
-
-    const authUrl = `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}`;
+    // Utiliser le service Spotify existant pour générer l'URL
+    const authUrl = spotifyService.getAuthUrl();
+    console.log('🔗 Redirection vers:', authUrl);
 
     window.location.href = authUrl;
   };
