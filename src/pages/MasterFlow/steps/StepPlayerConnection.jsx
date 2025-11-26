@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { database } from '../../../firebase';
 import { ref, onValue, update } from 'firebase/database';
 import { spotifyService } from '../../../spotifyService';
+import { getSessionCode } from '../../../utils/sessionUtils';
 import PlayerConnectionPanel from './PlayerConnectionPanel';
 import MusicConfigPanel from './MusicConfigPanel';
 
@@ -188,7 +189,7 @@ export default function StepPlayerConnection({
               fontSize: '1rem',
               opacity: 0.9
             }}>
-              Mode: <strong>{playMode === 'team' ? 'Équipe' : 'Quiz'}</strong> • Session: <strong>{sessionId?.substring(0, 15)}...</strong>
+              Mode: <strong>{playMode === 'team' ? 'Équipe' : 'Quiz'}</strong> • Session: <strong>{getSessionCode(sessionId)}</strong>
             </p>
           </div>
 

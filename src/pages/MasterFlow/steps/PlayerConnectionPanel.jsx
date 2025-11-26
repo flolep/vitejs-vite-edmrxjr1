@@ -1,5 +1,6 @@
 import React from 'react';
 import { QRCodeSVG } from 'qrcode.react';
+import { getSessionCode } from '../../../utils/sessionUtils';
 
 /**
  * Panel gauche : QR Code + Liste des joueurs connectés en temps réel
@@ -78,14 +79,14 @@ export default function PlayerConnectionPanel({ sessionId, players, playMode }) 
             color: '#fbbf24',
             textShadow: '0 0 10px rgba(251, 191, 36, 0.3)'
           }}>
-            {sessionId}
+            {getSessionCode(sessionId)}
           </div>
         </div>
 
         {/* Bouton copier */}
         <button
           onClick={() => {
-            navigator.clipboard.writeText(sessionId);
+            navigator.clipboard.writeText(getSessionCode(sessionId));
           }}
           style={{
             padding: '0.5rem 1rem',
