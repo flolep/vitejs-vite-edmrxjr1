@@ -27,23 +27,48 @@ export default function StepReadyToStart({
     if (!sessionId) return;
 
     // Écouter les joueurs connectés dans Firebase
-    const playersRef = ref(database, `sessions/${sessionId}/players`);
+    // Les joueurs peuvent être dans team1 ou team2 (mode Team) ou team1 (mode Quiz)
+    const team1Ref = ref(database, `sessions/${sessionId}/players_session/team1`);
+    const team2Ref = ref(database, `sessions/${sessionId}/players_session/team2`);
 
-    const unsubscribe = onValue(playersRef, (snapshot) => {
-      const playersData = snapshot.val();
+    let team1Players = [];
+    let team2Players = [];
 
-      if (playersData) {
-        const playersList = Object.entries(playersData).map(([id, data]) => ({
-          id,
-          ...data
-        }));
-        setPlayers(playersList);
-      } else {
-        setPlayers([]);
-      }
+    const updatePlayers = () => {
+      const allPlayers = [...team1Players, ...team2Players];
+      setPlayers(allPlayers);
+    };
+
+    const unsubscribe1 = onValue(team1Ref, (snapshot) => {
+      const team1Data = snapshot.val();
+      team1Players = team1Data ? Object.entries(team1Data)
+        .filter(([_, player]) => player.connected)
+        .map(([key, player]) => ({
+          id: player.id || key,
+          name: player.name,
+          photo: player.photo,
+          team: 'team1'
+        })) : [];
+      updatePlayers();
     });
 
-    return () => unsubscribe();
+    const unsubscribe2 = onValue(team2Ref, (snapshot) => {
+      const team2Data = snapshot.val();
+      team2Players = team2Data ? Object.entries(team2Data)
+        .filter(([_, player]) => player.connected)
+        .map(([key, player]) => ({
+          id: player.id || key,
+          name: player.name,
+          photo: player.photo,
+          team: 'team2'
+        })) : [];
+      updatePlayers();
+    });
+
+    return () => {
+      unsubscribe1();
+      unsubscribe2();
+    };
   }, [sessionId]);
 
   // ========== HANDLERS ==========
