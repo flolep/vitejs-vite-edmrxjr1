@@ -146,8 +146,8 @@ export default function MasterFlowContainer() {
       setIsLoading(true);
       setError('');
 
-      // Générer un sessionId unique
-      const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      // Générer un sessionId unique (6 caractères alphanumériques en majuscules)
+      const newSessionId = Math.random().toString(36).substring(2, 8).toUpperCase();
 
       console.log('🆕 Création nouvelle session:', newSessionId, 'Mode:', selectedMode);
 
