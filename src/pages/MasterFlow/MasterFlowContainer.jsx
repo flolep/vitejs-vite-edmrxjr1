@@ -61,9 +61,46 @@ export default function MasterFlowContainer() {
       setUser(currentUser);
       setAuthChecked(true);
 
-      // Une fois authentifié, vérifier si une partie est en cours
+      // Une fois authentifié, vérifier si on revient de Spotify OAuth
       if (currentUser) {
-        checkForActiveGame();
+        const pendingSessionId = localStorage.getItem('pendingSessionId');
+
+        if (pendingSessionId) {
+          // Retour de Spotify OAuth, restaurer l'état
+          console.log('🔄 Retour de Spotify OAuth, restauration session:', pendingSessionId);
+
+          // Récupérer le playMode depuis Firebase
+          const sessionRef = ref(database, `sessions/${pendingSessionId}`);
+          get(sessionRef).then((snapshot) => {
+            const sessionData = snapshot.val();
+
+            if (sessionData) {
+              // Restaurer les données de session
+              setSessionData({
+                sessionId: pendingSessionId,
+                playMode: sessionData.playMode,
+                musicSource: null,
+                gameMode: null,
+                players: [],
+                playlist: [],
+                playlistId: null,
+                spotifyToken: sessionStorage.getItem('spotify_access_token')
+              });
+
+              // Retour à l'étape de configuration musicale
+              setFlowState(FLOW_STATES.PLAYER_CONNECTION);
+            } else {
+              // Session n'existe plus, recommencer
+              setFlowState(FLOW_STATES.MODE_SELECTION);
+            }
+
+            // Nettoyer le flag
+            localStorage.removeItem('pendingSessionId');
+          });
+        } else {
+          // Pas de retour Spotify, vérifier si une partie est en cours
+          checkForActiveGame();
+        }
       } else {
         setFlowState(FLOW_STATES.MODE_SELECTION);
       }
