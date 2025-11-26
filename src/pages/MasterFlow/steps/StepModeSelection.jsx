@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
 import { signOut } from 'firebase/auth';
 import { auth } from '../../../firebase';
+import { getSessionCode } from '../../../utils/sessionUtils';
 
 /**
  * Étape 1: Sélection du mode de jeu
- * L'animateur choisit entre Mode Équipe ou Mode Quiz
+ * L'animateur choisit entre :
+ * - Reprendre la partie en cours (si activeGame existe)
+ * - Mode Équipe (nouvelle partie)
+ * - Mode Quiz (nouvelle partie)
  */
-export default function StepModeSelection({ onModeSelected, user }) {
+export default function StepModeSelection({ onModeSelected, onResumeGame, activeGame, user }) {
   const [selectedMode, setSelectedMode] = useState(null);
   const [isCreating, setIsCreating] = useState(false);
 
@@ -88,10 +92,83 @@ export default function StepModeSelection({ onModeSelected, user }) {
           opacity: 0.9,
           marginBottom: '3rem'
         }}>
-          Choisissez le mode de jeu pour commencer
+          {activeGame ? 'Reprendre la partie en cours ou créer une nouvelle partie' : 'Choisissez le mode de jeu pour commencer'}
         </p>
 
+        {/* Partie en cours (si elle existe) */}
+        {activeGame && (
+          <div style={{
+            marginBottom: '3rem',
+            padding: '2rem',
+            backgroundColor: 'rgba(16, 185, 129, 0.2)',
+            border: '2px solid rgba(16, 185, 129, 0.5)',
+            borderRadius: '1.5rem',
+            backdropFilter: 'blur(10px)'
+          }}>
+            <div style={{
+              fontSize: '1.1rem',
+              marginBottom: '1rem',
+              opacity: 0.9
+            }}>
+              🎮 Partie en cours détectée
+            </div>
+            <div style={{
+              fontSize: '1.5rem',
+              fontWeight: 'bold',
+              marginBottom: '0.5rem'
+            }}>
+              {activeGame.playMode === 'team' ? '👥 Mode Équipe' : '🎯 Mode Quiz'}
+            </div>
+            <div style={{
+              fontSize: '0.9rem',
+              opacity: 0.7,
+              marginBottom: '1.5rem'
+            }}>
+              Session : {getSessionCode(activeGame.sessionId)}
+            </div>
+            <button
+              onClick={onResumeGame}
+              disabled={isCreating}
+              style={{
+                padding: '1rem 3rem',
+                backgroundColor: '#10b981',
+                border: 'none',
+                borderRadius: '0.75rem',
+                color: 'white',
+                fontSize: '1.1rem',
+                fontWeight: 'bold',
+                cursor: isCreating ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s',
+                opacity: isCreating ? 0.5 : 1
+              }}
+              onMouseEnter={(e) => {
+                if (!isCreating) {
+                  e.currentTarget.style.backgroundColor = '#059669';
+                  e.currentTarget.style.transform = 'scale(1.05)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isCreating) {
+                  e.currentTarget.style.backgroundColor = '#10b981';
+                  e.currentTarget.style.transform = 'scale(1)';
+                }
+              }}
+            >
+              ▶️ Reprendre la partie
+            </button>
+          </div>
+        )}
+
         {/* Grille des modes */}
+        {activeGame && (
+          <div style={{
+            fontSize: '1rem',
+            opacity: 0.7,
+            marginBottom: '1.5rem'
+          }}>
+            ou créer une nouvelle partie :
+          </div>
+        )}
         <div style={{
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',

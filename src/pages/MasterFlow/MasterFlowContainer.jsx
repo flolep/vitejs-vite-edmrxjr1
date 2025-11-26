@@ -17,11 +17,10 @@ import ActiveGameContainer from './ActiveGame/ActiveGameContainer';
  */
 const FLOW_STATES = {
   LOADING: 'loading',                  // Chargement initial + vérification partie en cours
-  ACTIVE_GAME: 'active_game',          // Partie en cours détectée → afficher interface active
-  MODE_SELECTION: 'mode_selection',    // Étape 1: Choix Mode Équipe ou Quiz
+  MODE_SELECTION: 'mode_selection',    // Étape 1: Choix Mode Équipe ou Quiz (ou reprise partie)
   PLAYER_CONNECTION: 'player_connection', // Étape 2: Connexion joueurs + config musique
   READY: 'ready',                      // Étape 3: Prêt à démarrer
-  GAME_PLAYING: 'game_playing'         // Partie lancée (même que ACTIVE_GAME mais depuis ce flux)
+  GAME_PLAYING: 'game_playing'         // Partie en cours (nouvelle ou reprise)
 };
 
 /**
@@ -47,6 +46,9 @@ export default function MasterFlowContainer() {
     playlistId: null,         // ID Spotify playlist (si applicable)
     spotifyToken: null        // Token Spotify (si applicable)
   });
+
+  // Partie active détectée (si elle existe)
+  const [activeGame, setActiveGame] = useState(null);
 
   // État de chargement/erreur
   const [isLoading, setIsLoading] = useState(false);
@@ -110,20 +112,18 @@ export default function MasterFlowContainer() {
 
       console.log('✅ Partie en cours détectée !');
 
-      // 4. Restaurer les données de session
-      setSessionData({
+      // 4. Stocker les infos de la partie active
+      setActiveGame({
         sessionId: lastSessionId,
         playMode: existingSession.playMode || null,
         musicSource: existingSession.musicSource || null,
         gameMode: existingSession.gameMode || null,
-        players: [],
-        playlist: [],
         playlistId: existingSession.playlistId || null,
         spotifyToken: sessionStorage.getItem('spotify_access_token')
       });
 
-      // 5. Passer en mode partie active
-      setFlowState(FLOW_STATES.ACTIVE_GAME);
+      // 5. Aller à la sélection de mode (qui affichera l'option de reprendre la partie)
+      setFlowState(FLOW_STATES.MODE_SELECTION);
 
     } catch (error) {
       // Log de l'erreur en console mais pas de message à l'utilisateur
@@ -138,6 +138,33 @@ export default function MasterFlowContainer() {
   // ========== HANDLERS NAVIGATION ==========
 
   /**
+   * Depuis StepModeSelection → Rejoindre la partie en cours
+   */
+  const handleResumeGame = () => {
+    if (!activeGame) return;
+
+    console.log('▶️ Reprise de la partie en cours:', activeGame.sessionId);
+
+    // Restaurer les données de session
+    setSessionData({
+      sessionId: activeGame.sessionId,
+      playMode: activeGame.playMode,
+      musicSource: activeGame.musicSource,
+      gameMode: activeGame.gameMode,
+      players: [],
+      playlist: [],
+      playlistId: activeGame.playlistId,
+      spotifyToken: activeGame.spotifyToken
+    });
+
+    // Réinitialiser activeGame pour éviter de l'afficher à nouveau
+    setActiveGame(null);
+
+    // Aller directement à la partie active
+    setFlowState(FLOW_STATES.GAME_PLAYING);
+  };
+
+  /**
    * Depuis StepModeSelection → StepPlayerConnection
    * Crée une nouvelle session avec le mode choisi
    */
@@ -150,6 +177,9 @@ export default function MasterFlowContainer() {
       const newSessionId = Math.random().toString(36).substring(2, 8).toUpperCase();
 
       console.log('🆕 Création nouvelle session:', newSessionId, 'Mode:', selectedMode);
+
+      // Réinitialiser la partie active (on crée une nouvelle partie)
+      setActiveGame(null);
 
       // Créer la session dans Firebase
       const updates = {};
@@ -357,6 +387,8 @@ export default function MasterFlowContainer() {
       return (
         <StepModeSelection
           onModeSelected={handleModeSelected}
+          onResumeGame={handleResumeGame}
+          activeGame={activeGame}
           user={user}
         />
       );
@@ -381,7 +413,6 @@ export default function MasterFlowContainer() {
         />
       );
 
-    case FLOW_STATES.ACTIVE_GAME:
     case FLOW_STATES.GAME_PLAYING:
       return (
         <ActiveGameContainer
