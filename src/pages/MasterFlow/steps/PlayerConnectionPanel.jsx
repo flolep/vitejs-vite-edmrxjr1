@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
+import { database } from '../../../firebase';
+import { ref, onValue, set } from 'firebase/database';
 import { getSessionCode } from '../../../utils/sessionUtils';
 
 /**
@@ -7,6 +9,38 @@ import { getSessionCode } from '../../../utils/sessionUtils';
  */
 export default function PlayerConnectionPanel({ sessionId, players, playMode }) {
   const buzzerUrl = `${window.location.origin}/buzzer?session=${sessionId}`;
+  const [showQRCode, setShowQRCode] = useState(false);
+
+  // Écouter l'état showQRCode depuis Firebase
+  useEffect(() => {
+    if (!sessionId) return;
+
+    const qrCodeRef = ref(database, `sessions/${sessionId}/showQRCode`);
+    const unsubscribe = onValue(qrCodeRef, (snapshot) => {
+      const show = snapshot.val();
+      setShowQRCode(show === true);
+    });
+
+    return () => unsubscribe();
+  }, [sessionId]);
+
+  // Toggle l'affichage du QR Code sur TV
+  const toggleQRCodeOnTV = async () => {
+    if (!sessionId) return;
+
+    const qrCodeRef = ref(database, `sessions/${sessionId}/showQRCode`);
+
+    // Lire la valeur actuelle depuis Firebase
+    onValue(qrCodeRef, async (snapshot) => {
+      const currentValue = snapshot.val();
+      const newValue = !currentValue;
+
+      console.log('📱 Toggle QR Code sur TV:', { currentValue, newValue });
+
+      // Écrire la nouvelle valeur
+      await set(qrCodeRef, newValue);
+    }, { onlyOnce: true });
+  };
 
   return (
     <div style={{
@@ -83,30 +117,81 @@ export default function PlayerConnectionPanel({ sessionId, players, playMode }) 
           </div>
         </div>
 
-        {/* Bouton copier */}
-        <button
-          onClick={() => {
-            navigator.clipboard.writeText(getSessionCode(sessionId));
-          }}
-          style={{
-            padding: '0.5rem 1rem',
-            backgroundColor: 'rgba(124, 58, 237, 0.3)',
-            border: '1px solid #7c3aed',
-            borderRadius: '0.5rem',
-            color: 'white',
-            fontSize: '0.85rem',
-            cursor: 'pointer',
-            transition: 'all 0.2s'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = 'rgba(124, 58, 237, 0.5)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'rgba(124, 58, 237, 0.3)';
-          }}
-        >
-          📋 Copier le code
-        </button>
+        {/* Boutons d'actions */}
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.5rem',
+          width: '100%'
+        }}>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(getSessionCode(sessionId));
+            }}
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: 'rgba(124, 58, 237, 0.3)',
+              border: '1px solid #7c3aed',
+              borderRadius: '0.5rem',
+              color: 'white',
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(124, 58, 237, 0.5)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(124, 58, 237, 0.3)';
+            }}
+          >
+            📋 Copier le code
+          </button>
+
+          <button
+            onClick={() => window.open('/tv', '_blank')}
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: 'rgba(16, 185, 129, 0.3)',
+              border: '1px solid #10b981',
+              borderRadius: '0.5rem',
+              color: 'white',
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.5)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.3)';
+            }}
+          >
+            📺 Ouvrir TV
+          </button>
+
+          <button
+            onClick={toggleQRCodeOnTV}
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: showQRCode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)',
+              border: showQRCode ? '1px solid #ef4444' : '1px solid #10b981',
+              borderRadius: '0.5rem',
+              color: 'white',
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = showQRCode ? 'rgba(239, 68, 68, 0.5)' : 'rgba(16, 185, 129, 0.5)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = showQRCode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)';
+            }}
+          >
+            {showQRCode ? '🔴 Masquer QR Code sur TV' : '📱 Afficher QR Code sur TV'}
+          </button>
+        </div>
       </div>
 
       {/* Liste des joueurs */}
