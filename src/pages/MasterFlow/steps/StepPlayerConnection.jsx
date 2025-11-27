@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { database } from '../../../firebase';
 import { ref, onValue, update } from 'firebase/database';
 import { spotifyService } from '../../../spotifyService';
+import { n8nService } from '../../../n8nService';
 import { getSessionCode } from '../../../utils/sessionUtils';
 import { getValidSpotifyToken } from '../../../utils/spotifyUtils';
 import PlayerConnectionPanel from './PlayerConnectionPanel';
@@ -111,11 +112,42 @@ export default function StepPlayerConnection({
 
   /**
    * Handler quand la source musicale est configurée
+   * Crée automatiquement une playlist Spotify vide si nécessaire
    */
-  const handleMusicConfigured = (source, config) => {
+  const handleMusicConfigured = async (source, config) => {
     console.log('🎵 Musique configurée:', source, config);
-    setMusicSource(source);
-    setMusicConfig(config);
+
+    // Si Spotify (Auto ou IA), créer une playlist vide via n8n
+    if (source === 'spotify-auto' || source === 'spotify-ai') {
+      try {
+        console.log('🆕 Création playlist Spotify vide via n8n...');
+
+        const playlistName = `Blind Test ${new Date().toLocaleDateString()}`;
+        const description = `Playlist générée pour le Blind Test - Session ${getSessionCode(sessionId)}`;
+
+        const result = await n8nService.createSpotifyPlaylistSimple(playlistName, description);
+
+        console.log('✅ Playlist créée:', result.playlistId);
+
+        // Ajouter le playlistId à la config
+        setMusicSource(source);
+        setMusicConfig({
+          ...config,
+          playlistId: result.playlistId,
+          playlistName: result.playlistName,
+          playlistUrl: result.playlistUrl
+        });
+      } catch (error) {
+        console.error('❌ Erreur création playlist:', error);
+        alert('Erreur lors de la création de la playlist Spotify. Veuillez réessayer.');
+        // Ne pas sauvegarder la config en cas d'erreur
+        return;
+      }
+    } else {
+      // MP3 local : pas besoin de playlist Spotify
+      setMusicSource(source);
+      setMusicConfig(config);
+    }
   };
 
   /**
