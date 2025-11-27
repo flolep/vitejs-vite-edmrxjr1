@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { database } from '../../../firebase';
 import { ref, onValue, set } from 'firebase/database';
 import { n8nService } from '../../../n8nService';
-import { spotifyService } from '../../../spotifyService';
 import { useSpotifyAIMode } from '../../../modes/useSpotifyAIMode';
 import { useSpotifyAutoMode } from '../../../modes/useSpotifyAutoMode';
 
@@ -122,32 +121,14 @@ export default function StepReadyToStart({
 
       // === CAS 2 & 3: Spotify (Auto ou IA) ===
       if (musicSource === 'spotify-auto' || musicSource === 'spotify-ai') {
-        // Récupérer l'ID de playlist depuis sessionData
+        // Récupérer ou générer l'ID de playlist
         let playlistId = sessionData?.playlistId;
 
         if (!playlistId) {
-          // Si pas de playlist ID, il faut en créer une
-          console.log('🆕 Création d\'une nouvelle playlist Spotify...');
-          const token = sessionData?.spotifyToken || sessionStorage.getItem('spotify_access_token');
-
-          if (!token) {
-            throw new Error('Token Spotify manquant');
-          }
-
-          playlistId = await spotifyService.createPlaylist(
-            token,
-            `Blind Test ${new Date().toLocaleDateString()}`,
-            'Playlist générée pour une partie de Blind Test'
-          );
-
-          // Sauvegarder le playlistId dans Firebase
-          const sessionRef = ref(database, `sessions/${sessionId}`);
-          await set(sessionRef, {
-            ...sessionData,
-            playlistId
-          });
-
-          console.log('✅ Playlist créée:', playlistId);
+          // Générer un ID de playlist basé sur le sessionId
+          // Le format attendu est l'ID réel d'une playlist Spotify
+          // Pour l'instant, on ne peut pas procéder sans playlist ID
+          throw new Error('Playlist Spotify non configurée. Veuillez sélectionner une playlist à l\'étape 2.');
         }
 
         // === SPOTIFY-AI : Génération avec préférences ===
