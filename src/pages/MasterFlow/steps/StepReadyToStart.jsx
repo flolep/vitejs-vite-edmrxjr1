@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { database } from '../../../firebase';
-import { ref, onValue } from 'firebase/database';
+import { ref, onValue, set } from 'firebase/database';
+import { n8nService } from '../../../n8nService';
+import { spotifyService } from '../../../spotifyService';
+import { useSpotifyAIMode } from '../../../modes/useSpotifyAIMode';
+import { useSpotifyAutoMode } from '../../../modes/useSpotifyAutoMode';
 
 /**
  * Étape 3: Prêt à démarrer
@@ -20,6 +24,21 @@ export default function StepReadyToStart({
   // État des joueurs (pour afficher le nombre en temps réel)
   const [players, setPlayers] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  // États pour la génération de playlist
+  const [playlist, setPlaylist] = useState([]);
+  const [isGeneratingPlaylist, setIsGeneratingPlaylist] = useState(false);
+  const [playlistPollAttempt, setPlaylistPollAttempt] = useState(0);
+  const [playlistReady, setPlaylistReady] = useState(false);
+  const [generationError, setGenerationError] = useState('');
+
+  // États pour les questions Quiz (mode Quiz uniquement)
+  const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
+  const [questionsReady, setQuestionsReady] = useState(false);
+
+  // Hooks pour les modes Spotify
+  const spotifyAIMode = useSpotifyAIMode();
+  const spotifyAutoMode = useSpotifyAutoMode();
 
   // ========== SYNCHRONISATION JOUEURS ==========
 
@@ -73,9 +92,194 @@ export default function StepReadyToStart({
 
   // ========== HANDLERS ==========
 
+  /**
+   * Génère la playlist selon la source musicale configurée
+   */
+  const handleGeneratePlaylist = async () => {
+    setIsGeneratingPlaylist(true);
+    setGenerationError('');
+
+    const musicSource = sessionData?.musicSource;
+    const playMode = sessionData?.playMode || 'team';
+
+    console.log('🎵 Génération playlist - Source:', musicSource, 'Mode:', playMode);
+
+    try {
+      // === CAS 1: MP3 Local ===
+      if (musicSource === 'mp3') {
+        console.log('📂 Utilisation des fichiers MP3 locaux');
+        const mp3Files = sessionData?.musicConfigData?.playlist || [];
+        setPlaylist(mp3Files);
+        setPlaylistReady(true);
+        setIsGeneratingPlaylist(false);
+
+        // En mode Quiz, générer automatiquement les questions
+        if (playMode === 'quiz') {
+          await handleGenerateQuizQuestions();
+        }
+        return;
+      }
+
+      // === CAS 2 & 3: Spotify (Auto ou IA) ===
+      if (musicSource === 'spotify-auto' || musicSource === 'spotify-ai') {
+        // Récupérer l'ID de playlist depuis sessionData
+        let playlistId = sessionData?.playlistId;
+
+        if (!playlistId) {
+          // Si pas de playlist ID, il faut en créer une
+          console.log('🆕 Création d\'une nouvelle playlist Spotify...');
+          const token = sessionData?.spotifyToken || sessionStorage.getItem('spotify_access_token');
+
+          if (!token) {
+            throw new Error('Token Spotify manquant');
+          }
+
+          playlistId = await spotifyService.createPlaylist(
+            token,
+            `Blind Test ${new Date().toLocaleDateString()}`,
+            'Playlist générée pour une partie de Blind Test'
+          );
+
+          // Sauvegarder le playlistId dans Firebase
+          const sessionRef = ref(database, `sessions/${sessionId}`);
+          await set(sessionRef, {
+            ...sessionData,
+            playlistId
+          });
+
+          console.log('✅ Playlist créée:', playlistId);
+        }
+
+        // === SPOTIFY-AI : Génération avec préférences ===
+        if (musicSource === 'spotify-ai') {
+          console.log('🤖 Génération IA avec préférences des joueurs');
+
+          // Formater les joueurs pour n8n
+          const playersFormatted = players.map(p => ({
+            name: p.name,
+            age: p.age || 25,
+            genres: p.genres || ['Pop', 'Rock'],
+            specialPhrase: p.specialPhrase || ''
+          }));
+
+          // Appel n8n pour générer
+          const generatePromise = n8nService.generatePlaylistWithAllPreferences({
+            playlistId,
+            players: playersFormatted
+          });
+
+          generatePromise
+            .then(result => {
+              console.log('✅ Playlist générée (en arrière-plan):', result);
+            })
+            .catch(error => {
+              console.warn('⚠️ Timeout n8n (normal):', error.message);
+            });
+
+          // Polling pour récupérer les chansons
+          let pollAttempts = 0;
+          const maxPollAttempts = 10;
+          const pollInterval = 15000; // 15 secondes
+
+          const pollPlaylist = setInterval(async () => {
+            pollAttempts++;
+            setPlaylistPollAttempt(pollAttempts);
+            console.log(`🔄 Tentative ${pollAttempts}/${maxPollAttempts}`);
+
+            try {
+              const tracks = await spotifyAIMode.loadPlaylistById(playlistId, setPlaylist);
+
+              if (tracks && tracks.length > 0) {
+                console.log(`✅ ${tracks.length} chansons récupérées`);
+                setPlaylistReady(true);
+                setIsGeneratingPlaylist(false);
+                clearInterval(pollPlaylist);
+
+                // En mode Quiz, générer automatiquement les questions
+                if (playMode === 'quiz') {
+                  await handleGenerateQuizQuestions();
+                }
+              } else if (pollAttempts >= maxPollAttempts) {
+                console.warn('⚠️ Polling terminé sans chansons');
+                setGenerationError('La génération prend du temps. Réessayez dans quelques instants.');
+                setIsGeneratingPlaylist(false);
+                clearInterval(pollPlaylist);
+              }
+            } catch (error) {
+              console.error('❌ Erreur polling:', error);
+              if (pollAttempts >= maxPollAttempts) {
+                setGenerationError('Erreur lors du chargement de la playlist');
+                setIsGeneratingPlaylist(false);
+                clearInterval(pollPlaylist);
+              }
+            }
+          }, pollInterval);
+
+        } else {
+          // === SPOTIFY-AUTO : Charger playlist existante ===
+          console.log('🎵 Chargement playlist Spotify existante');
+          const tracks = await spotifyAutoMode.loadPlaylistById(playlistId, setPlaylist);
+
+          if (tracks && tracks.length > 0) {
+            setPlaylistReady(true);
+            setIsGeneratingPlaylist(false);
+
+            // En mode Quiz, générer automatiquement les questions
+            if (playMode === 'quiz') {
+              await handleGenerateQuizQuestions();
+            }
+          } else {
+            throw new Error('Playlist vide ou introuvable');
+          }
+        }
+      }
+
+    } catch (error) {
+      console.error('❌ Erreur génération playlist:', error);
+      setGenerationError(error.message || 'Erreur lors de la génération');
+      setIsGeneratingPlaylist(false);
+    }
+  };
+
+  /**
+   * Génère les questions Quiz (uniquement en mode Quiz)
+   */
+  const handleGenerateQuizQuestions = async () => {
+    if (sessionData?.playMode !== 'quiz') return;
+    if (playlist.length === 0) {
+      console.warn('⚠️ Pas de playlist pour générer les questions');
+      return;
+    }
+
+    setIsGeneratingQuestions(true);
+    console.log('🎲 Génération des questions Quiz...');
+
+    try {
+      // TODO: Implémenter la génération de questions via n8n
+      // Pour l'instant, simuler un délai
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      setQuestionsReady(true);
+      setIsGeneratingQuestions(false);
+      console.log('✅ Questions générées');
+    } catch (error) {
+      console.error('❌ Erreur génération questions:', error);
+      setIsGeneratingQuestions(false);
+    }
+  };
+
+  /**
+   * Démarre la partie (après génération de playlist)
+   */
   const handleStartGame = async () => {
     setLoading(true);
     try {
+      // Sauvegarder la playlist dans Firebase avant de démarrer
+      if (playlist.length > 0) {
+        const sessionRef = ref(database, `sessions/${sessionId}/playlist`);
+        await set(sessionRef, playlist);
+      }
+
       await onStartGame();
     } catch (error) {
       console.error('❌ Erreur au démarrage:', error);
@@ -411,66 +615,155 @@ export default function StepReadyToStart({
         </div>
       </div>
 
-      {/* Footer: Bouton Démarrer */}
+      {/* Footer: Boutons d'action */}
       <div style={{
         maxWidth: '900px',
         margin: '0 auto',
         width: '100%',
         marginTop: '2rem',
         display: 'flex',
-        justifyContent: 'center'
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '1rem'
       }}>
-        <button
-          onClick={handleStartGame}
-          disabled={loading || players.length === 0}
-          style={{
-            padding: '1.5rem 4rem',
-            backgroundColor: (loading || players.length === 0)
-              ? 'rgba(255, 255, 255, 0.1)'
-              : '#10b981',
-            border: 'none',
-            borderRadius: '1rem',
-            color: 'white',
-            fontSize: '1.5rem',
-            fontWeight: 'bold',
-            cursor: (loading || players.length === 0) ? 'not-allowed' : 'pointer',
-            opacity: (loading || players.length === 0) ? 0.5 : 1,
-            transition: 'all 0.2s',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1rem'
-          }}
-          onMouseEnter={(e) => {
-            if (!loading && players.length > 0) {
-              e.currentTarget.style.backgroundColor = '#059669';
-              e.currentTarget.style.transform = 'scale(1.05)';
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (!loading && players.length > 0) {
-              e.currentTarget.style.backgroundColor = '#10b981';
-              e.currentTarget.style.transform = 'scale(1)';
-            }
-          }}
-        >
-          {loading ? (
-            <>
-              <span style={{
-                width: '24px',
-                height: '24px',
-                border: '3px solid rgba(255, 255, 255, 0.3)',
-                borderTopColor: 'white',
-                borderRadius: '50%',
-                animation: 'spin 1s linear infinite'
-              }} />
-              Démarrage...
-            </>
-          ) : players.length === 0 ? (
-            <>⏳ En attente de joueurs...</>
-          ) : (
-            <>🚀 Démarrer la partie</>
-          )}
-        </button>
+        {/* Message d'erreur */}
+        {generationError && (
+          <div style={{
+            backgroundColor: 'rgba(239, 68, 68, 0.2)',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+            borderRadius: '0.5rem',
+            padding: '1rem',
+            fontSize: '0.9rem',
+            textAlign: 'center',
+            maxWidth: '600px',
+            width: '100%'
+          }}>
+            ⚠️ {generationError}
+          </div>
+        )}
+
+        {/* Informations sur la playlist */}
+        {playlist.length > 0 && (
+          <div style={{
+            backgroundColor: 'rgba(16, 185, 129, 0.2)',
+            border: '1px solid rgba(16, 185, 129, 0.3)',
+            borderRadius: '0.5rem',
+            padding: '0.75rem 1.5rem',
+            fontSize: '0.9rem',
+            textAlign: 'center'
+          }}>
+            ✅ {playlist.length} chanson{playlist.length > 1 ? 's' : ''} prête{playlist.length > 1 ? 's' : ''}
+          </div>
+        )}
+
+        {/* Bouton: Générer la playlist OU Démarrer */}
+        {!playlistReady ? (
+          <button
+            onClick={handleGeneratePlaylist}
+            disabled={isGeneratingPlaylist || players.length === 0}
+            style={{
+              padding: '1.5rem 4rem',
+              backgroundColor: (isGeneratingPlaylist || players.length === 0)
+                ? 'rgba(255, 255, 255, 0.1)'
+                : '#10b981',
+              border: 'none',
+              borderRadius: '1rem',
+              color: 'white',
+              fontSize: '1.5rem',
+              fontWeight: 'bold',
+              cursor: (isGeneratingPlaylist || players.length === 0) ? 'not-allowed' : 'pointer',
+              opacity: (isGeneratingPlaylist || players.length === 0) ? 0.5 : 1,
+              transition: 'all 0.2s',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '1rem'
+            }}
+            onMouseEnter={(e) => {
+              if (!isGeneratingPlaylist && players.length > 0) {
+                e.currentTarget.style.backgroundColor = '#059669';
+                e.currentTarget.style.transform = 'scale(1.05)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isGeneratingPlaylist && players.length > 0) {
+                e.currentTarget.style.backgroundColor = '#10b981';
+                e.currentTarget.style.transform = 'scale(1)';
+              }
+            }}
+          >
+            {isGeneratingPlaylist ? (
+              <>
+                <span style={{
+                  width: '24px',
+                  height: '24px',
+                  border: '3px solid rgba(255, 255, 255, 0.3)',
+                  borderTopColor: 'white',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite'
+                }} />
+                {playlistPollAttempt > 0
+                  ? `⏳ Génération... (vérification ${playlistPollAttempt}/10)`
+                  : '⏳ Génération...'}
+              </>
+            ) : players.length === 0 ? (
+              <>⏳ En attente de joueurs...</>
+            ) : (
+              <>🎵 Générer la Playlist</>
+            )}
+          </button>
+        ) : (
+          <button
+            onClick={handleStartGame}
+            disabled={loading || (sessionData?.playMode === 'quiz' && !questionsReady)}
+            style={{
+              padding: '1.5rem 4rem',
+              backgroundColor: (loading || (sessionData?.playMode === 'quiz' && !questionsReady))
+                ? 'rgba(255, 255, 255, 0.1)'
+                : '#10b981',
+              border: 'none',
+              borderRadius: '1rem',
+              color: 'white',
+              fontSize: '1.5rem',
+              fontWeight: 'bold',
+              cursor: (loading || (sessionData?.playMode === 'quiz' && !questionsReady)) ? 'not-allowed' : 'pointer',
+              opacity: (loading || (sessionData?.playMode === 'quiz' && !questionsReady)) ? 0.5 : 1,
+              transition: 'all 0.2s',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '1rem'
+            }}
+            onMouseEnter={(e) => {
+              if (!loading && !(sessionData?.playMode === 'quiz' && !questionsReady)) {
+                e.currentTarget.style.backgroundColor = '#059669';
+                e.currentTarget.style.transform = 'scale(1.05)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!loading && !(sessionData?.playMode === 'quiz' && !questionsReady)) {
+                e.currentTarget.style.backgroundColor = '#10b981';
+                e.currentTarget.style.transform = 'scale(1)';
+              }
+            }}
+          >
+            {loading ? (
+              <>
+                <span style={{
+                  width: '24px',
+                  height: '24px',
+                  border: '3px solid rgba(255, 255, 255, 0.3)',
+                  borderTopColor: 'white',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite'
+                }} />
+                Démarrage...
+              </>
+            ) : (sessionData?.playMode === 'quiz' && !questionsReady) ? (
+              <>⏳ Génération des questions...</>
+            ) : (
+              <>🚀 Démarrer la partie</>
+            )}
+          </button>
+        )}
       </div>
 
       {/* Animation CSS pour le spinner */}
