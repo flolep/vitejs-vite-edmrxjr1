@@ -3,6 +3,7 @@ import { database } from '../../../firebase';
 import { ref, onValue, update } from 'firebase/database';
 import { spotifyService } from '../../../spotifyService';
 import { getSessionCode } from '../../../utils/sessionUtils';
+import { getValidSpotifyToken } from '../../../utils/spotifyUtils';
 import PlayerConnectionPanel from './PlayerConnectionPanel';
 import MusicConfigPanel from './MusicConfigPanel';
 
@@ -87,12 +88,23 @@ export default function StepPlayerConnection({
   // ========== SYNCHRONISATION SPOTIFY TOKEN ==========
 
   useEffect(() => {
-    // Récupérer le token Spotify depuis sessionStorage
-    const token = sessionStorage.getItem('spotify_access_token');
-    if (token) {
-      setSpotifyToken(token);
-      console.log('🎵 Token Spotify détecté');
-    }
+    // Vérifier si le token Spotify est valide (existe et non expiré)
+    const checkToken = () => {
+      const token = getValidSpotifyToken();
+      if (token) {
+        setSpotifyToken(token);
+      } else {
+        setSpotifyToken(null);
+      }
+    };
+
+    // Vérification initiale
+    checkToken();
+
+    // Vérifier toutes les minutes si le token est toujours valide
+    const interval = setInterval(checkToken, 60000); // 60 secondes
+
+    return () => clearInterval(interval);
   }, []);
 
   // ========== HANDLERS ==========

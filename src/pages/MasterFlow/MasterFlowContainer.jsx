@@ -3,6 +3,7 @@ import { auth, database } from '../../firebase';
 import { ref, get, set, update } from 'firebase/database';
 import { onAuthStateChanged } from 'firebase/auth';
 import Login from '../../components/Login';
+import { getValidSpotifyToken } from '../../utils/spotifyUtils';
 
 // Import des étapes
 import StepModeSelection from './steps/StepModeSelection';
@@ -84,7 +85,7 @@ export default function MasterFlowContainer() {
                 players: [],
                 playlist: [],
                 playlistId: null,
-                spotifyToken: sessionStorage.getItem('spotify_access_token')
+                spotifyToken: getValidSpotifyToken()
               });
 
               // Retour à l'étape de configuration musicale
@@ -156,7 +157,7 @@ export default function MasterFlowContainer() {
         musicSource: existingSession.musicSource || null,
         gameMode: existingSession.gameMode || null,
         playlistId: existingSession.playlistId || null,
-        spotifyToken: sessionStorage.getItem('spotify_access_token')
+        spotifyToken: getValidSpotifyToken()
       });
 
       // 5. Aller à la sélection de mode (qui affichera l'option de reprendre la partie)

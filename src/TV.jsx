@@ -4,6 +4,7 @@ import { ref, onValue, set } from 'firebase/database';
 import { QRCodeSVG } from 'qrcode.react';
 import { QuizDisplay } from './components/tv/QuizDisplay';
 import { calculatePoints } from './hooks/useScoring';
+import SessionCodeInput from './components/SessionCodeInput';
 
 // Constantes de design
 const COLORS = {
@@ -230,12 +231,9 @@ export default function TV() {
   };
 
   // Fonction pour valider le code de session entré manuellement
-  const handleJoinSession = () => {
-    if (!sessionId || sessionId.trim().length !== 6) {
-      setError('Le code doit contenir 6 caractères');
-      return;
-    }
-    verifySession(sessionId.toUpperCase());
+  const handleJoinSession = (code) => {
+    setSessionId(code);
+    verifySession(code);
   };
 
   // Écouter le chrono depuis Firebase
@@ -615,40 +613,14 @@ export default function TV() {
       }}>
         <div style={{ textAlign: 'center', maxWidth: '500px', width: '100%', padding: '2rem' }}>
           <h1 style={{ fontSize: '3rem', marginBottom: '1rem' }}>📺 ÉCRAN TV</h1>
-          <h2 style={{ fontSize: '1.5rem', marginBottom: '2rem', opacity: 0.8 }}>
-            Entrez le code de session
-          </h2>
-
-          <input
-            type="text"
-            placeholder="CODE"
-            value={sessionId}
-            onChange={(e) => setSessionId(e.target.value.toUpperCase())}
-            onKeyPress={(e) => {
-              if (e.key === 'Enter') {
-                handleJoinSession();
-              }
-            }}
-            maxLength={6}
-            autoFocus
-            style={{
-              width: '100%',
-              padding: '1.5rem',
-              fontSize: '2rem',
-              fontWeight: 'bold',
-              letterSpacing: '0.5rem',
-              borderRadius: '0.75rem',
-              border: 'none',
-              marginBottom: '1rem',
-              textAlign: 'center',
-              textTransform: 'uppercase'
-            }}
+          <SessionCodeInput
+            onSubmit={handleJoinSession}
+            onError={setError}
           />
-
           {error && (
             <div style={{
               color: '#ef4444',
-              marginBottom: '1rem',
+              marginTop: '1rem',
               fontSize: '0.875rem',
               backgroundColor: 'rgba(239, 68, 68, 0.1)',
               padding: '1rem',
@@ -657,26 +629,6 @@ export default function TV() {
               {error}
             </div>
           )}
-
-          <button
-            onClick={handleJoinSession}
-            disabled={!sessionId || sessionId.length !== 6}
-            style={{
-              width: '100%',
-              padding: '1.5rem',
-              fontSize: '1.25rem',
-              backgroundColor: '#7c3aed',
-              color: 'white',
-              border: 'none',
-              borderRadius: '0.75rem',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-              opacity: (!sessionId || sessionId.length !== 6) ? 0.5 : 1
-            }}
-          >
-            ✅ Rejoindre la partie
-          </button>
-
           <p style={{
             marginTop: '2rem',
             fontSize: '0.9rem',

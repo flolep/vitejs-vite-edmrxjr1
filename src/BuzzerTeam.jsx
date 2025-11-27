@@ -84,13 +84,9 @@ export default function BuzzerTeam({ sessionIdFromRouter = null }) {
     setSelectedPlayer(player);
     localStorage.save({ selectedPlayer: player, playerName: player.name });
 
-    // Passer à l'étape suivante selon si la partie a déjà démarré
-    const gameStarted = localStorage.load()?.gameAlreadyStarted === true;
-    if (gameStarted) {
-      setStep('team'); // Skip préférences si partie démarrée
-    } else {
-      setStep('team'); // Mode équipe : choix d'équipe AVANT préférences
-    }
+    // Toujours passer au choix d'équipe en mode Team
+    // La vérification de gameAlreadyStarted se fait après le choix d'équipe
+    setStep('team');
   };
 
   const handleCreateNewPlayer = () => {
@@ -195,10 +191,14 @@ export default function BuzzerTeam({ sessionIdFromRouter = null }) {
       console.log('✅ Joueur enregistré dans', teamKey, 'clé:', playerKey);
 
       // Aller aux préférences ou directement au jeu
-      const gameStarted = localStorage.load()?.gameAlreadyStarted === true;
+      // Si la partie a déjà commencé (au moins une chanson jouée), skip les préférences
+      const gameStarted = window.localStorage.getItem('gameAlreadyStarted') === 'true';
+      console.log('🎮 gameAlreadyStarted:', gameStarted);
       if (gameStarted) {
+        console.log('⚡ Partie déjà commencée → skip préférences, aller directement au jeu');
         setStep('game');
       } else {
+        console.log('🎵 Partie pas encore commencée → demander les préférences');
         setStep('preferences');
       }
     } catch (error) {
