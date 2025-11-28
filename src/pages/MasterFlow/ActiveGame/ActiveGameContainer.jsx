@@ -41,11 +41,13 @@ export default function ActiveGameContainer({
   // Charger la playlist depuis Firebase
   useEffect(() => {
     if (!sessionId) {
+      console.log('⚠️ [ActiveGameContainer] Pas de sessionId, skip chargement playlist');
       setIsLoadingPlaylist(false);
       return;
     }
 
     console.log('📥 [ActiveGameContainer] Chargement playlist depuis Firebase...');
+    setIsLoadingPlaylist(true);
 
     const playlistRef = ref(database, `sessions/${sessionId}/playlist`);
     const unsubscribe = onValue(playlistRef, (snapshot) => {
@@ -59,10 +61,14 @@ export default function ActiveGameContainer({
         setPlaylistFromFirebase([]);
       }
 
+      console.log('✅ [ActiveGameContainer] Fin chargement, setIsLoadingPlaylist(false)');
       setIsLoadingPlaylist(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      console.log('🧹 [ActiveGameContainer] Cleanup listener Firebase');
+      unsubscribe();
+    };
   }, [sessionId]);
 
   // Construire la playlist initiale selon la source musicale
@@ -95,6 +101,7 @@ export default function ActiveGameContainer({
 
   // Afficher un écran de chargement pendant le chargement de la playlist
   if (isLoadingPlaylist) {
+    console.log('⏳ [ActiveGameContainer] Affichage écran de chargement playlist');
     return (
       <div style={{
         minHeight: '100vh',
@@ -128,13 +135,16 @@ export default function ActiveGameContainer({
     );
   }
 
+  const initialPlaylist = getInitialPlaylist();
+  console.log('🎵 [ActiveGameContainer] Rendu Master avec playlist:', initialPlaylist.length, 'chansons');
+
   return (
     <Master
       initialSessionId={sessionId}
       initialMusicSource={musicSource}
       initialPlayMode={playMode}
       initialGameMode={gameMode}
-      initialPlaylist={getInitialPlaylist()}
+      initialPlaylist={initialPlaylist}
       initialPlaylistId={playlistId}
       initialSpotifyToken={spotifyToken || sessionStorage.getItem('spotify_access_token')}
     />
