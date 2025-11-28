@@ -4,6 +4,7 @@ import { ref, onValue, set } from 'firebase/database';
 import { n8nService } from '../../../n8nService';
 import { useSpotifyAIMode } from '../../../modes/useSpotifyAIMode';
 import { useSpotifyAutoMode } from '../../../modes/useSpotifyAutoMode';
+import { useQuizMode } from '../../../modes/useQuizMode';
 
 /**
  * Étape 3: Prêt à démarrer
@@ -41,6 +42,9 @@ export default function StepReadyToStart({
   // Hooks pour les modes Spotify
   const spotifyAIMode = useSpotifyAIMode();
   const spotifyAutoMode = useSpotifyAutoMode();
+
+  // Hook pour le mode Quiz (uniquement pour storeQuizData)
+  const quizMode = useQuizMode(sessionId, null, [], null);
 
   // ========== SYNCHRONISATION JOUEURS ==========
 
@@ -407,11 +411,16 @@ export default function StepReadyToStart({
         }
       }
 
-      // Sauvegarder dans Firebase
+      // Réinitialiser le classement Quiz avant de stocker les nouvelles données
+      console.log('🧹 Réinitialisation du classement Quiz...');
+      await quizMode.resetLeaderboard();
+
+      // Sauvegarder dans Firebase via quizMode.storeQuizData
+      // Cette fonction stocke les données au bon endroit : sessions/{sessionId}/quiz_data/{trackNumber}
       if (allWrongAnswers.length > 0) {
-        const wrongAnswersRef = ref(database, `sessions/${sessionId}/wrongAnswers`);
-        await set(wrongAnswersRef, allWrongAnswers);
-        console.log(`✅ ${allWrongAnswers.length} wrongAnswers sauvegardées dans Firebase`);
+        console.log(`💾 Stockage de ${allWrongAnswers.length} questions Quiz dans Firebase...`);
+        await quizMode.storeQuizData(allWrongAnswers);
+        console.log(`✅ ${allWrongAnswers.length} questions Quiz stockées avec succès`);
       }
 
       setQuestionsReady(true);

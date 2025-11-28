@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { isSpotifyTokenValid } from '../../../utils/spotifyUtils';
 
 /**
  * Panel droit : Configuration de la source musicale
@@ -35,20 +36,39 @@ export default function MusicConfigPanel({
     }, 500);
   };
 
-  // Handler pour Spotify Auto
+  // Handler pour Spotify Auto - Vérifie le token avant de configurer
   const handleSpotifyAuto = () => {
+    console.log('🎧 [MusicConfig] Clic sur Spotify Auto');
+
+    // Vérifier si le token Spotify est valide
+    if (!isSpotifyTokenValid()) {
+      console.log('🔐 [MusicConfig] Token invalide → Redirection vers connexion Spotify');
+      // Déclencher la connexion Spotify
+      onSpotifyConnect();
+      return;
+    }
+
+    console.log('✅ [MusicConfig] Token valide → Configuration Spotify Auto');
     setSelectedSource('spotify-auto');
-    // Pour l'instant, on considère que c'est configuré
-    // Dans la vraie implémentation, ouvrir le sélecteur de playlist
     onMusicConfigured('spotify-auto', {
       playlistId: null // À remplir avec le sélecteur
     });
   };
 
-  // Handler pour Spotify IA
+  // Handler pour Spotify IA - Vérifie le token avant de configurer
   const handleSpotifyAI = () => {
+    console.log('🤖 [MusicConfig] Clic sur Spotify IA');
+
+    // Vérifier si le token Spotify est valide
+    if (!isSpotifyTokenValid()) {
+      console.log('🔐 [MusicConfig] Token invalide → Redirection vers connexion Spotify');
+      // Déclencher la connexion Spotify
+      onSpotifyConnect();
+      return;
+    }
+
+    console.log('✅ [MusicConfig] Token valide → Configuration Spotify IA');
     setSelectedSource('spotify-ai');
-    // La playlist sera générée avec les préférences des joueurs
     onMusicConfigured('spotify-ai', {
       willGenerateFromPreferences: true
     });
@@ -219,52 +239,27 @@ export default function MusicConfigPanel({
                 Sélectionnez une playlist Spotify
               </p>
 
-              {!spotifyToken ? (
-                <button
-                  onClick={onSpotifyConnect}
-                  style={{
-                    padding: '0.75rem 1.25rem',
-                    backgroundColor: '#1ed760',
-                    border: 'none',
-                    borderRadius: '0.5rem',
-                    color: 'black',
-                    fontSize: '0.9rem',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#1fdf64';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = '#1ed760';
-                  }}
-                >
-                  🔗 Connecter Spotify
-                </button>
-              ) : (
-                <button
-                  onClick={handleSpotifyAuto}
-                  style={{
-                    padding: '0.75rem 1.25rem',
-                    backgroundColor: 'rgba(30, 215, 96, 0.3)',
-                    border: '1px solid #1ed760',
-                    borderRadius: '0.5rem',
-                    color: 'white',
-                    fontSize: '0.9rem',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgba(30, 215, 96, 0.4)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgba(30, 215, 96, 0.3)';
-                  }}
-                >
-                  ✅ Utiliser Spotify
-                </button>
-              )}
+              <button
+                onClick={handleSpotifyAuto}
+                style={{
+                  padding: '0.75rem 1.25rem',
+                  backgroundColor: 'rgba(30, 215, 96, 0.3)',
+                  border: '1px solid #1ed760',
+                  borderRadius: '0.5rem',
+                  color: 'white',
+                  fontSize: '0.9rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(30, 215, 96, 0.4)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(30, 215, 96, 0.3)';
+                }}
+              >
+                🎧 Utiliser Spotify Playlist
+              </button>
 
               {selectedSource === 'spotify-auto' && (
                 <div style={{
@@ -318,52 +313,27 @@ export default function MusicConfigPanel({
                 L'IA génère une playlist basée sur les préférences des joueurs
               </p>
 
-              {!spotifyToken ? (
-                <button
-                  onClick={onSpotifyConnect}
-                  style={{
-                    padding: '0.75rem 1.25rem',
-                    backgroundColor: '#1ed760',
-                    border: 'none',
-                    borderRadius: '0.5rem',
-                    color: 'black',
-                    fontSize: '0.9rem',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#1fdf64';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = '#1ed760';
-                  }}
-                >
-                  🔗 Connecter Spotify
-                </button>
-              ) : (
-                <button
-                  onClick={handleSpotifyAI}
-                  style={{
-                    padding: '0.75rem 1.25rem',
-                    backgroundColor: 'rgba(124, 58, 237, 0.3)',
-                    border: '1px solid #7c3aed',
-                    borderRadius: '0.5rem',
-                    color: 'white',
-                    fontSize: '0.9rem',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgba(124, 58, 237, 0.4)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgba(124, 58, 237, 0.3)';
-                  }}
-                >
-                  🚀 Utiliser l'IA
-                </button>
-              )}
+              <button
+                onClick={handleSpotifyAI}
+                style={{
+                  padding: '0.75rem 1.25rem',
+                  backgroundColor: 'rgba(124, 58, 237, 0.3)',
+                  border: '1px solid #7c3aed',
+                  borderRadius: '0.5rem',
+                  color: 'white',
+                  fontSize: '0.9rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(124, 58, 237, 0.4)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(124, 58, 237, 0.3)';
+                }}
+              >
+                🤖 Utiliser Spotify IA
+              </button>
 
               {selectedSource === 'spotify-ai' && (
                 <div style={{

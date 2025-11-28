@@ -180,6 +180,9 @@ export default function StepPlayerConnection({
       const sessionRef = ref(database, `sessions/${sessionId}`);
       await update(sessionRef, {
         musicSource,
+        // ✅ Sauvegarder playlistId au niveau racine pour compatibilité avec Master.jsx
+        playlistId: musicConfig.playlistId || null,
+        // Sauvegarder aussi les données complètes pour référence
         musicConfigData: musicConfig,
         musicConfiguredAt: Date.now()
       });
