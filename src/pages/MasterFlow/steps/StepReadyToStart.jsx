@@ -306,6 +306,7 @@ export default function StepReadyToStart({
 
   /**
    * Génère les questions Quiz (uniquement en mode Quiz)
+   * Appelle n8nService.generateWrongAnswers qui gère automatiquement le mode Test
    */
   const handleGenerateQuizQuestions = async () => {
     if (sessionData?.playMode !== 'quiz') return;
@@ -315,18 +316,100 @@ export default function StepReadyToStart({
     }
 
     setIsGeneratingQuestions(true);
-    console.log('🎲 Génération des questions Quiz...');
+    console.log('🎲 Génération des wrongAnswers pour', playlist.length, 'chansons');
 
     try {
-      // TODO: Implémenter la génération de questions via n8n
-      // Pour l'instant, simuler un délai
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Formater les chansons pour n8nService
+      const songsForWrongAnswers = playlist
+        .map((track) => ({
+          artist: track.artist,
+          title: track.title,
+          uri: track.spotifyUri || track.uri
+        }))
+        .filter((song) => {
+          if (!song.uri) {
+            console.warn(`⚠️ Chanson ignorée: pas d'URI`, song);
+            return false;
+          }
+          return true;
+        });
+
+      console.log(`📤 Envoi de ${songsForWrongAnswers.length} chansons à n8n...`);
+
+      // 🔄 Découper en batches de 10 chansons pour éviter le timeout
+      const batchSize = 10;
+      const batches = [];
+      for (let i = 0; i < songsForWrongAnswers.length; i += batchSize) {
+        batches.push(songsForWrongAnswers.slice(i, i + batchSize));
+      }
+
+      const allWrongAnswers = [];
+
+      // Traiter chaque batch séquentiellement
+      for (let batchNum = 0; batchNum < batches.length; batchNum++) {
+        const batch = batches[batchNum];
+        console.log(`🔄 Batch ${batchNum + 1}/${batches.length}: ${batch.length} chansons`);
+
+        try {
+          // n8nService.generateWrongAnswers gère le mode Test automatiquement
+          const wrongAnswersResponse = await n8nService.generateWrongAnswers(batch);
+
+          // Ajouter les wrongAnswers de ce batch
+          for (let i = 0; i < batch.length; i++) {
+            if (!batch[i].uri) {
+              console.warn(`⚠️ Chanson sans URI ignorée:`, batch[i]);
+              continue;
+            }
+            const wrongAnswersData = wrongAnswersResponse.wrongAnswers[i];
+            allWrongAnswers.push({
+              uri: batch[i].uri,
+              title: batch[i].title,
+              artist: batch[i].artist,
+              wrongAnswers: wrongAnswersData ? wrongAnswersData.wrongAnswers : [
+                `Fallback 1 - Song ${allWrongAnswers.length + 1}A`,
+                `Fallback 2 - Song ${allWrongAnswers.length + 1}B`,
+                `Fallback 3 - Song ${allWrongAnswers.length + 1}C`
+              ]
+            });
+          }
+
+          console.log(`✅ Batch ${batchNum + 1}/${batches.length} terminé`);
+        } catch (error) {
+          console.error(`❌ Erreur batch ${batchNum + 1}:`, error);
+          // Ajouter des fallbacks pour ce batch en cas d'erreur
+          for (let i = 0; i < batch.length; i++) {
+            if (!batch[i].uri) {
+              console.warn(`⚠️ Chanson sans URI ignorée (fallback):`, batch[i]);
+              continue;
+            }
+            allWrongAnswers.push({
+              uri: batch[i].uri,
+              title: batch[i].title,
+              artist: batch[i].artist,
+              wrongAnswers: [
+                `Fallback 1 - Song ${allWrongAnswers.length + 1}A`,
+                `Fallback 2 - Song ${allWrongAnswers.length + 1}B`,
+                `Fallback 3 - Song ${allWrongAnswers.length + 1}C`
+              ]
+            });
+          }
+        }
+      }
+
+      // Sauvegarder dans Firebase
+      if (allWrongAnswers.length > 0) {
+        const wrongAnswersRef = ref(database, `sessions/${sessionId}/wrongAnswers`);
+        await set(wrongAnswersRef, allWrongAnswers);
+        console.log(`✅ ${allWrongAnswers.length} wrongAnswers sauvegardées dans Firebase`);
+      }
 
       setQuestionsReady(true);
       setIsGeneratingQuestions(false);
-      console.log('✅ Questions générées');
+      console.log('✅ Questions Quiz générées avec succès');
+
     } catch (error) {
       console.error('❌ Erreur génération questions:', error);
+      setGenerationError('Erreur lors de la génération des questions');
       setIsGeneratingQuestions(false);
     }
   };
