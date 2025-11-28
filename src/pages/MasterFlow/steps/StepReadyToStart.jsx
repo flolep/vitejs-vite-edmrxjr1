@@ -35,6 +35,9 @@ export default function StepReadyToStart({
   const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
   const [questionsReady, setQuestionsReady] = useState(false);
 
+  // Mode Test (stubs au lieu d'appels n8n/Spotify)
+  const [testMode] = useState(() => localStorage.getItem('quizTestMode') === 'true');
+
   // Hooks pour les modes Spotify
   const spotifyAIMode = useSpotifyAIMode();
   const spotifyAutoMode = useSpotifyAutoMode();
@@ -143,12 +146,54 @@ export default function StepReadyToStart({
             specialPhrase: p.specialPhrase || ''
           }));
 
-          // Appel n8n pour générer
+          // Appel n8n pour générer (retournera des stubs si mode Test activé)
           const generatePromise = n8nService.generatePlaylistWithAllPreferences({
             playlistId,
             players: playersFormatted
           });
 
+          // 🎭 Mode Test : Utiliser directement les stubs sans polling Spotify
+          if (testMode) {
+            console.log('🎭 [TEST MODE] Utilisation directe des chansons stub (skip polling Spotify)');
+
+            generatePromise
+              .then(result => {
+                console.log('✅ Playlist stub générée:', result);
+                console.log(`   🎵 ${result.totalSongs} chansons stub pour ${result.totalPlayers || playersFormatted.length} joueurs`);
+
+                // Convertir les chansons stub au format attendu par setPlaylist
+                const stubTracks = result.songs.map((song, index) => ({
+                  spotifyUri: song.uri,
+                  title: song.title,
+                  artist: song.artist,
+                  imageUrl: 'https://via.placeholder.com/300?text=Test+Mode',
+                  durationMs: 180000, // 3 minutes par défaut
+                  previewUrl: null
+                }));
+
+                setPlaylist(stubTracks);
+                setPlaylistReady(true);
+                setIsGeneratingPlaylist(false);
+                setPlaylistPollAttempt(0);
+
+                console.log(`✅ [TEST MODE] Playlist stub créée avec ${stubTracks.length} chansons !`);
+
+                // En mode Quiz, générer automatiquement les questions
+                if (playMode === 'quiz') {
+                  handleGenerateQuizQuestions();
+                }
+              })
+              .catch(error => {
+                console.error('❌ Erreur génération playlist stub:', error);
+                setGenerationError('Erreur lors de la génération de la playlist stub');
+                setIsGeneratingPlaylist(false);
+                setPlaylistPollAttempt(0);
+              });
+
+            return; // Skip le polling Spotify
+          }
+
+          // Mode Production : Polling Spotify normal
           generatePromise
             .then(result => {
               console.log('✅ Playlist générée (en arrière-plan):', result);
@@ -198,19 +243,56 @@ export default function StepReadyToStart({
 
         } else {
           // === SPOTIFY-AUTO : Charger playlist existante ===
-          console.log('🎵 Chargement playlist Spotify existante');
-          const tracks = await spotifyAutoMode.loadPlaylistById(playlistId, setPlaylist);
 
-          if (tracks && tracks.length > 0) {
+          // 🎭 Mode Test : Générer des stubs au lieu de charger depuis Spotify
+          if (testMode) {
+            console.log('🎭 [TEST MODE] Génération playlist stub pour Spotify-Auto');
+
+            // Générer une playlist stub générique
+            const { generateStubPlaylist } = await import('../../../utils/quizStubs');
+            const result = await generateStubPlaylist({
+              playlistId,
+              players: players.map(p => ({
+                name: p.name,
+                age: 25,
+                genres: ['Pop', 'Rock', 'Electronic']
+              }))
+            });
+
+            const stubTracks = result.songs.map(song => ({
+              spotifyUri: song.uri,
+              title: song.title,
+              artist: song.artist,
+              imageUrl: 'https://via.placeholder.com/300?text=Test+Mode',
+              durationMs: 180000,
+              previewUrl: null
+            }));
+
+            setPlaylist(stubTracks);
             setPlaylistReady(true);
             setIsGeneratingPlaylist(false);
 
-            // En mode Quiz, générer automatiquement les questions
+            console.log(`✅ [TEST MODE] Playlist stub créée avec ${stubTracks.length} chansons`);
+
             if (playMode === 'quiz') {
               await handleGenerateQuizQuestions();
             }
           } else {
-            throw new Error('Playlist vide ou introuvable');
+            // Mode Production : Charger depuis Spotify
+            console.log('🎵 Chargement playlist Spotify existante');
+            const tracks = await spotifyAutoMode.loadPlaylistById(playlistId, setPlaylist);
+
+            if (tracks && tracks.length > 0) {
+              setPlaylistReady(true);
+              setIsGeneratingPlaylist(false);
+
+              // En mode Quiz, générer automatiquement les questions
+              if (playMode === 'quiz') {
+                await handleGenerateQuizQuestions();
+              }
+            } else {
+              throw new Error('Playlist vide ou introuvable');
+            }
           }
         }
       }
