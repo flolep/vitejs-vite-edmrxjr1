@@ -19,11 +19,26 @@ export default function ActiveGameContainer({
   sessionData,
   onEndGame
 }) {
+  console.log('🎮 [ActiveGameContainer] ========== MONTAGE/RENDU ==========');
   console.log('🎮 [ActiveGameContainer] Rendu avec:', {
     sessionId,
     playMode: sessionData?.playMode,
-    musicSource: sessionData?.musicSource
+    musicSource: sessionData?.musicSource,
+    hasSessionData: !!sessionData
   });
+
+  // Détecter les démontages
+  useEffect(() => {
+    console.log('✅ [ActiveGameContainer] MONTÉ');
+    return () => {
+      console.log('❌ [ActiveGameContainer] DÉMONTÉ - Le composant a été retiré du DOM !');
+    };
+  }, []);
+
+  // Détecter les changements de sessionId
+  useEffect(() => {
+    console.log('🔄 [ActiveGameContainer] sessionId changé:', sessionId);
+  }, [sessionId]);
 
   // État pour la playlist chargée depuis Firebase
   const [playlistFromFirebase, setPlaylistFromFirebase] = useState(null);
