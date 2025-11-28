@@ -36,6 +36,11 @@ export default function MasterFlowContainer() {
   // État du flux (state machine)
   const [flowState, setFlowState] = useState(FLOW_STATES.LOADING);
 
+  // Détecter les changements de flowState
+  useEffect(() => {
+    console.log('🔄 [MasterFlowContainer] flowState changé vers:', flowState);
+  }, [flowState]);
+
   // Données de session partagées entre les étapes
   const [sessionData, setSessionData] = useState({
     sessionId: null,
@@ -47,6 +52,15 @@ export default function MasterFlowContainer() {
     playlistId: null,         // ID Spotify playlist (si applicable)
     spotifyToken: null        // Token Spotify (si applicable)
   });
+
+  // Détecter les changements de sessionData
+  useEffect(() => {
+    console.log('📊 [MasterFlowContainer] sessionData changé:', {
+      sessionId: sessionData.sessionId,
+      playMode: sessionData.playMode,
+      musicSource: sessionData.musicSource
+    });
+  }, [sessionData]);
 
   // Partie active détectée (si elle existe)
   const [activeGame, setActiveGame] = useState(null);
