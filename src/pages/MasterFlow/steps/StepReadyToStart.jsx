@@ -116,8 +116,9 @@ export default function StepReadyToStart({
         setIsGeneratingPlaylist(false);
 
         // En mode Quiz, générer automatiquement les questions
+        // On passe mp3Files directement car l'état n'est pas encore mis à jour
         if (playMode === 'quiz') {
-          await handleGenerateQuizQuestions();
+          await handleGenerateQuizQuestions(mp3Files);
         }
         return;
       }
@@ -179,8 +180,9 @@ export default function StepReadyToStart({
                 console.log(`✅ [TEST MODE] Playlist stub créée avec ${stubTracks.length} chansons !`);
 
                 // En mode Quiz, générer automatiquement les questions
+                // On passe stubTracks directement car l'état n'est pas encore mis à jour
                 if (playMode === 'quiz') {
-                  handleGenerateQuizQuestions();
+                  handleGenerateQuizQuestions(stubTracks);
                 }
               })
               .catch(error => {
@@ -222,8 +224,9 @@ export default function StepReadyToStart({
                 clearInterval(pollPlaylist);
 
                 // En mode Quiz, générer automatiquement les questions
+                // On passe tracks directement car l'état peut ne pas être encore mis à jour
                 if (playMode === 'quiz') {
-                  await handleGenerateQuizQuestions();
+                  await handleGenerateQuizQuestions(tracks);
                 }
               } else if (pollAttempts >= maxPollAttempts) {
                 console.warn('⚠️ Polling terminé sans chansons');
@@ -274,8 +277,10 @@ export default function StepReadyToStart({
 
             console.log(`✅ [TEST MODE] Playlist stub créée avec ${stubTracks.length} chansons`);
 
+            // En mode Quiz, générer automatiquement les questions
+            // On passe stubTracks directement car l'état n'est pas encore mis à jour
             if (playMode === 'quiz') {
-              await handleGenerateQuizQuestions();
+              await handleGenerateQuizQuestions(stubTracks);
             }
           } else {
             // Mode Production : Charger depuis Spotify
@@ -287,8 +292,9 @@ export default function StepReadyToStart({
               setIsGeneratingPlaylist(false);
 
               // En mode Quiz, générer automatiquement les questions
+              // On passe tracks directement car l'état peut ne pas être encore mis à jour
               if (playMode === 'quiz') {
-                await handleGenerateQuizQuestions();
+                await handleGenerateQuizQuestions(tracks);
               }
             } else {
               throw new Error('Playlist vide ou introuvable');
@@ -307,20 +313,25 @@ export default function StepReadyToStart({
   /**
    * Génère les questions Quiz (uniquement en mode Quiz)
    * Appelle n8nService.generateWrongAnswers qui gère automatiquement le mode Test
+   * @param {Array} playlistToUse - Playlist optionnelle à utiliser (si pas encore dans l'état)
    */
-  const handleGenerateQuizQuestions = async () => {
+  const handleGenerateQuizQuestions = async (playlistToUse = null) => {
     if (sessionData?.playMode !== 'quiz') return;
-    if (playlist.length === 0) {
+
+    // Utiliser la playlist fournie en paramètre ou celle de l'état
+    const playlistData = playlistToUse || playlist;
+
+    if (playlistData.length === 0) {
       console.warn('⚠️ Pas de playlist pour générer les questions');
       return;
     }
 
     setIsGeneratingQuestions(true);
-    console.log('🎲 Génération des wrongAnswers pour', playlist.length, 'chansons');
+    console.log('🎲 Génération des wrongAnswers pour', playlistData.length, 'chansons');
 
     try {
       // Formater les chansons pour n8nService
-      const songsForWrongAnswers = playlist
+      const songsForWrongAnswers = playlistData
         .map((track) => ({
           artist: track.artist,
           title: track.title,
