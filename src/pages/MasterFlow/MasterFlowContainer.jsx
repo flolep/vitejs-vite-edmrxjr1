@@ -282,9 +282,8 @@ export default function MasterFlowContainer() {
    * Depuis StepReadyToStart → Démarrage de la partie
    */
   const handleStartGame = async () => {
+    console.log('🎬 [MasterFlowContainer] handleStartGame début');
     try {
-      setIsLoading(true);
-
       // Marquer la partie comme démarrée dans Firebase (si nécessaire)
       const sessionRef = ref(database, `sessions/${sessionData.sessionId}`);
       await update(sessionRef, {
@@ -293,7 +292,7 @@ export default function MasterFlowContainer() {
         startedAt: Date.now()
       });
 
-      console.log('🎮 Partie démarrée !');
+      console.log('🎮 [MasterFlowContainer] Partie démarrée, passage à GAME_PLAYING');
 
       // Passer en mode partie active
       setFlowState(FLOW_STATES.GAME_PLAYING);
@@ -301,8 +300,6 @@ export default function MasterFlowContainer() {
     } catch (err) {
       console.error('❌ Erreur démarrage partie:', err);
       setError('Erreur lors du démarrage de la partie');
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -350,6 +347,8 @@ export default function MasterFlowContainer() {
 
   // ========== RENDU ==========
 
+  console.log('🎨 [MasterFlowContainer] Rendu avec:', { flowState, isLoading, hasError: !!error });
+
   // Écran de connexion si non authentifié
   if (!authChecked || !user) {
     return <Login onLoginSuccess={() => {}} />;
@@ -357,6 +356,7 @@ export default function MasterFlowContainer() {
 
   // Écran de chargement
   if (flowState === FLOW_STATES.LOADING || isLoading) {
+    console.log('⏳ [MasterFlowContainer] Affichage écran de chargement');
     return (
       <div style={{
         minHeight: '100vh',
@@ -422,6 +422,7 @@ export default function MasterFlowContainer() {
   // Rendu selon l'état du flux
   switch (flowState) {
     case FLOW_STATES.MODE_SELECTION:
+      console.log('📱 [MasterFlowContainer] Rendu: StepModeSelection');
       return (
         <StepModeSelection
           onModeSelected={handleModeSelected}
@@ -432,6 +433,7 @@ export default function MasterFlowContainer() {
       );
 
     case FLOW_STATES.PLAYER_CONNECTION:
+      console.log('👥 [MasterFlowContainer] Rendu: StepPlayerConnection');
       return (
         <StepPlayerConnection
           sessionId={sessionData.sessionId}
@@ -442,6 +444,7 @@ export default function MasterFlowContainer() {
       );
 
     case FLOW_STATES.READY:
+      console.log('✅ [MasterFlowContainer] Rendu: StepReadyToStart');
       return (
         <StepReadyToStart
           sessionId={sessionData.sessionId}
@@ -452,6 +455,7 @@ export default function MasterFlowContainer() {
       );
 
     case FLOW_STATES.GAME_PLAYING:
+      console.log('🎮 [MasterFlowContainer] Rendu: ActiveGameContainer');
       return (
         <ActiveGameContainer
           sessionId={sessionData.sessionId}
@@ -461,6 +465,7 @@ export default function MasterFlowContainer() {
       );
 
     default:
+      console.log('❓ [MasterFlowContainer] Rendu: État inconnu');
       return (
         <div style={{
           minHeight: '100vh',
