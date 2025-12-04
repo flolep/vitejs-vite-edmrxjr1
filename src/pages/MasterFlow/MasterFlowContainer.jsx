@@ -294,10 +294,17 @@ export default function MasterFlowContainer() {
 
   /**
    * Depuis StepReadyToStart → Démarrage de la partie
+   * @param {Array} playlistData - Playlist générée par StepReadyToStart
    */
-  const handleStartGame = async () => {
-    console.log('🎬 [MasterFlowContainer] handleStartGame début');
+  const handleStartGame = async (playlistData = []) => {
+    console.log('🎬 [MasterFlowContainer] handleStartGame début, playlist:', playlistData?.length || 0, 'chansons');
     try {
+      // Stocker la playlist dans sessionData pour éviter de la recharger depuis Firebase
+      setSessionData(prev => ({
+        ...prev,
+        playlist: playlistData
+      }));
+
       // Marquer la partie comme démarrée dans Firebase (si nécessaire)
       const sessionRef = ref(database, `sessions/${sessionData.sessionId}`);
       await update(sessionRef, {

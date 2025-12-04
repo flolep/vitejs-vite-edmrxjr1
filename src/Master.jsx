@@ -186,12 +186,16 @@ export default function Master({
   }, [initialSessionId, user, spotifyToken]);
 
   // Synchroniser la playlist du mode Spotify IA avec la playlist globale
+  // ⚠️ NE S'EXÉCUTE QUE si la playlist locale est vide (évite d'écraser la playlist chargée depuis Firebase)
   useEffect(() => {
-    if (musicSource === 'spotify-ai' && spotifyAIMode.playlist && spotifyAIMode.playlist.length > 0) {
+    if (musicSource === 'spotify-ai' &&
+        spotifyAIMode.playlist &&
+        spotifyAIMode.playlist.length > 0 &&
+        playlist.length === 0) {
       console.log('🔄 [MASTER] Synchronisation de la playlist Spotify IA:', spotifyAIMode.playlist.length, 'chansons');
       setPlaylist(spotifyAIMode.playlist);
     }
-  }, [musicSource, spotifyAIMode.playlist]);
+  }, [musicSource, spotifyAIMode.playlist, playlist.length]);
 
   // Synchroniser l'état showQRCode avec Firebase
   useEffect(() => {

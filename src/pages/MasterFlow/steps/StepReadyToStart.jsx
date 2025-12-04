@@ -473,9 +473,11 @@ export default function StepReadyToStart({
       if (playlist.length > 0) {
         const sessionRef = ref(database, `sessions/${sessionId}/playlist`);
         await set(sessionRef, playlist);
+        console.log(`💾 [StepReadyToStart] ${playlist.length} chansons sauvegardées dans Firebase`);
       }
 
-      await onStartGame();
+      // Passer la playlist au parent pour qu'il la stocke dans sessionData
+      await onStartGame(playlist);
     } catch (error) {
       console.error('❌ Erreur au démarrage:', error);
       alert('Erreur lors du démarrage de la partie. Veuillez réessayer.');
