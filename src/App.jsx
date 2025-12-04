@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Master from './Master';
 import Buzzer from './Buzzer';
 import TV from './TV';
@@ -49,14 +49,14 @@ export default function App() {
   }, [page]);
 
   // Handler de completion du wizard
-  const handleWizardComplete = (config) => {
+  const handleWizardComplete = useCallback((config) => {
     console.log('✅ Wizard complété avec config:', config);
     setMasterConfig(config);
     setShowWizard(false);
     setPage('master');
     // Nettoyer le flag wizard en cours
     localStorage.removeItem('wizardInProgress');
-  };
+  }, []);
 
   // Handler du bouton Animateur
   const handleAnimatorClick = () => {
@@ -71,6 +71,8 @@ export default function App() {
     return (
       <Master
         initialSessionId={masterConfig?.sessionId}
+        initialMusicSource={masterConfig?.musicSource}
+        initialPlayMode={masterConfig?.playMode}
         initialGameMode={masterConfig?.gameMode}
         initialPlaylist={masterConfig?.playlist}
         initialPlaylistId={masterConfig?.playlistId}

@@ -780,6 +780,19 @@ export default function MasterWizard({ onComplete }) {
             )}
           </div>
         )}
+
+        {/* ÉTAPE 6 : READY - Transition vers Master */}
+        {step === 'ready' && (
+          <div style={{ textAlign: 'center', padding: '2rem' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>✅</div>
+            <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>
+              Configuration terminée !
+            </h2>
+            <p style={{ opacity: 0.8 }}>
+              Lancement de l'interface animateur...
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
