@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { database } from '../../../firebase';
-import { ref, onValue } from 'firebase/database';
 import Master from '../../../Master';
 
 /**
@@ -40,61 +38,39 @@ export default function ActiveGameContainer({
     console.log('🔄 [ActiveGameContainer] sessionId changé:', sessionId);
   }, [sessionId]);
 
-  // État pour la playlist chargée depuis Firebase
-  const [playlistFromFirebase, setPlaylistFromFirebase] = useState(null);
-  const [isLoadingPlaylist, setIsLoadingPlaylist] = useState(true);
-
   // Extraire les données de la session
   const {
     playMode = 'team',
     musicSource = 'mp3',
     musicConfigData = {},
     playlistId = null,
-    spotifyToken = null
+    spotifyToken = null,
+    playlist: playlistFromSessionData = []
   } = sessionData || {};
 
-  // Charger la playlist depuis Firebase
+  // État de chargement (pour compatibilité)
+  const [isLoadingPlaylist, setIsLoadingPlaylist] = useState(false);
+
+  // Si la playlist est déjà dans sessionData, pas besoin de charger depuis Firebase
   useEffect(() => {
-    if (!sessionId) {
-      console.log('⚠️ [ActiveGameContainer] Pas de sessionId, skip chargement playlist');
+    if (playlistFromSessionData && playlistFromSessionData.length > 0) {
+      console.log(`✅ [ActiveGameContainer] Playlist reçue via sessionData: ${playlistFromSessionData.length} chansons`);
       setIsLoadingPlaylist(false);
-      return;
+    } else {
+      console.log('⚠️ [ActiveGameContainer] Pas de playlist dans sessionData');
+      setIsLoadingPlaylist(false);
     }
-
-    console.log('📥 [ActiveGameContainer] Chargement playlist depuis Firebase...');
-    setIsLoadingPlaylist(true);
-
-    const playlistRef = ref(database, `sessions/${sessionId}/playlist`);
-    const unsubscribe = onValue(playlistRef, (snapshot) => {
-      const playlistData = snapshot.val();
-
-      if (playlistData && Array.isArray(playlistData) && playlistData.length > 0) {
-        console.log(`✅ [ActiveGameContainer] Playlist chargée: ${playlistData.length} chansons`);
-        setPlaylistFromFirebase(playlistData);
-      } else {
-        console.log('⚠️ [ActiveGameContainer] Aucune playlist trouvée dans Firebase');
-        setPlaylistFromFirebase([]);
-      }
-
-      console.log('✅ [ActiveGameContainer] Fin chargement, setIsLoadingPlaylist(false)');
-      setIsLoadingPlaylist(false);
-    });
-
-    return () => {
-      console.log('🧹 [ActiveGameContainer] Cleanup listener Firebase');
-      unsubscribe();
-    };
-  }, [sessionId]);
+  }, [playlistFromSessionData]);
 
   // Construire la playlist initiale selon la source musicale
   const getInitialPlaylist = () => {
-    // Si une playlist a été chargée depuis Firebase, l'utiliser
-    if (playlistFromFirebase) {
-      console.log('🎵 [ActiveGameContainer] Utilisation playlist Firebase:', playlistFromFirebase.length, 'chansons');
-      return playlistFromFirebase;
+    // Priorité 1 : Playlist depuis sessionData (nouveau flux)
+    if (playlistFromSessionData && playlistFromSessionData.length > 0) {
+      console.log('🎵 [ActiveGameContainer] Utilisation playlist depuis sessionData:', playlistFromSessionData.length, 'chansons');
+      return playlistFromSessionData;
     }
 
-    // Sinon, pour MP3 uniquement, construire depuis les fichiers uploadés (legacy)
+    // Priorité 2 : Pour MP3 uniquement, construire depuis les fichiers uploadés (legacy)
     if (musicSource === 'mp3' && musicConfigData?.files) {
       console.log('📂 [ActiveGameContainer] Construction playlist MP3 depuis fichiers uploadés');
       return musicConfigData.files.map((file, index) => ({
