@@ -96,6 +96,35 @@ export default function StepReadyToStart({
     };
   }, [sessionId]);
 
+  // ========== GÉNÉRATION AUTOMATIQUE AU MONTAGE ==========
+
+  useEffect(() => {
+    // Lancer automatiquement la génération de playlist au montage du composant
+    // SEULEMENT si on n'a pas déjà une playlist prête
+    if (players.length > 0 && !playlistReady && !isGeneratingPlaylist && !generationError) {
+      console.log('🚀 [StepReadyToStart] Lancement automatique de la génération');
+      handleGeneratePlaylist();
+    }
+  }, [players.length]); // Déclencher quand les joueurs sont chargés
+
+  // ========== TRANSITION AUTOMATIQUE VERS GAME_PLAYING ==========
+
+  useEffect(() => {
+    // Une fois que la playlist est prête ET les questions (si Quiz) sont prêtes
+    // Démarrer automatiquement la partie
+    const playMode = sessionData?.playMode || 'team';
+    const isReady = playlistReady && (playMode === 'team' || (playMode === 'quiz' && questionsReady));
+
+    if (isReady && !loading && playlist.length > 0) {
+      console.log('✅ [StepReadyToStart] Playlist et questions prêtes → Démarrage automatique');
+
+      // Attendre 1 seconde pour que l'utilisateur voie le message de succès
+      setTimeout(() => {
+        handleStartGame();
+      }, 1000);
+    }
+  }, [playlistReady, questionsReady, playlist.length, sessionData?.playMode, loading]);
+
   // ========== HANDLERS ==========
 
   /**
@@ -781,7 +810,7 @@ export default function StepReadyToStart({
         </div>
       </div>
 
-      {/* Footer: Boutons d'action */}
+      {/* Footer: Progression automatique */}
       <div style={{
         maxWidth: '900px',
         margin: '0 auto',
@@ -790,145 +819,191 @@ export default function StepReadyToStart({
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: '1rem'
+        gap: '1.5rem'
       }}>
         {/* Message d'erreur */}
         {generationError && (
           <div style={{
             backgroundColor: 'rgba(239, 68, 68, 0.2)',
             border: '1px solid rgba(239, 68, 68, 0.3)',
-            borderRadius: '0.5rem',
-            padding: '1rem',
-            fontSize: '0.9rem',
+            borderRadius: '0.75rem',
+            padding: '1.5rem',
+            fontSize: '1rem',
             textAlign: 'center',
             maxWidth: '600px',
             width: '100%'
           }}>
-            ⚠️ {generationError}
+            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>⚠️</div>
+            <div>{generationError}</div>
+            <button
+              onClick={() => {
+                setGenerationError('');
+                handleGeneratePlaylist();
+              }}
+              style={{
+                marginTop: '1rem',
+                padding: '0.75rem 1.5rem',
+                backgroundColor: '#10b981',
+                border: 'none',
+                borderRadius: '0.5rem',
+                color: 'white',
+                fontSize: '1rem',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+            >
+              Réessayer
+            </button>
           </div>
         )}
 
-        {/* Informations sur la playlist */}
-        {playlist.length > 0 && (
+        {/* Progression de la génération */}
+        {!generationError && (
           <div style={{
-            backgroundColor: 'rgba(16, 185, 129, 0.2)',
-            border: '1px solid rgba(16, 185, 129, 0.3)',
-            borderRadius: '0.5rem',
-            padding: '0.75rem 1.5rem',
-            fontSize: '0.9rem',
+            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+            backdropFilter: 'blur(10px)',
+            border: '2px solid rgba(255, 255, 255, 0.2)',
+            borderRadius: '1rem',
+            padding: '2rem',
+            maxWidth: '600px',
+            width: '100%',
             textAlign: 'center'
           }}>
-            ✅ {playlist.length} chanson{playlist.length > 1 ? 's' : ''} prête{playlist.length > 1 ? 's' : ''}
-          </div>
-        )}
+            {/* Étape 1: Génération playlist */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '1rem',
+              marginBottom: '1.5rem',
+              padding: '1rem',
+              backgroundColor: isGeneratingPlaylist
+                ? 'rgba(251, 191, 36, 0.2)'
+                : playlistReady
+                ? 'rgba(16, 185, 129, 0.2)'
+                : 'rgba(255, 255, 255, 0.05)',
+              borderRadius: '0.75rem',
+              border: isGeneratingPlaylist
+                ? '2px solid rgba(251, 191, 36, 0.5)'
+                : playlistReady
+                ? '2px solid rgba(16, 185, 129, 0.5)'
+                : '2px solid transparent'
+            }}>
+              <div style={{ fontSize: '2rem' }}>
+                {isGeneratingPlaylist ? '⏳' : playlistReady ? '✅' : '⏹️'}
+              </div>
+              <div style={{ flex: 1, textAlign: 'left' }}>
+                <div style={{ fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>
+                  Génération de la playlist
+                </div>
+                <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>
+                  {isGeneratingPlaylist
+                    ? playlistPollAttempt > 0
+                      ? `Vérification ${playlistPollAttempt}/10...`
+                      : 'En cours...'
+                    : playlistReady
+                    ? `${playlist.length} chanson${playlist.length > 1 ? 's' : ''} prête${playlist.length > 1 ? 's' : ''}`
+                    : 'En attente...'}
+                </div>
+              </div>
+              {isGeneratingPlaylist && (
+                <div style={{
+                  width: '32px',
+                  height: '32px',
+                  border: '4px solid rgba(255, 255, 255, 0.3)',
+                  borderTopColor: 'white',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite'
+                }} />
+              )}
+            </div>
 
-        {/* Bouton: Générer la playlist OU Démarrer */}
-        {!playlistReady ? (
-          <button
-            onClick={handleGeneratePlaylist}
-            disabled={isGeneratingPlaylist || players.length === 0}
-            style={{
-              padding: '1.5rem 4rem',
-              backgroundColor: (isGeneratingPlaylist || players.length === 0)
-                ? 'rgba(255, 255, 255, 0.1)'
-                : '#10b981',
-              border: 'none',
-              borderRadius: '1rem',
-              color: 'white',
-              fontSize: '1.5rem',
-              fontWeight: 'bold',
-              cursor: (isGeneratingPlaylist || players.length === 0) ? 'not-allowed' : 'pointer',
-              opacity: (isGeneratingPlaylist || players.length === 0) ? 0.5 : 1,
-              transition: 'all 0.2s',
+            {/* Étape 2: Génération questions (Quiz uniquement) */}
+            {sessionData?.playMode === 'quiz' && playlistReady && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '1rem',
+                marginBottom: '1.5rem',
+                padding: '1rem',
+                backgroundColor: isGeneratingQuestions
+                  ? 'rgba(251, 191, 36, 0.2)'
+                  : questionsReady
+                  ? 'rgba(16, 185, 129, 0.2)'
+                  : 'rgba(255, 255, 255, 0.05)',
+                borderRadius: '0.75rem',
+                border: isGeneratingQuestions
+                  ? '2px solid rgba(251, 191, 36, 0.5)'
+                  : questionsReady
+                  ? '2px solid rgba(16, 185, 129, 0.5)'
+                  : '2px solid transparent'
+              }}>
+                <div style={{ fontSize: '2rem' }}>
+                  {isGeneratingQuestions ? '⏳' : questionsReady ? '✅' : '⏹️'}
+                </div>
+                <div style={{ flex: 1, textAlign: 'left' }}>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>
+                    Génération des questions
+                  </div>
+                  <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>
+                    {isGeneratingQuestions
+                      ? 'En cours...'
+                      : questionsReady
+                      ? 'Questions prêtes !'
+                      : 'En attente...'}
+                  </div>
+                </div>
+                {isGeneratingQuestions && (
+                  <div style={{
+                    width: '32px',
+                    height: '32px',
+                    border: '4px solid rgba(255, 255, 255, 0.3)',
+                    borderTopColor: 'white',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite'
+                  }} />
+                )}
+              </div>
+            )}
+
+            {/* Étape 3: Démarrage */}
+            <div style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '1rem'
-            }}
-            onMouseEnter={(e) => {
-              if (!isGeneratingPlaylist && players.length > 0) {
-                e.currentTarget.style.backgroundColor = '#059669';
-                e.currentTarget.style.transform = 'scale(1.05)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!isGeneratingPlaylist && players.length > 0) {
-                e.currentTarget.style.backgroundColor = '#10b981';
-                e.currentTarget.style.transform = 'scale(1)';
-              }
-            }}
-          >
-            {isGeneratingPlaylist ? (
-              <>
-                <span style={{
-                  width: '24px',
-                  height: '24px',
-                  border: '3px solid rgba(255, 255, 255, 0.3)',
+              gap: '1rem',
+              padding: '1rem',
+              backgroundColor: loading
+                ? 'rgba(251, 191, 36, 0.2)'
+                : 'rgba(255, 255, 255, 0.05)',
+              borderRadius: '0.75rem',
+              border: loading
+                ? '2px solid rgba(251, 191, 36, 0.5)'
+                : '2px solid transparent'
+            }}>
+              <div style={{ fontSize: '2rem' }}>
+                {loading ? '🚀' : '⏹️'}
+              </div>
+              <div style={{ flex: 1, textAlign: 'left' }}>
+                <div style={{ fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>
+                  Démarrage de la partie
+                </div>
+                <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>
+                  {loading
+                    ? 'Initialisation...'
+                    : 'En attente...'}
+                </div>
+              </div>
+              {loading && (
+                <div style={{
+                  width: '32px',
+                  height: '32px',
+                  border: '4px solid rgba(255, 255, 255, 0.3)',
                   borderTopColor: 'white',
                   borderRadius: '50%',
                   animation: 'spin 1s linear infinite'
                 }} />
-                {playlistPollAttempt > 0
-                  ? `⏳ Génération... (vérification ${playlistPollAttempt}/10)`
-                  : '⏳ Génération...'}
-              </>
-            ) : players.length === 0 ? (
-              <>⏳ En attente de joueurs...</>
-            ) : (
-              <>🎵 Générer la Playlist</>
-            )}
-          </button>
-        ) : (
-          <button
-            onClick={handleStartGame}
-            disabled={loading || (sessionData?.playMode === 'quiz' && !questionsReady)}
-            style={{
-              padding: '1.5rem 4rem',
-              backgroundColor: (loading || (sessionData?.playMode === 'quiz' && !questionsReady))
-                ? 'rgba(255, 255, 255, 0.1)'
-                : '#10b981',
-              border: 'none',
-              borderRadius: '1rem',
-              color: 'white',
-              fontSize: '1.5rem',
-              fontWeight: 'bold',
-              cursor: (loading || (sessionData?.playMode === 'quiz' && !questionsReady)) ? 'not-allowed' : 'pointer',
-              opacity: (loading || (sessionData?.playMode === 'quiz' && !questionsReady)) ? 0.5 : 1,
-              transition: 'all 0.2s',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '1rem'
-            }}
-            onMouseEnter={(e) => {
-              if (!loading && !(sessionData?.playMode === 'quiz' && !questionsReady)) {
-                e.currentTarget.style.backgroundColor = '#059669';
-                e.currentTarget.style.transform = 'scale(1.05)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!loading && !(sessionData?.playMode === 'quiz' && !questionsReady)) {
-                e.currentTarget.style.backgroundColor = '#10b981';
-                e.currentTarget.style.transform = 'scale(1)';
-              }
-            }}
-          >
-            {loading ? (
-              <>
-                <span style={{
-                  width: '24px',
-                  height: '24px',
-                  border: '3px solid rgba(255, 255, 255, 0.3)',
-                  borderTopColor: 'white',
-                  borderRadius: '50%',
-                  animation: 'spin 1s linear infinite'
-                }} />
-                Démarrage...
-              </>
-            ) : (sessionData?.playMode === 'quiz' && !questionsReady) ? (
-              <>⏳ Génération des questions...</>
-            ) : (
-              <>🚀 Démarrer la partie</>
-            )}
-          </button>
+              )}
+            </div>
+          </div>
         )}
       </div>
 
