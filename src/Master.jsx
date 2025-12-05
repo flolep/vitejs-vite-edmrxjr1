@@ -164,9 +164,20 @@ export default function Master({
   }, [sessionId]);
 
   // Charger les données de la session
+  // ⚠️ UNIQUEMENT pour le flux ANCIEN (MasterWizard)
+  // Le nouveau flux (MasterFlowContainer) passe déjà tout via les props
   useEffect(() => {
     if (!user || !initialSessionId) return;
 
+    // ✅ Si initialPlaylist est fourni, on utilise le NOUVEAU flux (MasterFlowContainer)
+    // → Skip ce hook car toutes les données sont déjà dans les props
+    if (initialPlaylist && initialPlaylist.length > 0) {
+      console.log('✅ [MASTER] Nouveau flux détecté (MasterFlowContainer) - Skip chargement Firebase');
+      return;
+    }
+
+    // ❌ Ancien flux (MasterWizard) : charger depuis Firebase
+    console.log('⚠️ [MASTER] Ancien flux détecté (MasterWizard) - Chargement depuis Firebase');
     const sessionRef = ref(database, `sessions/${initialSessionId}`);
     onValue(sessionRef, (snapshot) => {
       const sessionData = snapshot.val();
@@ -186,8 +197,16 @@ export default function Master({
   }, [initialSessionId, user, spotifyToken]);
 
   // Synchroniser la playlist du mode Spotify IA avec la playlist globale
-  // ⚠️ NE S'EXÉCUTE QUE si la playlist locale est vide (évite d'écraser la playlist chargée depuis Firebase)
+  // ⚠️ UNIQUEMENT pour le flux ANCIEN (MasterWizard)
+  // Le nouveau flux (MasterFlowContainer) passe déjà la playlist complète via initialPlaylist
   useEffect(() => {
+    // ✅ Si initialPlaylist est fourni, on utilise le NOUVEAU flux (MasterFlowContainer)
+    // → Skip ce hook car la playlist est déjà fournie
+    if (initialPlaylist && initialPlaylist.length > 0) {
+      return;
+    }
+
+    // ❌ Ancien flux (MasterWizard) : synchroniser depuis spotifyAIMode
     if (musicSource === 'spotify-ai' &&
         spotifyAIMode.playlist &&
         spotifyAIMode.playlist.length > 0 &&
