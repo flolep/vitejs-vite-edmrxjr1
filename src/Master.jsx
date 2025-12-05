@@ -1267,7 +1267,9 @@ export default function Master({
             </button>
           )}
 
-          {musicSource === 'spotify-ai' && playersPreferences.length > 0 && (
+          {/* ⚠️ Masquer la section génération playlist/questions dans le NOUVEAU flux (MasterFlowContainer)
+              Car tout est déjà généré automatiquement dans les 3 étapes du flow */}
+          {musicSource === 'spotify-ai' && playersPreferences.length > 0 && !(initialPlaylist && initialPlaylist.length > 0) && (
             <div style={{
               marginBottom: '1rem',
               padding: '0.75rem',
