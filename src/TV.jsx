@@ -482,7 +482,8 @@ export default function TV() {
           answer: answer.answer,
           time: answer.time,
           timestamp: answer.timestamp,
-          isCorrect: answer.isCorrect
+          isCorrect: answer.isCorrect,
+          points: answer.points || 0
         }));
         // Trier par temps de réponse
         answersList.sort((a, b) => a.time - b.time);
