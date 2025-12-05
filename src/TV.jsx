@@ -482,7 +482,8 @@ export default function TV() {
           answer: answer.answer,
           time: answer.time,
           timestamp: answer.timestamp,
-          isCorrect: answer.isCorrect
+          isCorrect: answer.isCorrect,
+          points: answer.points || 0
         }));
         // Trier par temps de réponse
         answersList.sort((a, b) => a.time - b.time);
@@ -688,7 +689,7 @@ return (
               textShadow: `0 0 40px ${winnerColor}`,
               animation: 'bounce 1s infinite'
             }}>
-              {winner === 'team1' ? '🔴' : '🔵'} ÉQUIPE {winnerTeam} GAGNE !
+              {winner === 'team1' ? '🔴' : '🔵'} ÉQUIPE {winnerTeam} A GAGNÉ !
             </h2>
             
             <div style={{
@@ -863,8 +864,8 @@ return (
           marginBottom: '0.25rem'
         }}>
           {currentSong?.revealed
-            ? `Bonne reponse : ${currentSong.artist} - ${currentSong.title}`
-            : isPlaying ? 'Ecoutez et buzzez !' : 'Preparez-vous...'
+            ? `Bonne réponse : ${currentSong.artist} - ${currentSong.title}`
+            : isPlaying ? 'Écoutez et buzzez !' : 'Préparez-vous...'
           }
         </h1>
         <p style={{
@@ -873,7 +874,7 @@ return (
           margin: 0
         }}>
           {currentSong?.revealed
-            ? 'La chanson est terminee · Tous les joueurs ont buzze'
+            ? 'La chanson est terminée · Tous les joueurs ont buzzé'
             : isPlaying
               ? 'La chanson est en cours...'
               : 'En attente du lancement'
@@ -1070,7 +1071,7 @@ return (
                       backgroundColor: isCorrect ? '#22c55e' : '#ef4444',
                       color: 'white'
                     }}>
-                      {isCorrect ? 'Bonne reponse' : 'Mauvaise'}
+                      {isCorrect ? 'Bonne réponse' : 'Mauvaise réponse'}
                     </div>
                   )}
 
@@ -1220,7 +1221,7 @@ return (
             opacity: 0.6,
             marginBottom: '0.75rem'
           }}>
-            Les joueurs apparaitront ici au fur et a mesure qu'ils buzzent.
+            Les joueurs apparaîtront ici au fur et à mesure qu'ils buzzent.
           </p>
 
           {/* Progress indicator */}
@@ -1237,7 +1238,7 @@ return (
               backgroundColor: buzzOrder.length > 0 ? '#22c55e' : '#6b7280'
             }} />
             <span style={{ fontSize: '0.85rem' }}>
-              {buzzOrder.length} / {totalPlayers || '?'} joueurs ont buzze
+              {buzzOrder.length} / {totalPlayers || '?'} joueurs ont buzzé
             </span>
             <div style={{
               flex: 1,
@@ -1330,7 +1331,7 @@ return (
                       {player.playerName}
                     </div>
                     <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>
-                      Reponse {player.answer} · {player.isCorrect ? 'Bonne reponse' : player.isCorrect === false ? 'Mauvaise reponse' : 'En attente'}
+                      Réponse {player.answer} · {player.isCorrect ? 'Bonne réponse' : player.isCorrect === false ? 'Mauvaise réponse' : 'En attente'}
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
@@ -1395,7 +1396,7 @@ return (
             opacity: 0.5,
             marginBottom: '0.75rem'
           }}>
-            Score total general · Mis a jour a la fin de chaque chanson
+            Score total général · Mis à jour à la fin de chaque chanson
           </p>
 
           {/* Leaderboard header */}
@@ -1503,9 +1504,9 @@ return (
         fontSize: '0.9rem'
       }}>
         {currentSong?.revealed
-          ? 'Manche terminee · Appuyez pour passer a la question suivante'
+          ? 'Manche terminée · Appuyez pour passer à la question suivante'
           : isPlaying
-            ? 'Manche en cours · Buzzez pour repondre'
+            ? 'Manche en cours · Buzzez pour répondre'
             : 'En attente du lancement de la manche'
         }
       </div>
@@ -1513,7 +1514,7 @@ return (
         fontSize: '0.85rem',
         opacity: 0.5
       }}>
-        Tous les joueurs voient cet ecran sur la TV partagee.
+        Tous les joueurs voient cet écran sur la TV partagée.
       </div>
     </div>
 

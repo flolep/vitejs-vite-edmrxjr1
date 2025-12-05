@@ -201,7 +201,8 @@ export default function StepReadyToStart({
                   title: song.title,
                   artist: song.artist,
                   imageUrl: 'https://via.placeholder.com/300?text=Test+Mode',
-                  durationMs: 180000, // 3 minutes par défaut
+                  duration: 180, // 3 minutes en secondes (utilisé pour le calcul des points)
+                  durationMs: 180000, // 3 minutes en millisecondes (pour compatibilité)
                   previewUrl: null
                 }));
 
@@ -300,7 +301,8 @@ export default function StepReadyToStart({
               title: song.title,
               artist: song.artist,
               imageUrl: 'https://via.placeholder.com/300?text=Test+Mode',
-              durationMs: 180000,
+              duration: 180, // 3 minutes en secondes (utilisé pour le calcul des points)
+              durationMs: 180000, // 3 minutes en millisecondes (pour compatibilité)
               previewUrl: null
             }));
 

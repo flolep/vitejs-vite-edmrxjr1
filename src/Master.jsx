@@ -216,6 +216,19 @@ export default function Master({
     }
   }, [musicSource, spotifyAIMode.playlist, playlist.length]);
 
+  // ✅ Initialiser songDuration dans Firebase pour le NOUVEAU flux (MasterFlowContainer)
+  // Quand initialPlaylist est fourni, écrire la durée de la première chanson
+  useEffect(() => {
+    if (!sessionId || !initialPlaylist || initialPlaylist.length === 0) return;
+    if (playlist.length === 0) return; // Attendre que la playlist soit chargée
+
+    // Écrire la durée de la première chanson dans Firebase
+    const firstDuration = playlist[0]?.duration || 30;
+    const durationRef = ref(database, `sessions/${sessionId}/songDuration`);
+    set(durationRef, firstDuration);
+    console.log(`✅ [MASTER] Durée initiale écrite dans Firebase: ${firstDuration}s`);
+  }, [sessionId, initialPlaylist, playlist.length]);
+
   // Synchroniser l'état showQRCode avec Firebase
   useEffect(() => {
     if (!sessionId) return;
@@ -461,7 +474,8 @@ export default function Master({
             title: song.title,
             artist: song.artist,
             imageUrl: 'https://via.placeholder.com/300?text=Test+Mode', // Image placeholder pour le mode test
-            durationMs: 180000, // 3 minutes par défaut
+            duration: 180, // 3 minutes en secondes (utilisé pour le calcul des points)
+            durationMs: 180000, // 3 minutes en millisecondes (pour compatibilité)
             previewUrl: null
           }));
 
@@ -1267,7 +1281,9 @@ export default function Master({
             </button>
           )}
 
-          {musicSource === 'spotify-ai' && playersPreferences.length > 0 && (
+          {/* ⚠️ Masquer la section génération playlist/questions dans le NOUVEAU flux (MasterFlowContainer)
+              Car tout est déjà généré automatiquement dans les 3 étapes du flow */}
+          {musicSource === 'spotify-ai' && playersPreferences.length > 0 && !(initialPlaylist && initialPlaylist.length > 0) && (
             <div style={{
               marginBottom: '1rem',
               padding: '0.75rem',
