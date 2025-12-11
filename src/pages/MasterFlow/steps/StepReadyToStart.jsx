@@ -181,13 +181,9 @@ export default function StepReadyToStart({
           }));
 
           // Appel n8n pour générer (retournera des stubs si mode Test activé)
-          // Passer l'URL Netlify pour le callback async
-          const netlifyCallbackUrl = window.location.origin;
-
           const generatePromise = n8nService.generatePlaylistWithAllPreferences({
             playlistId,
-            players: playersFormatted,
-            netlifyCallbackUrl
+            players: playersFormatted
           });
 
           // 🎭 Mode Test : Utiliser directement les stubs sans polling Spotify
@@ -233,64 +229,42 @@ export default function StepReadyToStart({
             return; // Skip le polling Spotify
           }
 
-          // Mode Production : Polling Firebase pour détecter la fin de génération
-          console.log('🔔 Appel async n8n lancé, polling Firebase pour détecter la completion...');
+          // Mode Production : Polling Spotify direct
+          console.log('⏳ n8n génère la playlist, polling Spotify toutes les 15 secondes...');
 
-          // Extraire sessionId depuis playlistId (format: SESSIONID-timestamp)
-          const sessionIdFromPlaylist = playlistId.split('-')[0];
-
-          // Polling Firebase toutes les 3 secondes
+          // Polling Spotify direct - simple et efficace
           let pollAttempts = 0;
-          const maxPollAttempts = 100; // 100 * 3s = 5 minutes max
-          const pollInterval = 3000; // 3 secondes
+          const maxPollAttempts = 40; // 40 * 15s = 10 minutes max
+          const pollInterval = 15000; // 15 secondes
 
           const pollPlaylist = setInterval(async () => {
             pollAttempts++;
             setPlaylistPollAttempt(pollAttempts);
+            console.log(`🔄 Tentative ${pollAttempts}/${maxPollAttempts} - Chargement playlist Spotify...`);
 
             try {
-              // Vérifier si n8n a écrit dans Firebase via la Netlify Function
-              const playlistGenRef = ref(database, `sessions/${sessionIdFromPlaylist}/playlistGeneration`);
-              const snapshot = await new Promise((resolve, reject) => {
-                onValue(playlistGenRef, resolve, { onlyOnce: true });
-              });
+              const tracks = await spotifyAIMode.loadPlaylistById(playlistId, setPlaylist);
 
-              const genData = snapshot.val();
-
-              if (genData && genData.status === 'completed') {
-                console.log('✅ Génération détectée dans Firebase:', genData);
-                console.log(`   📊 ${genData.totalSongs} chansons générées`);
-
-                clearInterval(pollPlaylist);
-
-                // Maintenant charger la playlist depuis Spotify
-                console.log('🎵 Chargement des chansons depuis Spotify...');
-                const tracks = await spotifyAIMode.loadPlaylistById(playlistId, setPlaylist);
-
-                if (tracks && tracks.length > 0) {
-                  console.log(`✅ ${tracks.length} chansons chargées depuis Spotify`);
-                  setPlaylistReady(true);
-                  setIsGeneratingPlaylist(false);
-
-                  // En mode Quiz, générer automatiquement les questions
-                  if (playMode === 'quiz') {
-                    await handleGenerateQuizQuestions(tracks);
-                  }
-                } else {
-                  throw new Error('Playlist vide après génération');
-                }
-              } else if (pollAttempts >= maxPollAttempts) {
-                console.warn('⚠️ Timeout après 5 minutes');
-                setGenerationError('La génération prend plus de temps que prévu. Vérifiez le workflow n8n.');
+              if (tracks && tracks.length > 0) {
+                console.log(`✅ ${tracks.length} chansons récupérées depuis Spotify`);
+                setPlaylistReady(true);
                 setIsGeneratingPlaylist(false);
                 clearInterval(pollPlaylist);
-              } else {
-                console.log(`🔄 Polling Firebase (${pollAttempts}/${maxPollAttempts})... Status: ${genData?.status || 'pending'}`);
+
+                // En mode Quiz, générer automatiquement les questions
+                if (playMode === 'quiz') {
+                  await handleGenerateQuizQuestions(tracks);
+                }
+              } else if (pollAttempts >= maxPollAttempts) {
+                console.warn('⚠️ Timeout après 10 minutes');
+                setGenerationError('La génération prend trop de temps. Réessayez plus tard.');
+                setIsGeneratingPlaylist(false);
+                clearInterval(pollPlaylist);
               }
             } catch (error) {
-              console.error('❌ Erreur polling Firebase:', error);
+              console.error('❌ Erreur polling Spotify:', error);
               if (pollAttempts >= maxPollAttempts) {
-                setGenerationError('Erreur lors de la vérification de la génération');
+                setGenerationError('Erreur lors du chargement de la playlist');
                 setIsGeneratingPlaylist(false);
                 clearInterval(pollPlaylist);
               }
