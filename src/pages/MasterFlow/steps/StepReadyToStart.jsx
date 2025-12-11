@@ -181,9 +181,12 @@ export default function StepReadyToStart({
           }));
 
           // Appel n8n pour générer (retournera des stubs si mode Test activé)
+          const netlifyCallbackUrl = window.location.origin;
+
           const generatePromise = n8nService.generatePlaylistWithAllPreferences({
             playlistId,
-            players: playersFormatted
+            players: playersFormatted,
+            netlifyCallbackUrl
           });
 
           // 🎭 Mode Test : Utiliser directement les stubs sans polling Spotify
@@ -229,40 +232,63 @@ export default function StepReadyToStart({
             return; // Skip le polling Spotify
           }
 
-          // Mode Production : Polling Spotify direct (simple et fiable)
-          console.log('⏳ Génération playlist en cours, polling Spotify toutes les 15 secondes...');
+          // Mode Production : Polling Firebase pour notification callback
+          console.log('🔔 Génération async lancée, écoute Firebase...');
+
+          const sessionIdFromPlaylist = playlistId.split('-')[0];
 
           let pollAttempts = 0;
-          const maxPollAttempts = 40; // 40 * 15s = 10 minutes max
-          const pollInterval = 15000; // 15 secondes
+          const maxPollAttempts = 100; // 5 minutes
+          const pollInterval = 3000; // 3s
 
           const pollPlaylist = setInterval(async () => {
             pollAttempts++;
             setPlaylistPollAttempt(pollAttempts);
-            console.log(`🔄 Tentative ${pollAttempts}/${maxPollAttempts}`);
 
             try {
-              const tracks = await spotifyAIMode.loadPlaylistById(playlistId, setPlaylist);
+              const playlistGenRef = ref(database, `sessions/${sessionIdFromPlaylist}/playlistGeneration`);
+              const snapshot = await new Promise((resolve) => {
+                onValue(playlistGenRef, resolve, { onlyOnce: true });
+              });
 
-              if (tracks && tracks.length > 0) {
-                console.log(`✅ ${tracks.length} chansons récupérées`);
-                setPlaylistReady(true);
-                setIsGeneratingPlaylist(false);
+              const genData = snapshot.val();
+
+              if (genData && genData.status === 'completed') {
+                console.log('✅ Notification reçue via Firebase');
                 clearInterval(pollPlaylist);
 
-                if (playMode === 'quiz') {
-                  await handleGenerateQuizQuestions(tracks);
+                const tracks = await spotifyAIMode.loadPlaylistById(playlistId, setPlaylist);
+
+                if (tracks && tracks.length > 0) {
+                  console.log(`✅ ${tracks.length} chansons chargées`);
+                  setPlaylistReady(true);
+                  setIsGeneratingPlaylist(false);
+
+                  if (playMode === 'quiz') {
+                    await handleGenerateQuizQuestions(tracks);
+                  }
                 }
               } else if (pollAttempts >= maxPollAttempts) {
-                console.warn('⚠️ Timeout après 10 minutes');
-                setGenerationError('La génération prend trop de temps. Réessayez plus tard.');
-                setIsGeneratingPlaylist(false);
+                console.warn('⚠️ Timeout - Fallback sur polling Spotify');
+                // Fallback : essayer quand même de charger depuis Spotify
+                const tracks = await spotifyAIMode.loadPlaylistById(playlistId, setPlaylist);
+                if (tracks && tracks.length > 0) {
+                  console.log(`✅ ${tracks.length} chansons récupérées (fallback)`);
+                  setPlaylistReady(true);
+                  setIsGeneratingPlaylist(false);
+                  if (playMode === 'quiz') {
+                    await handleGenerateQuizQuestions(tracks);
+                  }
+                } else {
+                  setGenerationError('Timeout');
+                  setIsGeneratingPlaylist(false);
+                }
                 clearInterval(pollPlaylist);
               }
             } catch (error) {
-              console.error('❌ Erreur polling:', error);
+              console.error('❌ Erreur:', error);
               if (pollAttempts >= maxPollAttempts) {
-                setGenerationError('Erreur lors du chargement de la playlist');
+                setGenerationError('Erreur');
                 setIsGeneratingPlaylist(false);
                 clearInterval(pollPlaylist);
               }
