@@ -181,9 +181,12 @@ export default function StepReadyToStart({
           }));
 
           // Appel n8n pour générer (retournera des stubs si mode Test activé)
+          const netlifyCallbackUrl = window.location.origin;
+
           const generatePromise = n8nService.generatePlaylistWithAllPreferences({
             playlistId,
-            players: playersFormatted
+            players: playersFormatted,
+            netlifyCallbackUrl
           });
 
           // 🎭 Mode Test : Utiliser directement les stubs sans polling Spotify
@@ -229,42 +232,54 @@ export default function StepReadyToStart({
             return; // Skip le polling Spotify
           }
 
-          // Mode Production : Polling Spotify direct
-          console.log('⏳ n8n génère la playlist, polling Spotify toutes les 15 secondes...');
+          // Mode Production : Polling Firebase pour notification n8n
+          console.log('🔔 Appel async n8n lancé, écoute Firebase pour notification...');
 
-          // Polling Spotify direct - simple et efficace
+          // Extraire sessionId depuis playlistId
+          const sessionIdFromPlaylist = playlistId.split('-')[0];
+
+          // Polling Firebase toutes les 3 secondes
           let pollAttempts = 0;
-          const maxPollAttempts = 40; // 40 * 15s = 10 minutes max
-          const pollInterval = 15000; // 15 secondes
+          const maxPollAttempts = 100; // 5 minutes max
+          const pollInterval = 3000;
 
           const pollPlaylist = setInterval(async () => {
             pollAttempts++;
             setPlaylistPollAttempt(pollAttempts);
-            console.log(`🔄 Tentative ${pollAttempts}/${maxPollAttempts} - Chargement playlist Spotify...`);
 
             try {
-              const tracks = await spotifyAIMode.loadPlaylistById(playlistId, setPlaylist);
+              const playlistGenRef = ref(database, `sessions/${sessionIdFromPlaylist}/playlistGeneration`);
+              const snapshot = await new Promise((resolve) => {
+                onValue(playlistGenRef, resolve, { onlyOnce: true });
+              });
 
-              if (tracks && tracks.length > 0) {
-                console.log(`✅ ${tracks.length} chansons récupérées depuis Spotify`);
-                setPlaylistReady(true);
-                setIsGeneratingPlaylist(false);
+              const genData = snapshot.val();
+
+              if (genData && genData.status === 'completed') {
+                console.log('✅ Génération détectée dans Firebase');
                 clearInterval(pollPlaylist);
 
-                // En mode Quiz, générer automatiquement les questions
-                if (playMode === 'quiz') {
-                  await handleGenerateQuizQuestions(tracks);
+                // Charger la playlist depuis Spotify
+                const tracks = await spotifyAIMode.loadPlaylistById(playlistId, setPlaylist);
+
+                if (tracks && tracks.length > 0) {
+                  console.log(`✅ ${tracks.length} chansons chargées`);
+                  setPlaylistReady(true);
+                  setIsGeneratingPlaylist(false);
+
+                  if (playMode === 'quiz') {
+                    await handleGenerateQuizQuestions(tracks);
+                  }
                 }
               } else if (pollAttempts >= maxPollAttempts) {
-                console.warn('⚠️ Timeout après 10 minutes');
-                setGenerationError('La génération prend trop de temps. Réessayez plus tard.');
+                setGenerationError('Timeout après 5 minutes');
                 setIsGeneratingPlaylist(false);
                 clearInterval(pollPlaylist);
               }
             } catch (error) {
-              console.error('❌ Erreur polling Spotify:', error);
+              console.error('❌ Erreur polling:', error);
               if (pollAttempts >= maxPollAttempts) {
-                setGenerationError('Erreur lors du chargement de la playlist');
+                setGenerationError('Erreur de génération');
                 setIsGeneratingPlaylist(false);
                 clearInterval(pollPlaylist);
               }
