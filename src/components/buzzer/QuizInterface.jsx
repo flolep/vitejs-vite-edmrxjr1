@@ -5,7 +5,7 @@ import React from 'react';
 const quizStyles = `
   .buzzer-quiz-container {
     min-height: 100vh;
-    background: linear-gradient(135deg, #3b82f6 0%, #6366f1 50%, #8b5cf6 100%);
+    background: linear-gradient(145deg, #0b1220 0%, #4475a8fc 55%, #0b1220 100%);
     color: white;
     display: flex;
     flex-direction: column;
@@ -49,30 +49,31 @@ const quizStyles = `
   }
 
   .buzzer-quiz-header-pill {
-    background: rgba(0, 0, 0, 0.3);
+    background: rgba(0, 0, 0, 0.18);
     backdrop-filter: blur(10px);
-    padding: 0.5rem 1rem;
-    border-radius: 2rem;
-    font-size: 0.875rem;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
     white-space: nowrap;
   }
 
   .buzzer-quiz-header-player {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    background: rgba(0, 0, 0, 0.3);
+    gap: 8px;
+    background: rgba(0, 0, 0, 0.18);
     backdrop-filter: blur(10px);
-    padding: 0.5rem 1rem 0.5rem 0.5rem;
-    border-radius: 2rem;
+    padding: 4px 10px;
+    border-radius: 12px;
   }
 
   .buzzer-quiz-avatar {
-    width: 40px;
-    height: 40px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     object-fit: cover;
-    border: 2px solid rgba(255, 255, 255, 0.3);
+    border: 2px solid rgba(255, 255, 255, 0.7);
   }
 
   .buzzer-quiz-avatar.can-trigger {
@@ -83,8 +84,8 @@ const quizStyles = `
   }
 
   .buzzer-quiz-avatar-placeholder {
-    width: 40px;
-    height: 40px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     background: rgba(255, 255, 255, 0.2);
     display: flex;
@@ -92,20 +93,23 @@ const quizStyles = `
     justify-content: center;
     font-weight: bold;
     font-size: 1.25rem;
+    border: 2px solid rgba(255, 255, 255, 0.7);
   }
 
   .buzzer-quiz-player-info {
     display: flex;
     flex-direction: column;
+    gap: 2px;
   }
 
   .buzzer-quiz-player-name {
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: 13px;
   }
 
   .buzzer-quiz-player-role {
-    font-size: 0.75rem;
+    font-size: 11px;
+    font-weight: 500;
     opacity: 0.7;
   }
 
@@ -123,10 +127,12 @@ const quizStyles = `
   }
 
   .buzzer-quiz-status {
-    font-size: 0.9rem;
-    opacity: 0.9;
+    font-size: 13px;
+    font-weight: 500;
+    margin-top: 8px;
     margin-bottom: 1.5rem;
     text-align: center;
+    color: rgba(255, 255, 255, 0.8);
   }
 
   .buzzer-quiz-status--revealed-correct {
@@ -142,45 +148,46 @@ const quizStyles = `
   }
 
   .buzzer-quiz-title {
-    font-size: 3rem;
-    font-weight: 800;
-    letter-spacing: 0.1em;
-    margin: 0 0 0.5rem 0;
-    text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    margin: 0 0 8px 0;
     color: white;
   }
 
   .buzzer-quiz-subtitle {
-    font-size: 1rem;
-    opacity: 0.9;
+    font-size: 13px;
+    font-weight: 500;
+    opacity: 0.85;
     margin: 0 0 1.5rem 0;
     text-align: center;
     max-width: 300px;
+    color: rgba(255, 255, 255, 0.85);
   }
 
   .buzzer-quiz-answers-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 0.75rem;
+    gap: 12px;
     width: 100%;
     max-width: 400px;
-    margin-bottom: 1.5rem;
+    margin-bottom: 20px;
   }
 
   .buzzer-quiz-answer-card {
-    background: rgba(30, 41, 59, 0.7);
+    background: rgba(15, 18, 32, 0.82);
     backdrop-filter: blur(10px);
-    border: 2px solid rgba(255, 255, 255, 0.1);
-    border-radius: 1rem;
-    padding: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    padding: 12px 10px;
     color: white;
     cursor: pointer;
     transition: all 0.2s;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    text-align: center;
-    min-height: 120px;
+    align-items: flex-start;
+    text-align: left;
+    min-height: 104px;
   }
 
   .buzzer-quiz-answer-card:hover:not(:disabled) {
@@ -194,8 +201,8 @@ const quizStyles = `
   }
 
   .buzzer-quiz-answer-card--correct {
-    background: linear-gradient(135deg, #16a34a 0%, #22c55e 100%);
-    border-color: #22c55e;
+    background: linear-gradient(135deg, #16a34a 0%, #16a34a 52%, rgba(0, 0, 0, 0.32) 100%);
+    border: 6px solid #081014;
   }
 
   .buzzer-quiz-answer-card--wrong {
@@ -212,22 +219,23 @@ const quizStyles = `
   }
 
   .buzzer-quiz-answer-letter {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background: rgba(0, 0, 0, 0.5);
+    width: 28px;
+    height: 28px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.16);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: bold;
-    font-size: 1.1rem;
-    margin-bottom: 0.75rem;
-    border: 2px solid rgba(255, 255, 255, 0.2);
+    font-weight: 700;
+    font-size: 16px;
+    margin-bottom: 8px;
+    border: none;
   }
 
   .buzzer-quiz-answer-letter--correct {
-    background: #166534;
-    border-color: #22c55e;
+    background: rgba(0, 0, 0, 0.18);
+    border: 4px solid #081014;
+    color: #052012;
   }
 
   .buzzer-quiz-answer-letter--wrong {
@@ -237,31 +245,35 @@ const quizStyles = `
 
   .buzzer-quiz-answer-artist {
     font-weight: 600;
-    font-size: 0.95rem;
+    font-size: 14px;
     line-height: 1.2;
-    margin-bottom: 0.25rem;
+    margin-bottom: 2px;
   }
 
   .buzzer-quiz-answer-song {
-    font-size: 0.8rem;
-    opacity: 0.7;
+    font-size: 12px;
+    opacity: 0.9;
     line-height: 1.2;
+    font-weight: 500;
   }
 
   .buzzer-quiz-bottom-message {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-    font-size: 0.875rem;
-    padding: 0.75rem 1rem;
+    justify-content: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 4px 10px;
     background: rgba(0, 0, 0, 0.2);
     backdrop-filter: blur(10px);
-    border-radius: 1rem;
+    border-radius: 12px;
+    color: rgba(255, 255, 255, 0.9);
   }
 
   .buzzer-quiz-bottom-dot {
-    width: 10px;
-    height: 10px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     flex-shrink: 0;
   }
@@ -373,21 +385,21 @@ const quizStyles = `
 
   @media (max-width: 400px) {
     .buzzer-quiz-title {
-      font-size: 2.5rem;
+      font-size: 24px;
     }
 
     .buzzer-quiz-answers-grid {
-      gap: 0.5rem;
+      gap: 8px;
     }
 
     .buzzer-quiz-answer-card {
-      padding: 0.75rem;
-      min-height: 100px;
+      padding: 10px 8px;
+      min-height: 96px;
     }
 
     .buzzer-quiz-header {
       flex-direction: column;
-      gap: 0.5rem;
+      gap: 8px;
     }
   }
 `;
@@ -531,28 +543,36 @@ export function QuizInterface({
         📊
       </button>
 
-      {/* Header avec question et joueur */}
-      <div className="buzzer-quiz-header">
-        <div className="buzzer-quiz-header-pill">
-          Question {(trackNumber || 0) + 1} / {totalTracks || 10} · Mode Quiz
-        </div>
-        <div className="buzzer-quiz-header-player">
-          {selectedPlayer?.photo ? (
-            <img
-              src={selectedPlayer.photo}
-              alt={selectedPlayer.name}
-              onClick={canTriggerNextSong ? onNextSong : undefined}
-              className={`buzzer-quiz-avatar ${canTriggerNextSong ? 'can-trigger' : ''}`}
-            />
-          ) : (
-            <div className="buzzer-quiz-avatar-placeholder">
-              {(selectedPlayer?.name || playerName || '?').charAt(0).toUpperCase()}
-            </div>
-          )}
-          <div className="buzzer-quiz-player-info">
-            <span className="buzzer-quiz-player-name">{selectedPlayer?.name || playerName}</span>
-            <span className="buzzer-quiz-player-role">Joueur</span>
+      {/* Section Top : Header + Status */}
+      <div style={{ marginBottom: '24px', width: '100%', maxWidth: '400px' }}>
+        {/* Header avec question et joueur */}
+        <div className="buzzer-quiz-header">
+          <div className="buzzer-quiz-header-pill">
+            Question {(trackNumber || 0) + 1} / {totalTracks || 10} · Mode Quiz
           </div>
+          <div className="buzzer-quiz-header-player">
+            {selectedPlayer?.photo ? (
+              <img
+                src={selectedPlayer.photo}
+                alt={selectedPlayer.name}
+                onClick={canTriggerNextSong ? onNextSong : undefined}
+                className={`buzzer-quiz-avatar ${canTriggerNextSong ? 'can-trigger' : ''}`}
+              />
+            ) : (
+              <div className="buzzer-quiz-avatar-placeholder">
+                {(selectedPlayer?.name || playerName || '?').charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div className="buzzer-quiz-player-info">
+              <span className="buzzer-quiz-player-name">{selectedPlayer?.name || playerName}</span>
+              <span className="buzzer-quiz-player-role">Joueur</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Message d'état */}
+        <div className={`buzzer-quiz-status buzzer-quiz-status--${dataState}`}>
+          {getStatusMessage()}
         </div>
       </div>
 
@@ -563,16 +583,11 @@ export function QuizInterface({
         </div>
       )}
 
-      {/* Message d'état */}
-      <div className={`buzzer-quiz-status buzzer-quiz-status--${dataState}`}>
-        {getStatusMessage()}
+      {/* Section Middle : Titre + Helper */}
+      <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+        <h1 className="buzzer-quiz-title">BUZZER</h1>
+        <p className="buzzer-quiz-subtitle">{getSubtitle()}</p>
       </div>
-
-      {/* Titre BUZZER */}
-      <h1 className="buzzer-quiz-title">BUZZER</h1>
-
-      {/* Sous-titre */}
-      <p className="buzzer-quiz-subtitle">{getSubtitle()}</p>
 
       {/* Grille des 4 réponses */}
       <div className="buzzer-quiz-answers-grid">
@@ -609,14 +624,16 @@ export function QuizInterface({
       </div>
 
       {/* Message en bas */}
-      <div className="buzzer-quiz-bottom-message">
-        {bottomMessage.dot && (
-          <span
-            className="buzzer-quiz-bottom-dot"
-            style={{ backgroundColor: bottomMessage.dot }}
-          />
-        )}
-        <span style={{ color: bottomMessage.color }}>{bottomMessage.text}</span>
+      <div style={{ textAlign: 'center' }}>
+        <div className="buzzer-quiz-bottom-message">
+          {bottomMessage.dot && (
+            <span
+              className="buzzer-quiz-bottom-dot"
+              style={{ backgroundColor: bottomMessage.dot }}
+            />
+          )}
+          <span style={{ color: bottomMessage.color }}>{bottomMessage.text}</span>
+        </div>
       </div>
 
       {/* Modale des statistiques personnelles */}
