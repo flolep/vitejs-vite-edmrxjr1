@@ -181,7 +181,6 @@ export default function StepReadyToStart({
           }));
 
           // Appel n8n pour générer (retournera des stubs si mode Test activé)
-          // Passer l'URL Netlify pour le callback async
           const netlifyCallbackUrl = window.location.origin;
 
           const generatePromise = n8nService.generatePlaylistWithAllPreferences({
@@ -233,64 +232,54 @@ export default function StepReadyToStart({
             return; // Skip le polling Spotify
           }
 
-          // Mode Production : Polling Firebase pour détecter la fin de génération
-          console.log('🔔 Appel async n8n lancé, polling Firebase pour détecter la completion...');
+          // Mode Production : Polling Firebase pour notification n8n
+          console.log('🔔 Appel async n8n lancé, écoute Firebase pour notification...');
 
-          // Extraire sessionId depuis playlistId (format: SESSIONID-timestamp)
+          // Extraire sessionId depuis playlistId
           const sessionIdFromPlaylist = playlistId.split('-')[0];
 
           // Polling Firebase toutes les 3 secondes
           let pollAttempts = 0;
-          const maxPollAttempts = 100; // 100 * 3s = 5 minutes max
-          const pollInterval = 3000; // 3 secondes
+          const maxPollAttempts = 100; // 5 minutes max
+          const pollInterval = 3000;
 
           const pollPlaylist = setInterval(async () => {
             pollAttempts++;
             setPlaylistPollAttempt(pollAttempts);
 
             try {
-              // Vérifier si n8n a écrit dans Firebase via la Netlify Function
               const playlistGenRef = ref(database, `sessions/${sessionIdFromPlaylist}/playlistGeneration`);
-              const snapshot = await new Promise((resolve, reject) => {
+              const snapshot = await new Promise((resolve) => {
                 onValue(playlistGenRef, resolve, { onlyOnce: true });
               });
 
               const genData = snapshot.val();
 
               if (genData && genData.status === 'completed') {
-                console.log('✅ Génération détectée dans Firebase:', genData);
-                console.log(`   📊 ${genData.totalSongs} chansons générées`);
-
+                console.log('✅ Génération détectée dans Firebase');
                 clearInterval(pollPlaylist);
 
-                // Maintenant charger la playlist depuis Spotify
-                console.log('🎵 Chargement des chansons depuis Spotify...');
+                // Charger la playlist depuis Spotify
                 const tracks = await spotifyAIMode.loadPlaylistById(playlistId, setPlaylist);
 
                 if (tracks && tracks.length > 0) {
-                  console.log(`✅ ${tracks.length} chansons chargées depuis Spotify`);
+                  console.log(`✅ ${tracks.length} chansons chargées`);
                   setPlaylistReady(true);
                   setIsGeneratingPlaylist(false);
 
-                  // En mode Quiz, générer automatiquement les questions
                   if (playMode === 'quiz') {
                     await handleGenerateQuizQuestions(tracks);
                   }
-                } else {
-                  throw new Error('Playlist vide après génération');
                 }
               } else if (pollAttempts >= maxPollAttempts) {
-                console.warn('⚠️ Timeout après 5 minutes');
-                setGenerationError('La génération prend plus de temps que prévu. Vérifiez le workflow n8n.');
+                setGenerationError('Timeout après 5 minutes');
                 setIsGeneratingPlaylist(false);
                 clearInterval(pollPlaylist);
-              } else {
-                console.log(`🔄 Polling Firebase (${pollAttempts}/${maxPollAttempts})... Status: ${genData?.status || 'pending'}`);
               }
             } catch (error) {
-              console.error('❌ Erreur polling Firebase:', error);
+              console.error('❌ Erreur polling:', error);
               if (pollAttempts >= maxPollAttempts) {
-                setGenerationError('Erreur lors de la vérification de la génération');
+                setGenerationError('Erreur de génération');
                 setIsGeneratingPlaylist(false);
                 clearInterval(pollPlaylist);
               }
