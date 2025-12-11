@@ -360,6 +360,7 @@ export const n8nService = {
    * @param {string} params.playlistId - ID de la playlist à remplir (créée précédemment)
    * @param {array} params.players - Tableau des joueurs avec leurs préférences
    *   Chaque joueur doit avoir : { name, age, genres, specialPhrase }
+   * @param {string} params.netlifyCallbackUrl - URL Netlify pour le callback (optionnel, auto-détecté)
    * @returns {Promise<{success: boolean, playlistId: string, totalSongs: number, totalPlayers: number, songs: array}>}
    *
    * Exemple d'utilisation :
@@ -368,10 +369,11 @@ export const n8nService = {
    *   players: [
    *     { name: "John", age: 25, genres: ["Pop", "Rock"], specialPhrase: "J'aime danser" },
    *     { name: "Marie", age: 30, genres: ["Jazz", "Soul"], specialPhrase: "Smooth vibes" }
-   *   ]
+   *   ],
+   *   netlifyCallbackUrl: window.location.origin
    * });
    */
-  async generatePlaylistWithAllPreferences({ playlistId, players }) {
+  async generatePlaylistWithAllPreferences({ playlistId, players, netlifyCallbackUrl = null }) {
     try {
       // Validation
       if (!playlistId) {
@@ -406,6 +408,12 @@ export const n8nService = {
         playlistId: playlistId,
         players: players
       };
+
+      // Ajouter l'URL de callback Netlify si fournie (pour notification async)
+      if (netlifyCallbackUrl) {
+        payload.netlifyCallbackUrl = netlifyCallbackUrl;
+        console.log('🔔 URL callback configurée:', netlifyCallbackUrl);
+      }
 
       console.log('🎵 Génération playlist GROUPÉE via n8n:');
       console.log(`   📊 ${players.length} joueur(s)`);
