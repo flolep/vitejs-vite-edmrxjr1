@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { database } from './firebase';
-import { ref, set, onValue, remove } from 'firebase/database';
+import { ref, set, onValue, remove, serverTimestamp } from 'firebase/database';
 import { airtableService } from './airtableService';
 import { useBuzzerLocalStorage } from './hooks/buzzer/useBuzzerLocalStorage';
 import { useBuzzerCamera } from './hooks/buzzer/useBuzzerCamera';
@@ -287,7 +287,7 @@ export default function BuzzerTeam({ sessionIdFromRouter = null }) {
       playerId: selectedPlayer?.id || `temp_${playerName}`,
       playerPhoto: selectedPlayer?.photo || camera.photoData || null,
       playerFirebaseKey: playerFirebaseKey,
-      timestamp: Date.now()
+      timestamp: serverTimestamp() // ✅ Timestamp serveur Firebase pour précision absolue
     };
 
     await set(buzzRef, buzzPayload);
