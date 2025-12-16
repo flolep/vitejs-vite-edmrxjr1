@@ -430,6 +430,35 @@ export default function Master({
 
   // === ACTIONS ===
 
+  // Écouter le statut de la playlist dans Firebase pour déclencher la suite automatiquement
+  useEffect(() => {
+    if (!initialPlaylistId || testMode) return;
+
+    const playlistRef = ref(database, `playlists/${initialPlaylistId}`);
+    const unsubscribe = onValue(playlistRef, async (snapshot) => {
+      const data = snapshot.val();
+      if (data && data.status === 'playlist_ready') {
+        console.log('🎉 Playlist prête détectée via Firebase !', data);
+
+        // Si nous sommes en mode Quiz et que les questions ne sont pas encore prêtes
+        // ET que nous ne sommes pas déjà en train de les générer
+        if (playMode === 'quiz' && !quizQuestionsReady && !isGeneratingQuizQuestions) {
+          console.log('🚀 Déclenchement automatique de la génération des questions Quiz...');
+
+          // Recharger d'abord la playlist pour être sûr d'avoir les dernières données
+          if (spotifyAIMode.loadPlaylistById) {
+            await spotifyAIMode.loadPlaylistById(initialPlaylistId, setPlaylist);
+          }
+
+          // Puis générer les questions
+          handleGenerateQuizQuestions();
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [initialPlaylistId, playMode, quizQuestionsReady, isGeneratingQuizQuestions, testMode, spotifyAIMode]);
+
   const handleGeneratePlaylistWithAllPreferences = async () => {
     if (!initialPlaylistId || playersPreferences.length === 0) {
       setDebugInfo('❌ Aucun joueur prêt ou playlist manquante');
@@ -498,13 +527,13 @@ export default function Master({
       return; // Skip le polling Spotify
     }
 
-    // Mode Production : Polling Spotify normal
+    // Mode Production : Polling Spotify normal (gardé comme fallback si Firebase ne répond pas)
     generatePlaylistPromise
       .then(result => {
         console.log('✅ Playlist générée (en arrière-plan):', result);
         console.log(`   🎵 ${result.totalSongs} chansons ajoutées pour ${result.totalPlayers || players.length} joueurs`);
         if (playMode === 'quiz') {
-          console.log('   ℹ️ Utilisez le bouton "Générer les questions" pour créer les wrongAnswers');
+          console.log('   ℹ️ La génération des questions suivra automatiquement une fois la playlist prête');
         }
       })
       .catch(error => {
@@ -519,7 +548,7 @@ export default function Master({
     setPlaylistPollAttempt(0);
     // On garde isGeneratingPlaylist à true pendant le polling
 
-    // ⏰ Polling automatique pour recharger la playlist
+    // ⏰ Polling automatique pour recharger la playlist (Fallback)
     // S'arrête automatiquement quand des chansons sont détectées
     let pollAttempts = 0;
     const maxPollAttempts = 10; // 10 tentatives = 2min30
