@@ -3,6 +3,8 @@ import { database } from './firebase';
 import { ref, set, onValue, remove } from 'firebase/database';
 import { airtableService } from './airtableService';
 import { n8nService } from './n8nService';
+import CooldownDisplay from './components/buzzer/CooldownDisplay';
+import CooldownText from './components/buzzer/CooldownText';
 
 export default function Buzzer() {
   // États de session
@@ -38,7 +40,7 @@ export default function Buzzer() {
 
   // Cooldown states
   const [cooldownEnd, setCooldownEnd] = useState(null);
-  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  // cooldownRemaining supprimé car géré dans les composants enfants
 
   // Stats personnelles
   const [showStats, setShowStats] = useState(false);
@@ -336,7 +338,7 @@ export default function Buzzer() {
     });
     return () => unsubscribe();
   }, [sessionValid, sessionId]);
-  
+
   // Écouter si une chanson est en cours de lecture
   useEffect(() => {
     if (!sessionValid || !sessionId) return;
@@ -406,25 +408,6 @@ export default function Buzzer() {
     return () => unsubscribe();
   }, [team, selectedPlayer, playerName, sessionValid, sessionId]);
 
-  // Compte à rebours du cooldown
-  useEffect(() => {
-    if (!cooldownEnd) {
-      setCooldownRemaining(0);
-      return;
-    }
-    
-    const interval = setInterval(() => {
-      const remaining = Math.max(0, (cooldownEnd - Date.now()) / 1000);
-      setCooldownRemaining(remaining);
-      
-      if (remaining <= 0) {
-        setCooldownEnd(null);
-      }
-    }, 100);
-    
-    return () => clearInterval(interval);
-    }, [cooldownEnd]);
-
   // Gérer la caméra pour le selfie
   useEffect(() => {
     if (step === 'photo' && !photoData) {
@@ -439,19 +422,36 @@ export default function Buzzer() {
     };
   }, [step, photoData]);
 
+  // Compte à rebours du cooldown (Nettoyage seulement)
+  // Optimisation: On ne met plus à jour le state 'cooldownRemaining' ici pour éviter
+  // de re-render tout le composant Buzzer tous les 100ms.
+  // La logique d'affichage est déléguée aux sous-composants CooldownDisplay et CooldownText.
+  useEffect(() => {
+    if (!cooldownEnd) return;
+
+    const checkEnd = setInterval(() => {
+      if (Date.now() >= cooldownEnd) {
+        setCooldownEnd(null);
+        clearInterval(checkEnd);
+      }
+    }, 500); // Check moins fréquent, juste pour l'état global
+
+    return () => clearInterval(checkEnd);
+  }, [cooldownEnd]);
+
   // NOUVEAU : Rechercher le joueur
   const handleSearchPlayer = async () => {
     if (!playerName.trim()) {
       setError('Veuillez saisir un prénom');
       return;
     }
-    
+
     setIsSearching(true);
     setError('');
-    
+
     try {
       const result = await airtableService.findPlayer(playerName);
-      
+
       if (result.found && result.count > 0) {
         setSearchResults(result.players);
         setStep('select');
@@ -484,8 +484,8 @@ export default function Buzzer() {
   // NOUVEAU : Démarrer la caméra
   const startCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'user' } 
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user' }
       });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -503,16 +503,16 @@ export default function Buzzer() {
     if (canvasRef.current && videoRef.current) {
       const canvas = canvasRef.current;
       const video = videoRef.current;
-      
+
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      
+
       const ctx = canvas.getContext('2d');
       ctx.drawImage(video, 0, 0);
-      
+
       const imageData = canvas.toDataURL('image/jpeg', 0.8);
       setPhotoData(imageData);
-      
+
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
@@ -941,7 +941,7 @@ const loadPersonalStats = () => {
           <h2 style={{ fontSize: '1.5rem', marginBottom: '2rem' }}>
             Quel est votre prénom ?
           </h2>
-          
+
           <input
             type="text"
             placeholder="Entrez votre prénom"
@@ -963,22 +963,22 @@ const loadPersonalStats = () => {
               textAlign: 'center'
             }}
           />
-          
+
           {error && (
-            <div style={{ 
-              color: '#ef4444', 
+            <div style={{
+              color: '#ef4444',
               marginBottom: '1rem',
-              fontSize: '0.875rem' 
+              fontSize: '0.875rem'
             }}>
               {error}
             </div>
           )}
-          
+
           <button
             onClick={handleSearchPlayer}
             disabled={isSearching || !playerName.trim()}
             className="btn btn-green"
-            style={{ 
+            style={{
               width: '100%',
               padding: '1.5rem',
               fontSize: '1.25rem',
@@ -1001,7 +1001,7 @@ const loadPersonalStats = () => {
           <h2 style={{ fontSize: '1.25rem', marginBottom: '2rem' }}>
             C'est vous ?
           </h2>
-          
+
           <div className="space-y">
             {searchResults.map((player, idx) => (
               <button
@@ -1018,8 +1018,8 @@ const loadPersonalStats = () => {
                 }}
               >
                 {player.photo && (
-                  <img 
-                    src={player.photo} 
+                  <img
+                    src={player.photo}
                     alt={player.name}
                     style={{
                       width: '60px',
@@ -1041,7 +1041,7 @@ const loadPersonalStats = () => {
                 </div>
               </button>
             ))}
-            
+
             <button
               onClick={handleCreateNewPlayer}
               className="btn btn-gray"
@@ -1057,17 +1057,17 @@ const loadPersonalStats = () => {
 
  // ÉCRAN 3 : Prise de selfie
 if (step === 'photo') {
-  
+
 
   return (
     <div className="bg-gradient flex-center">
       <div className="text-center" style={{ maxWidth: '500px', width: '100%', padding: '2rem' }}>
         <h1 className="title">📸 Prenez un selfie</h1>
-        
+
         {error && (
-          <div style={{ 
-            backgroundColor: 'rgba(239, 68, 68, 0.2)', 
-            padding: '1rem', 
+          <div style={{
+            backgroundColor: 'rgba(239, 68, 68, 0.2)',
+            padding: '1rem',
             borderRadius: '0.5rem',
             marginBottom: '1rem',
             color: '#ef4444'
@@ -1078,7 +1078,7 @@ if (step === 'photo') {
 
         {!photoData ? (
           <>
-            <video 
+            <video
               ref={videoRef}
               autoPlay
               playsInline
@@ -1091,15 +1091,15 @@ if (step === 'photo') {
               }}
             />
             <canvas ref={canvasRef} style={{ display: 'none' }} />
-            
-            <button 
+
+            <button
               onClick={takeSelfie}
               className="btn btn-green"
               style={{ width: '100%', padding: '1.5rem', fontSize: '1.5rem' }}
             >
               📸 Prendre la photo
             </button>
-            
+
             <button
               onClick={() => {
                 if (streamRef.current) {
@@ -1115,7 +1115,7 @@ if (step === 'photo') {
           </>
         ) : (
           <>
-            <img 
+            <img
               src={photoData}
               alt="Votre selfie"
               style={{
@@ -1125,17 +1125,17 @@ if (step === 'photo') {
                 marginBottom: '1rem'
               }}
             />
-            
+
             <div style={{ display: 'flex', gap: '1rem' }}>
-              <button 
+              <button
                 onClick={retakeSelfie}
                 className="btn btn-yellow"
                 style={{ flex: 1, padding: '1.5rem' }}
               >
                 🔄 Reprendre
               </button>
-              
-              <button 
+
+              <button
                 onClick={confirmSelfie}
                 className="btn btn-green"
                 style={{ flex: 1, padding: '1.5rem' }}
@@ -1326,9 +1326,9 @@ if (step === 'photo') {
       <div className="bg-gradient flex-center">
         <div className="text-center" style={{ maxWidth: '500px', width: '100%', padding: '2rem' }}>
           <h1 className="title">🎵 BLIND TEST 🎵</h1>
-          
+
           {selectedPlayer && (
-            <div style={{ 
+            <div style={{
               marginBottom: '2rem',
               display: 'flex',
               flexDirection: 'column',
@@ -1336,7 +1336,7 @@ if (step === 'photo') {
               gap: '0.5rem'
             }}>
               {selectedPlayer.photo && (
-                <img 
+                <img
                   src={selectedPlayer.photo}
                   alt={selectedPlayer.name}
                   style={{
@@ -1353,11 +1353,11 @@ if (step === 'photo') {
               </div>
             </div>
           )}
-          
+
           <h2 style={{ fontSize: '1.5rem', marginBottom: '2rem' }}>
             Choisissez votre équipe
           </h2>
-          
+
           <div className="space-y">
             <button
               onClick={() => selectTeam(1)}
@@ -1366,7 +1366,7 @@ if (step === 'photo') {
             >
               🔴 ÉQUIPE 1
             </button>
-            
+
             <button
               onClick={() => selectTeam(2)}
               className="team-select-btn"
@@ -1426,7 +1426,7 @@ if (step === 'game') {
 
       <div className="text-center mb-8">
         {selectedPlayer?.photo && (
-          <img 
+          <img
             src={selectedPlayer.photo}
             alt={selectedPlayer.name}
             style={{
@@ -1445,25 +1445,15 @@ if (step === 'game') {
         <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
           {team === 1 ? '🔴 ÉQUIPE 1' : '🔵 ÉQUIPE 2'}
         </h1>
-        
+
         {/* ✅ Affichage du cooldown */}
         {isInCooldown ? (
-          <div style={{ 
-            fontSize: '1.5rem', 
-            fontWeight: 'bold',
-            color: '#ef4444',
-            marginTop: '1rem'
-          }}>
-            🔥 COOLDOWN : {cooldownRemaining.toFixed(1)}s
-            <div style={{ fontSize: '1rem', marginTop: '0.5rem', opacity: 0.8 }}>
-              (2 bonnes réponses de suite)
-            </div>
-          </div>
+          <CooldownText cooldownEnd={cooldownEnd} />
         ) : (
           <p style={{ fontSize: '1.125rem', opacity: 0.8 }}>
-            {buzzed ? 'Buzzé !' : 
-             someoneBuzzed ? 'Une autre équipe a buzzé...' : 
-             !isPlaying ? 'En attente de la musique...' : 
+            {buzzed ? 'Buzzé !' :
+             someoneBuzzed ? 'Une autre équipe a buzzé...' :
+             !isPlaying ? 'En attente de la musique...' :
              'Appuyez pour buzzer'}
           </p>
         )}
@@ -1479,16 +1469,19 @@ if (step === 'game') {
           opacity: !canBuzz ? 0.5 : 1
         }}
       >
-        <span style={{ fontSize: '5rem' }}>
-          {isInCooldown ? '🔥' : '🔔'}
-        </span>
-        <span style={{ marginTop: '1rem' }}>
-          {isInCooldown ? `${cooldownRemaining.toFixed(1)}s` :
-           buzzed ? 'BUZZÉ !' : 
-           someoneBuzzed ? 'BLOQUÉ' : 
-           !isPlaying ? 'EN ATTENTE' : 
-           'BUZZ'}
-        </span>
+        {isInCooldown ? (
+          <CooldownDisplay cooldownEnd={cooldownEnd} onCooldownEnd={() => setCooldownEnd(null)} />
+        ) : (
+          <>
+            <span style={{ fontSize: '5rem' }}>🔔</span>
+            <span style={{ marginTop: '1rem' }}>
+              {buzzed ? 'BUZZÉ !' :
+              someoneBuzzed ? 'BLOQUÉ' :
+              !isPlaying ? 'EN ATTENTE' :
+              'BUZZ'}
+            </span>
+          </>
+        )}
       </button>
 
       <button onClick={changeTeam} className="btn btn-gray mt-8">
@@ -1500,7 +1493,7 @@ if (step === 'game') {
           En attente de la décision de l'animateur...
         </div>
       )}
-      
+
       {!isPlaying && !someoneBuzzed && !isInCooldown && (
         <div className="mt-8" style={{ fontSize: '0.875rem', opacity: 0.7 }}>
           ⏸️ Attendez que l'animateur lance la musique...
@@ -1673,7 +1666,4 @@ if (step === 'game') {
       )}
     </div>
   );
-}
-
-  return null;
 }
