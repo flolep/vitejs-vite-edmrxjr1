@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { database } from './firebase';
-import { ref, set, onValue, remove } from 'firebase/database';
+import { ref, set, onValue, remove, serverTimestamp } from 'firebase/database';
 import { airtableService } from './airtableService';
 import { useBuzzerLocalStorage } from './hooks/buzzer/useBuzzerLocalStorage';
 import { useBuzzerCamera } from './hooks/buzzer/useBuzzerCamera';
@@ -9,6 +9,7 @@ import { NameScreen } from './components/buzzer/screens/NameScreen';
 import { SelectScreen } from './components/buzzer/screens/SelectScreen';
 import { PhotoScreen } from './components/buzzer/screens/PhotoScreen';
 import { PreferencesScreen } from './components/buzzer/screens/PreferencesScreen';
+import CooldownText from './components/buzzer/CooldownText';
 
 /**
  * Mode Équipe avec Buzzer
@@ -44,7 +45,6 @@ export default function BuzzerTeam({ sessionIdFromRouter = null }) {
   const [someoneBuzzed, setSomeoneBuzzed] = useState(false);
   const [buzzerEnabled, setBuzzerEnabled] = useState(true);
   const [cooldownEnd, setCooldownEnd] = useState(null);
-  const [cooldownRemaining, setCooldownRemaining] = useState(0);
 
   // ========== HANDLERS - NAME SCREEN ==========
 
@@ -287,7 +287,7 @@ export default function BuzzerTeam({ sessionIdFromRouter = null }) {
       playerId: selectedPlayer?.id || `temp_${playerName}`,
       playerPhoto: selectedPlayer?.photo || camera.photoData || null,
       playerFirebaseKey: playerFirebaseKey,
-      timestamp: Date.now()
+      timestamp: serverTimestamp() // ✅ Timestamp serveur Firebase pour précision absolue
     };
 
     await set(buzzRef, buzzPayload);
@@ -343,23 +343,19 @@ export default function BuzzerTeam({ sessionIdFromRouter = null }) {
     return () => unsubscribe();
   }, [team, selectedPlayer, playerName, sessionValid, sessionId]);
 
-  // Compte à rebours du cooldown
+  // Compte à rebours du cooldown optimisé
+  // Déplacé dans le composant CooldownText pour éviter les re-renders fréquents
   useEffect(() => {
-    if (!cooldownEnd) {
-      setCooldownRemaining(0);
-      return;
-    }
+    if (!cooldownEnd) return;
 
-    const interval = setInterval(() => {
-      const remaining = Math.max(0, (cooldownEnd - Date.now()) / 1000);
-      setCooldownRemaining(remaining);
-
-      if (remaining <= 0) {
+    const checkEnd = setInterval(() => {
+      if (Date.now() >= cooldownEnd) {
         setCooldownEnd(null);
+        clearInterval(checkEnd);
       }
-    }, 100);
+    }, 500); // Check moins fréquent, juste pour l'état global
 
-    return () => clearInterval(interval);
+    return () => clearInterval(checkEnd);
   }, [cooldownEnd]);
 
   // ========== RENDU DES ÉCRANS ==========
@@ -519,14 +515,7 @@ export default function BuzzerTeam({ sessionIdFromRouter = null }) {
           )}
 
           {isInCooldown && (
-            <div style={{
-              fontSize: '1.5rem',
-              marginBottom: '2rem',
-              color: '#fbbf24',
-              fontWeight: 'bold'
-            }}>
-              ⏳ Cooldown: {cooldownRemaining.toFixed(1)}s
-            </div>
+            <CooldownText cooldownEnd={cooldownEnd} />
           )}
 
           <button

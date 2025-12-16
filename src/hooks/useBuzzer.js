@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { database } from '../firebase';
-import { ref, set, remove, onValue } from 'firebase/database';
+import { ref, set, remove, onValue, serverTimestamp } from 'firebase/database';
 
 /**
  * Hook pour gérer le système de buzzer
@@ -100,7 +100,7 @@ export function useBuzzer(sessionId, isPlaying, currentTrack, playlist, currentC
           songTitle: playlist[currentTrack - 1]?.title || 'Inconnu',
           songArtist: playlist[currentTrack - 1]?.artist || 'Inconnu',
           trackNumber: currentTrack, // ✅ Pas besoin de + 1 car commence déjà à 1
-          timestamp: Date.now(),
+          timestamp: serverTimestamp(), // ✅ Timestamp serveur Firebase pour précision absolue
           correct: null,
           points: 0
         };

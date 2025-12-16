@@ -232,16 +232,14 @@ export default function StepReadyToStart({
             return; // Skip le polling Spotify
           }
 
-          // Mode Production : Polling Firebase pour notification n8n
-          console.log('🔔 Appel async n8n lancé, écoute Firebase pour notification...');
+          // Mode Production : Polling Firebase pour notification callback
+          console.log('🔔 Génération async lancée, écoute Firebase...');
 
-          // Extraire sessionId depuis playlistId
           const sessionIdFromPlaylist = playlistId.split('-')[0];
 
-          // Polling Firebase toutes les 3 secondes
           let pollAttempts = 0;
-          const maxPollAttempts = 100; // 5 minutes max
-          const pollInterval = 3000;
+          const maxPollAttempts = 100; // 5 minutes
+          const pollInterval = 3000; // 3s
 
           const pollPlaylist = setInterval(async () => {
             pollAttempts++;
@@ -256,10 +254,9 @@ export default function StepReadyToStart({
               const genData = snapshot.val();
 
               if (genData && genData.status === 'completed') {
-                console.log('✅ Génération détectée dans Firebase');
+                console.log('✅ Notification reçue via Firebase');
                 clearInterval(pollPlaylist);
 
-                // Charger la playlist depuis Spotify
                 const tracks = await spotifyAIMode.loadPlaylistById(playlistId, setPlaylist);
 
                 if (tracks && tracks.length > 0) {
@@ -272,14 +269,26 @@ export default function StepReadyToStart({
                   }
                 }
               } else if (pollAttempts >= maxPollAttempts) {
-                setGenerationError('Timeout après 5 minutes');
-                setIsGeneratingPlaylist(false);
+                console.warn('⚠️ Timeout - Fallback sur polling Spotify');
+                // Fallback : essayer quand même de charger depuis Spotify
+                const tracks = await spotifyAIMode.loadPlaylistById(playlistId, setPlaylist);
+                if (tracks && tracks.length > 0) {
+                  console.log(`✅ ${tracks.length} chansons récupérées (fallback)`);
+                  setPlaylistReady(true);
+                  setIsGeneratingPlaylist(false);
+                  if (playMode === 'quiz') {
+                    await handleGenerateQuizQuestions(tracks);
+                  }
+                } else {
+                  setGenerationError('Timeout');
+                  setIsGeneratingPlaylist(false);
+                }
                 clearInterval(pollPlaylist);
               }
             } catch (error) {
-              console.error('❌ Erreur polling:', error);
+              console.error('❌ Erreur:', error);
               if (pollAttempts >= maxPollAttempts) {
-                setGenerationError('Erreur de génération');
+                setGenerationError('Erreur');
                 setIsGeneratingPlaylist(false);
                 clearInterval(pollPlaylist);
               }

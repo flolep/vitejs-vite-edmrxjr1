@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { database } from './firebase';
-import { ref, set, onValue, get } from 'firebase/database';
+import { ref, set, onValue, get, serverTimestamp } from 'firebase/database';
 import { airtableService } from './airtableService';
 import { useBuzzerLocalStorage } from './hooks/buzzer/useBuzzerLocalStorage';
 import { useBuzzerCamera } from './hooks/buzzer/useBuzzerCamera';
@@ -433,7 +433,7 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
         playerName: selectedPlayer?.name || playerName,
         answer: answer, // 'A', 'B', 'C', 'D'
         time: chrono,
-        timestamp: Date.now(),
+        timestamp: serverTimestamp(), // ✅ Timestamp serveur Firebase pour précision absolue
         isCorrect: null // Sera calculé après révélation
       };
 
@@ -501,7 +501,7 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
 
     const nextSongRequestRef = ref(database, `sessions/${sessionId}/quiz_next_song_request`);
     set(nextSongRequestRef, {
-      timestamp: Date.now(),
+      timestamp: serverTimestamp(), // ✅ Timestamp serveur Firebase pour précision absolue
       playerId: selectedPlayer?.id || `temp_${playerName}`,
       playerName: selectedPlayer?.name || playerName
     }).then(() => {
