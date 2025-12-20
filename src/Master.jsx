@@ -559,6 +559,16 @@ export default function Master({
       setPlaylistPollAttempt(pollAttempts);
       console.log(`🔄 Tentative ${pollAttempts}/${maxPollAttempts} de rechargement de la playlist...`);
 
+      // 🔥 IMPORTANT : Vérifier d'abord si on a atteint le max AVANT de faire quoi que ce soit
+      if (pollAttempts > maxPollAttempts) {
+        console.log('⏱️ Arrêt du polling : nombre max de tentatives dépassé');
+        setDebugInfo('⏱️ Génération terminée ou timeout. Rafraîchissez manuellement si la playlist est vide.');
+        setIsGeneratingPlaylist(false);
+        setPlaylistPollAttempt(0);
+        clearInterval(pollPlaylist);
+        return;
+      }
+
       try {
         const tracks = await spotifyAIMode.loadPlaylistById(initialPlaylistId, setPlaylist);
 
@@ -571,14 +581,18 @@ export default function Master({
           clearInterval(pollPlaylist);
         } else if (pollAttempts >= maxPollAttempts) {
           console.log('⏱️ Arrêt du polling : nombre max de tentatives atteint');
-          setDebugInfo('⏱️ Génération en cours... Rafraîchissez manuellement si besoin');
+          setDebugInfo('⏱️ Génération terminée ou timeout. Rafraîchissez manuellement si la playlist est vide.');
           setIsGeneratingPlaylist(false);
           setPlaylistPollAttempt(0);
           clearInterval(pollPlaylist);
+        } else {
+          console.log(`⏳ Playlist encore vide, nouvelle tentative dans ${pollInterval / 1000}s...`);
         }
       } catch (error) {
         console.error('❌ Erreur lors du rechargement:', error);
         if (pollAttempts >= maxPollAttempts) {
+          console.log('⏱️ Arrêt du polling après erreur : nombre max de tentatives atteint');
+          setDebugInfo('⏱️ Erreur lors du rechargement. Rafraîchissez manuellement.');
           setIsGeneratingPlaylist(false);
           setPlaylistPollAttempt(0);
           clearInterval(pollPlaylist);
