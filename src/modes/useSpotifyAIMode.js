@@ -36,7 +36,10 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
 
   // Charger automatiquement la playlist en mode IA quand le token Spotify est disponible
   const loadPlaylistById = async (playlistId, setPlaylist) => {
-    if (!spotifyToken || !playlistId) return;
+    if (!spotifyToken || !playlistId) {
+      console.warn('⚠️ loadPlaylistById: token ou playlistId manquant');
+      return []; // Retourner un tableau vide au lieu de undefined
+    }
 
     try {
       const tracks = await spotifyService.getPlaylistTracks(spotifyToken, playlistId);
@@ -55,7 +58,7 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
       return tracks;
     } catch (error) {
       console.error('Error loading playlist by ID:', error);
-      throw error;
+      return []; // Retourner un tableau vide au lieu de lancer une erreur
     }
   };
 
