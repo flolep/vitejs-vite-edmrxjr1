@@ -46,6 +46,8 @@ export default function StepReadyToStart({
   // Hook pour le mode Quiz (uniquement pour storeQuizData)
   const quizMode = useQuizMode(sessionId, null, [], null);
 
+  const MAX_POLL_ATTEMPTS = 100; // 5 minutes (3s interval)
+
   // ========== SYNCHRONISATION JOUEURS ==========
 
   useEffect(() => {
@@ -235,10 +237,7 @@ export default function StepReadyToStart({
           // Mode Production : Polling Firebase pour notification callback
           console.log('🔔 Génération async lancée, écoute Firebase...');
 
-          const sessionIdFromPlaylist = playlistId.split('-')[0];
-
           let pollAttempts = 0;
-          const maxPollAttempts = 100; // 5 minutes
           const pollInterval = 3000; // 3s
 
           const pollPlaylist = setInterval(async () => {
@@ -246,14 +245,16 @@ export default function StepReadyToStart({
             setPlaylistPollAttempt(pollAttempts);
 
             try {
-              const playlistGenRef = ref(database, `sessions/${sessionIdFromPlaylist}/playlistGeneration`);
+              // ⚠️ IMPORTANT: n8n écrit dans playlists/{playlistId} avec status="playlist_ready"
+              // et NON dans sessions/{sessionId}/playlistGeneration
+              const playlistGenRef = ref(database, `playlists/${playlistId}`);
               const snapshot = await new Promise((resolve) => {
                 onValue(playlistGenRef, resolve, { onlyOnce: true });
               });
 
               const genData = snapshot.val();
 
-              if (genData && genData.status === 'completed') {
+              if (genData && genData.status === 'playlist_ready') {
                 console.log('✅ Notification reçue via Firebase');
                 clearInterval(pollPlaylist);
 
@@ -268,7 +269,7 @@ export default function StepReadyToStart({
                     await handleGenerateQuizQuestions(tracks);
                   }
                 }
-              } else if (pollAttempts >= maxPollAttempts) {
+              } else if (pollAttempts >= MAX_POLL_ATTEMPTS) {
                 console.warn('⚠️ Timeout - Fallback sur polling Spotify');
                 // Fallback : essayer quand même de charger depuis Spotify
                 const tracks = await spotifyAIMode.loadPlaylistById(playlistId, setPlaylist);
@@ -287,7 +288,7 @@ export default function StepReadyToStart({
               }
             } catch (error) {
               console.error('❌ Erreur:', error);
-              if (pollAttempts >= maxPollAttempts) {
+              if (pollAttempts >= MAX_POLL_ATTEMPTS) {
                 setGenerationError('Erreur');
                 setIsGeneratingPlaylist(false);
                 clearInterval(pollPlaylist);
@@ -919,7 +920,7 @@ export default function StepReadyToStart({
                 <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>
                   {isGeneratingPlaylist
                     ? playlistPollAttempt > 0
-                      ? `Vérification ${playlistPollAttempt}/10...`
+                      ? `Vérification ${playlistPollAttempt}/${MAX_POLL_ATTEMPTS}...`
                       : 'En cours...'
                     : playlistReady
                     ? `${playlist.length} chanson${playlist.length > 1 ? 's' : ''} prête${playlist.length > 1 ? 's' : ''}`
