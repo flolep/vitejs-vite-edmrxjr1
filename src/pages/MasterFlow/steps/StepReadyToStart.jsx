@@ -237,8 +237,6 @@ export default function StepReadyToStart({
           // Mode Production : Polling Firebase pour notification callback
           console.log('🔔 Génération async lancée, écoute Firebase...');
 
-          const sessionIdFromPlaylist = playlistId.split('-')[0];
-
           let pollAttempts = 0;
           const pollInterval = 3000; // 3s
 
@@ -247,14 +245,16 @@ export default function StepReadyToStart({
             setPlaylistPollAttempt(pollAttempts);
 
             try {
-              const playlistGenRef = ref(database, `sessions/${sessionIdFromPlaylist}/playlistGeneration`);
+              // ⚠️ IMPORTANT: n8n écrit dans playlists/{playlistId} avec status="playlist_ready"
+              // et NON dans sessions/{sessionId}/playlistGeneration
+              const playlistGenRef = ref(database, `playlists/${playlistId}`);
               const snapshot = await new Promise((resolve) => {
                 onValue(playlistGenRef, resolve, { onlyOnce: true });
               });
 
               const genData = snapshot.val();
 
-              if (genData && genData.status === 'completed') {
+              if (genData && genData.status === 'playlist_ready') {
                 console.log('✅ Notification reçue via Firebase');
                 clearInterval(pollPlaylist);
 
