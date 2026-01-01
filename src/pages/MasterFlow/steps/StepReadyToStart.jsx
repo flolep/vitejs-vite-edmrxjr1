@@ -40,8 +40,15 @@ export default function StepReadyToStart({
   const [testMode] = useState(() => localStorage.getItem('quizTestMode') === 'true');
 
   // Hooks pour les modes Spotify
-  const spotifyAIMode = useSpotifyAIMode();
-  const spotifyAutoMode = useSpotifyAutoMode();
+  const spotifyAIMode = useSpotifyAIMode(
+    sessionData?.spotifyToken,
+    sessionId,
+    sessionData?.musicSource
+  );
+  const spotifyAutoMode = useSpotifyAutoMode(
+    sessionData?.spotifyToken,
+    sessionId
+  );
 
   // Hook pour le mode Quiz (uniquement pour storeQuizData)
   const quizMode = useQuizMode(sessionId, null, [], null);
