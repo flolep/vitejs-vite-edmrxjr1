@@ -35,14 +35,17 @@ Ce workflow est responsable de la création de la playlist Spotify partagée.
     *   Le nœud "Parse Song List" sépare le tableau en items individuels.
     *   Le nœud "Search Song on Spotify" effectue une recherche pour chaque chanson afin de récupérer son URI Spotify (`spotify:track:...`).
 
-5.  **Agrégation & Écriture** :
+5.  **Agrégation & Ajout Spotify** :
     *   Le nœud "Extract Track URIs" rassemble tous les URIs trouvés.
+    *   Le nœud "Add Songs to Playlist1" (Spotify) ajoute concrètement les chansons trouvées à la playlist Spotify cible (`playlistId`).
+
+6.  **Notification Firebase** :
     *   **Action Critique** : Le nœud "🔥 Write to Firebase" écrit directement dans la base de données Realtime Database.
         *   **Chemin :** `playlists/{playlistId}`
         *   **Données :** `status: "playlist_ready"`, `tracks: [...]`
     *   C'est cette écriture qui débloque l'interface utilisateur (StepReadyToStart).
 
-6.  **Réponse API** :
+7.  **Réponse API** :
     *   Renvoie un succès immédiat au client (n8nService), bien que l'écriture Firebase soit la véritable notification de fin.
 
 ---
