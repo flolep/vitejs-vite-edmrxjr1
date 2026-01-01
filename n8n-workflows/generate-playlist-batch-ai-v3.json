@@ -7,13 +7,13 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "984b509f-1404-449f-8af6-84dfa2828e08",
+      "id": "4589c9e3-ad0c-4ee1-9c0b-2b6d4d4c53fe",
       "name": "Batch Player Input Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1.1,
       "position": [
-        144,
-        16
+        -96,
+        48
       ],
       "webhookId": "GENERATE_NEW_WEBHOOK_ID"
     },
@@ -37,26 +37,26 @@
         },
         "options": {}
       },
-      "id": "68d2b4c4-cc56-4e9b-8bfa-aa76c27fd37c",
+      "id": "938b04d8-7902-4004-b07c-2444a3921840",
       "name": "Format Batch Data",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.3,
       "position": [
-        592,
-        16
+        352,
+        48
       ]
     },
     {
       "parameters": {
         "jsCode": "// The AI Agent output is already in the correct format\nconst response = $input.item.json;\n\nconsole.log('Received data:', JSON.stringify(response, null, 2));\n\n// If the response is directly an array, use it\nlet songs = Array.isArray(response) ? response : response.output || response.text;\n\n// If still not an array, try parsing as string\nif (typeof songs === 'string') {\n  songs = JSON.parse(songs);\n}\n\n// Final validation\nif (!Array.isArray(songs)) {\n  throw new Error(`Expected array but got: ${typeof songs}`);\n}\n\n// Récupérer le playlistId depuis Format Batch Data\nconst playlistId = $('Format Batch Data').first().json.playlistId;\n\nconsole.log(`Processing ${songs.length} songs for batch playlist generation`);\nconsole.log(`PlaylistId: ${playlistId}`);\n\n// Return each song for parallel Spotify search with playlistId\nreturn songs.map((song, index) => ({\n  json: {\n    artist: song.artist,\n    song: song.song,\n    searchQuery: `${song.song} ${song.artist}`,\n    index: index,\n    playlistId: playlistId\n  }\n}));"
       },
-      "id": "044a6ce4-9bb7-4ba7-8a6c-4fc8fc32d369",
+      "id": "e12408d6-f457-44bf-a9d8-7c7c7076716a",
       "name": "Parse Song List",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1168,
-        16
+        928,
+        48
       ]
     },
     {
@@ -67,13 +67,13 @@
         "limit": 1,
         "filters": {}
       },
-      "id": "2dd73eec-ead9-4cd0-b827-419f20df15a0",
+      "id": "9b9a1035-f50e-46ad-8afb-6f8c77204c09",
       "name": "Search Song on Spotify",
       "type": "n8n-nodes-base.spotify",
       "typeVersion": 1,
       "position": [
-        1392,
-        16
+        1152,
+        48
       ],
       "credentials": {
         "spotifyOAuth2Api": {
@@ -86,13 +86,13 @@
       "parameters": {
         "jsCode": "// Aggregate all Spotify track URIs\nconst allItems = $input.all();\nconst trackUris = [];\nconst foundSongs = [];\n\nconsole.log('Processing', allItems.length, 'items from Spotify');\n\nfor (const item of allItems) {\n  const track = item.json;\n\n  // The Spotify node returns the track object directly\n  if (track && track.uri && track.id && track.name) {\n    trackUris.push(track.uri);\n    foundSongs.push({\n      name: track.name,\n      artist: track.artists?.[0]?.name || 'Unknown',\n      uri: track.uri,\n      id: track.id\n    });\n  }\n}\n\nconsole.log('Total tracks found:', trackUris.length);\n\nif (trackUris.length === 0) {\n  throw new Error(`No valid tracks found`);\n}\n\n// Create comma-separated string of URIs for Spotify node\nconst trackUrisString = trackUris.join(',');\n\n// ✅ RÉCUPÉRER LE PLAYLISTID DEPUIS PARSE JSON BODY (plus fiable)\nconst playlistId = $('Parse JSON Body').first().json.playlistId;\n\nconsole.log('PlaylistId récupéré:', playlistId);\n\nreturn [{\n  json: {\n    trackUris: trackUris,\n    trackUrisString: trackUrisString,\n    trackIds: trackUris.map(uri => uri.split(':')[2]),\n    foundSongs: foundSongs,\n    totalFound: trackUris.length,\n    playlistId: playlistId\n  }\n}];"
       },
-      "id": "542bbae3-77e8-456c-9960-30de9f546fd2",
+      "id": "8de3b5ab-3fe4-4683-9e93-2aaf134078f2",
       "name": "Extract Track URIs",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1616,
-        16
+        1376,
+        48
       ]
     },
     {
@@ -139,13 +139,13 @@
         },
         "options": {}
       },
-      "id": "100bd7ba-0ce4-4424-9eeb-05a8f49133a3",
+      "id": "da2c1da9-73d4-4aad-81c5-45b7262b031f",
       "name": "Format Success Response",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.3,
       "position": [
-        2064,
-        16
+        2048,
+        48
       ]
     },
     {
@@ -156,13 +156,13 @@
           "responseCode": 200
         }
       },
-      "id": "9ecca98e-5a97-4f6b-98ae-9028d662575b",
+      "id": "fa4b9b46-f054-4c70-8d74-2b78fbec13eb",
       "name": "Send Response",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        2288,
-        16
+        2272,
+        48
       ]
     },
     {
@@ -175,10 +175,10 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2.2,
       "position": [
-        816,
-        16
+        576,
+        48
       ],
-      "id": "71b03bbc-3baf-4d03-9220-786a377c9f93",
+      "id": "0f6ee0bf-2839-48c9-8215-7032891cf54c",
       "name": "AI Agent",
       "alwaysOutputData": false
     },
@@ -195,10 +195,10 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1.2,
       "position": [
-        816,
-        288
+        496,
+        272
       ],
-      "id": "4bca67f0-5299-4005-9e9f-2d6d90bd8a0c",
+      "id": "3189a1fb-63d9-42b2-b15e-df9b1a4186d5",
       "name": "OpenAI Chat Model (GPT-3.5)",
       "credentials": {
         "openAiApi": {
@@ -211,13 +211,13 @@
       "parameters": {
         "jsCode": "// Le webhook peut recevoir le body de différentes façons\nconst input = $json.body;\n\nconsole.log('═══════════════════════════════════════');\nconsole.log('Type du body:', typeof input);\nconsole.log('Body reçu:', input);\n\nlet data;\n\n// Cas 1 : Le body est déjà un objet\nif (typeof input === 'object' && input !== null) {\n  console.log('✅ Body déjà parsé comme objet');\n  data = input;\n}\n// Cas 2 : Le body est une string JSON\nelse if (typeof input === 'string') {\n  console.log('🔄 Body est une string, parsing nécessaire');\n  console.log('Longueur:', input.length);\n  console.log('Premiers 200 caractères:', input.substring(0, 200));\n  \n  try {\n    // Essayer de parser directement\n    data = JSON.parse(input);\n    console.log('✅ Parsing JSON réussi');\n  } catch (e) {\n    console.log('❌ Erreur parsing direct:', e.message);\n    console.log('Position de l\\'erreur:', e.message.match(/position (\\d+)/)?.[1]);\n    \n    // Afficher le contexte autour de l'erreur\n    const pos = parseInt(e.message.match(/position (\\d+)/)?.[1] || '0');\n    const start = Math.max(0, pos - 50);\n    const end = Math.min(input.length, pos + 50);\n    console.log('Contexte erreur:', input.substring(start, end));\n    \n    throw new Error(`Impossible de parser le JSON: ${e.message}`);\n  }\n}\nelse {\n  throw new Error(`Type de body inattendu: ${typeof input}`);\n}\n\n// Validation\nif (!data.playlistId) {\n  throw new Error('playlistId manquant dans les données');\n}\nif (!Array.isArray(data.players) || data.players.length === 0) {\n  throw new Error('players manquant ou vide');\n}\n\nconsole.log('✅ Données validées:');\nconsole.log('  PlaylistId:', data.playlistId);\nconsole.log('  Nombre de joueurs:', data.players.length);\nconsole.log('═══════════════════════════════════════');\n\n// Retourner les données parsées\nreturn [{\n  json: {\n    playlistId: data.playlistId,\n    players: data.players\n  }\n}];"
       },
-      "id": "57ea619e-0c48-4d2e-be18-368b3cd1578e",
+      "id": "996e6ad2-1c67-4e0e-ba4d-95fde6b4cbd2",
       "name": "Parse JSON Body",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        368,
-        16
+        128,
+        48
       ]
     },
     {
@@ -227,13 +227,13 @@
         "trackID": "={{ $('Extract Track URIs').item.json.trackUrisString }}",
         "additionalFields": {}
       },
-      "id": "d25e4146-303d-4aef-9323-c3fd0969137a",
+      "id": "a2408c88-26d4-4194-8a5f-92fff1cc3bfe",
       "name": "Add Songs to Playlist1",
       "type": "n8n-nodes-base.spotify",
       "typeVersion": 1,
       "position": [
-        1840,
-        16
+        1600,
+        48
       ],
       "credentials": {
         "spotifyOAuth2Api": {
@@ -247,7 +247,6 @@
         "method": "PATCH",
         "url": "=https://blindtestapp-cd177-default-rtdb.europe-west1.firebasedatabase.app/playlists/{{ $node['Parse JSON Body'].json.playlistId }}.json",
         "sendBody": true,
-        "contentType": "json",
         "bodyParameters": {
           "parameters": [
             {
@@ -270,11 +269,14 @@
         },
         "options": {}
       },
-      "id": "firebase-update-playlist",
+      "id": "42850731-3881-4c86-a517-8b50c8f6df9c",
       "name": "🔥 Write to Firebase",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
-      "position": [2064, 16]
+      "position": [
+        1824,
+        48
+      ]
     }
   ],
   "connections": {
