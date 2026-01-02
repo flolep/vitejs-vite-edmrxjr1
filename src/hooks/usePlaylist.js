@@ -19,16 +19,18 @@ export function usePlaylist(initialPlaylist = []) {
     });
   };
 
-  const revealTrack = (index) => {
-    updateTrack(index, { revealed: true });
+  const revealTrack = (trackNumber) => {
+    // ✅ trackNumber commence à 1, donc on accède au tableau avec trackNumber - 1
+    updateTrack(trackNumber - 1, { revealed: true });
   };
 
+  // ✅ currentTrack commence à 1 au lieu de 0
   const canNavigateNext = (currentTrack) => {
-    return currentTrack < playlist.length - 1;
+    return currentTrack < playlist.length; // Peut naviguer si currentTrack < length (ex: track 10 avec 10 chansons)
   };
 
   const canNavigatePrev = (currentTrack) => {
-    return currentTrack > 0;
+    return currentTrack > 1; // Peut revenir si > 1 (la première chanson est track 1)
   };
 
   return {

@@ -168,15 +168,8 @@ export default function MasterWizard({ onComplete }) {
   const handleSelectSource = async (source) => {
     setMusicSource(source);
 
-    // Si MP3 ou Spotify-auto, forcer le mode Équipe et passer directement au loading
-    if (source === 'mp3' || source === 'spotify-auto') {
-      setPlayMode('team');
-      setGameMode(`${source}-team`);
-      await createSession(source, 'team');
-    } else {
-      // Si Spotify-IA, demander le mode de jeu
-      setStep('gamemode');
-    }
+    // Pour toutes les sources, demander le mode de jeu (team ou quiz)
+    setStep('gamemode');
   };
 
   // ========== ÉTAPE 4 : CHOIX DU MODE DE JEU ==========
@@ -213,6 +206,7 @@ export default function MasterWizard({ onComplete }) {
       updates[`sessions/${newSessionId}/scores`] = { team1: 0, team2: 0 };
       updates[`sessions/${newSessionId}/chrono`] = 0;
       updates[`sessions/${newSessionId}/isPlaying`] = false;
+      updates[`sessions/${newSessionId}/currentTrackNumber`] = 1; // ✅ Initialiser à 1 (première chanson)
       updates[`sessions/${newSessionId}/currentSong`] = null;
       updates[`sessions/${newSessionId}/game_status`] = { ended: false };
       updates[`sessions/${newSessionId}/showQRCode`] = false;
@@ -244,23 +238,66 @@ export default function MasterWizard({ onComplete }) {
     setError('');
 
     try {
-      // Créer une playlist vide via n8n
-      const result = await n8nService.createSpotifyPlaylistSimple(
+      // 🔥 SOLUTION: Écouter Firebase en parallèle pour détecter la playlist
+      let firebaseListenerActive = true;
+      let playlistDetectedFromFirebase = false;
+
+      // Promesse qui écoute Firebase pour détecter la création de playlist
+      const firebaseListener = new Promise((resolve, reject) => {
+        const playlistRef = ref(database, `sessions/${sessionId}/playlistId`);
+
+        const unsubscribe = onValue(playlistRef, (snapshot) => {
+          if (!firebaseListenerActive) return;
+
+          const playlistId = snapshot.val();
+          if (playlistId) {
+            console.log('✅ Playlist détectée dans Firebase:', playlistId);
+            playlistDetectedFromFirebase = true;
+            unsubscribe();
+            resolve({ success: true, playlistId, source: 'firebase' });
+          }
+        }, (error) => {
+          console.error('❌ Erreur écoute Firebase:', error);
+          unsubscribe();
+          reject(error);
+        });
+
+        // Timeout de 30 secondes
+        setTimeout(() => {
+          if (firebaseListenerActive && !playlistDetectedFromFirebase) {
+            unsubscribe();
+            reject(new Error('Timeout: Playlist non détectée après 30s'));
+          }
+        }, 30000);
+      });
+
+      // Promesse pour l'appel n8n
+      const n8nPromise = n8nService.createSpotifyPlaylistSimple(
         `BlindTest-${sessionId}`,
         `Playlist IA générée pour la session ${sessionId}`
-      );
+      ).then(result => {
+        console.log('✅ Réponse n8n reçue:', result);
+        return { ...result, source: 'n8n' };
+      });
 
-      console.log('🔍 Structure complète de la réponse n8n:', JSON.stringify(result, null, 2));
-      console.log('🔍 result.success =', result.success);
-      console.log('🔍 result.playlistId =', result.playlistId);
-      console.log('🔍 Toutes les clés:', Object.keys(result));
+      // Attendre la première réponse (n8n OU Firebase)
+      console.log('⏳ Attente de la création de playlist (n8n ou Firebase)...');
+      const result = await Promise.race([n8nPromise, firebaseListener]);
+
+      // Stopper l'écoute Firebase si elle est encore active
+      firebaseListenerActive = false;
+
+      console.log('🔍 Playlist reçue depuis:', result.source);
+      console.log('🔍 Structure complète de la réponse:', JSON.stringify(result, null, 2));
 
       if (result.success && result.playlistId) {
         // Extraire l'ID pur
         let extractedId = extractPlaylistId(result.playlistId);
 
-        // Stocker dans Firebase
-        await set(ref(database, `sessions/${sessionId}/playlistId`), extractedId);
+        // Stocker dans Firebase si pas déjà fait
+        if (result.source !== 'firebase') {
+          await set(ref(database, `sessions/${sessionId}/playlistId`), extractedId);
+        }
         setPlaylistId(extractedId);
 
         // En mode IA, la playlist sera remplie par les joueurs
@@ -268,7 +305,7 @@ export default function MasterWizard({ onComplete }) {
         setPlaylist([]);
         setStep('ready');
       } else {
-        throw new Error('Playlist ID non reçu de n8n');
+        throw new Error('Playlist ID non reçu');
       }
     } catch (err) {
       console.error('Erreur création playlist IA:', err);
@@ -778,6 +815,19 @@ export default function MasterWizard({ onComplete }) {
                 {error}
               </div>
             )}
+          </div>
+        )}
+
+        {/* ÉTAPE 6 : READY - Transition vers Master */}
+        {step === 'ready' && (
+          <div style={{ textAlign: 'center', padding: '2rem' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>✅</div>
+            <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>
+              Configuration terminée !
+            </h2>
+            <p style={{ opacity: 0.8 }}>
+              Lancement de l'interface animateur...
+            </p>
           </div>
         )}
       </div>
