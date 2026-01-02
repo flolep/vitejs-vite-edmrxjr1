@@ -37,6 +37,16 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
     }
   };
 
+  // Nettoyer le player lors du démontage
+  useEffect(() => {
+    return () => {
+      if (spotifyPlayer) {
+        console.log('🧹 [SPOTIFY-AI] Déconnexion du player Spotify lors du démontage');
+        spotifyPlayer.disconnect();
+      }
+    };
+  }, [spotifyPlayer]);
+
   // Charger automatiquement la playlist en mode IA quand le token Spotify est disponible
   const loadPlaylistById = async (playlistId, setPlaylist) => {
     if (!spotifyToken || !playlistId) {

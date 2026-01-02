@@ -53,6 +53,16 @@ export function useSpotifyAutoMode(spotifyToken, sessionId) {
     }
   };
 
+  // Nettoyer le player lors du démontage
+  useEffect(() => {
+    return () => {
+      if (spotifyPlayer) {
+        console.log('🧹 [SPOTIFY-AUTO] Déconnexion du player Spotify lors du démontage');
+        spotifyPlayer.disconnect();
+      }
+    };
+  }, [spotifyPlayer]);
+
   const handleSelectPlaylist = async (playlistId, setPlaylist, resetScores) => {
     try {
       const tracks = await spotifyService.getPlaylistTracks(spotifyToken, playlistId);
