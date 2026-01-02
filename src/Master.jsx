@@ -440,6 +440,17 @@ export default function Master({
     return () => unsubscribe();
   }, [sessionId]);
 
+  // Initialisation forcée du player Spotify dès que possible
+  useEffect(() => {
+    if (spotifyToken) {
+      if (musicSource === 'spotify-ai') {
+        spotifyAIMode.initSpotifyPlayer();
+      } else if (musicSource === 'spotify-auto') {
+        spotifyAutoMode.initSpotifyPlayer();
+      }
+    }
+  }, [musicSource, spotifyToken]);
+
   // === ACTIONS ===
 
   // Écouter le statut de la playlist dans Firebase pour déclencher la suite automatiquement
@@ -754,8 +765,7 @@ export default function Master({
       }
 
       console.log('⚠️ Player non initialisé, tentative de réinitialisation...');
-      setDebugInfo('⏳ Initialisation du player Spotify...');
-      setIsPlayerInitializing(true);
+      setDebugInfo('⏳ Initialisation du player Spotify en cours... Veuillez patienter et réessayer.');
 
       try {
         // Réinitialiser le player selon le mode
@@ -765,40 +775,19 @@ export default function Master({
           await spotifyAIMode.initSpotifyPlayer();
         }
 
-        // Attendre que le playerAdapter soit créé (max 5 secondes)
-        // Note: Le useEffect ci-dessus mettra à jour playerAdapter quand deviceId sera dispo
-        let attempts = 0;
-        const maxAttempts = 50; // 5 secondes (100ms interval)
-
-        while (!playerAdapter && attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-          attempts++;
-
-          // Vérifier si le deviceId est arrivé (ce qui déclenche le useEffect)
-          if ((musicSource === 'spotify-auto' && spotifyAutoMode.spotifyDeviceId) ||
-              (musicSource === 'spotify-ai' && spotifyAIMode.spotifyDeviceId)) {
-             // On laisse le temps au useEffect de créer l'adapter
-             await new Promise(resolve => setTimeout(resolve, 500));
-             break;
-          }
-        }
-
-        // Vérification finale (le state playerAdapter peut ne pas être encore à jour dans cette closure)
-        // On affichera un message d'erreur si ça échoue au prochain clic
-
-        setDebugInfo('✅ Tentative de connexion terminée. Réessayez de lancer la lecture.');
+        // On ne bloque pas l'UI, on informe juste l'utilisateur
+        updateIsPlaying(false);
+        return;
       } catch (error) {
         console.error('❌ Erreur initialisation player:', error);
-        setDebugInfo('❌ Erreur initialisation Spotify. Rafraîchissez la page et reconnectez-vous.');
-      } finally {
-        setIsPlayerInitializing(false);
+        setDebugInfo('❌ Erreur initialisation Spotify. Rafraîchissez la page.');
         updateIsPlaying(false);
       }
       return;
     }
 
     if (!playerAdapter) {
-      setDebugInfo('❌ Player non initialisé');
+      setDebugInfo('❌ Player non initialisé. Veuillez patienter...');
       return;
     }
 
