@@ -458,12 +458,14 @@ export default function Master({
           console.log('🚀 Déclenchement automatique de la génération des questions Quiz...');
 
           // Recharger d'abord la playlist pour être sûr d'avoir les dernières données
+          let tracks = [];
           if (spotifyAIMode.loadPlaylistById) {
-            await spotifyAIMode.loadPlaylistById(initialPlaylistId, setPlaylist);
+            tracks = await spotifyAIMode.loadPlaylistById(initialPlaylistId, setPlaylist);
           }
 
           // Puis générer les questions
-          handleGenerateQuizQuestions();
+          // On passe tracks explicitement pour éviter les problèmes de state asynchrone
+          handleGenerateQuizQuestions(tracks);
         }
       }
     });
