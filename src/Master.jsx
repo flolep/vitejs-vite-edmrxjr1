@@ -70,6 +70,7 @@ export default function Master({
 
   // États Spotify
   const [playerAdapter, setPlayerAdapter] = useState(null);
+  const [isPlayerInitializing, setIsPlayerInitializing] = useState(false);
 
   // États préférences joueurs (mode Spotify IA)
   const [playersPreferences, setPlayersPreferences] = useState([]);
@@ -270,24 +271,35 @@ export default function Master({
 
   // Créer le player adapter selon le mode
   useEffect(() => {
-    if (musicSource === 'mp3') {
-      const adapter = createPlayerAdapter('mp3', { audioRef: mp3Mode.audioRef });
-      setPlayerAdapter(adapter);
-    } else if (musicSource === 'spotify-auto' && spotifyAutoMode.spotifyDeviceId) {
-      const adapter = createPlayerAdapter('spotify-auto', {
-        token: spotifyToken,
-        deviceId: spotifyAutoMode.spotifyDeviceId,
-        player: spotifyAutoMode.spotifyPlayer
-      });
-      setPlayerAdapter(adapter);
-    } else if (musicSource === 'spotify-ai' && spotifyAIMode.spotifyDeviceId) {
-      const adapter = createPlayerAdapter('spotify-ai', {
-        token: spotifyToken,
-        deviceId: spotifyAIMode.spotifyDeviceId,
-        player: spotifyAIMode.spotifyPlayer
-      });
-      setPlayerAdapter(adapter);
-    }
+    const initPlayer = async () => {
+      setIsPlayerInitializing(true);
+      try {
+        if (musicSource === 'mp3') {
+          const adapter = createPlayerAdapter('mp3', { audioRef: mp3Mode.audioRef });
+          setPlayerAdapter(adapter);
+        } else if (musicSource === 'spotify-auto' && spotifyAutoMode.spotifyDeviceId) {
+          const adapter = createPlayerAdapter('spotify-auto', {
+            token: spotifyToken,
+            deviceId: spotifyAutoMode.spotifyDeviceId,
+            player: spotifyAutoMode.spotifyPlayer
+          });
+          setPlayerAdapter(adapter);
+        } else if (musicSource === 'spotify-ai' && spotifyAIMode.spotifyDeviceId) {
+          const adapter = createPlayerAdapter('spotify-ai', {
+            token: spotifyToken,
+            deviceId: spotifyAIMode.spotifyDeviceId,
+            player: spotifyAIMode.spotifyPlayer
+          });
+          setPlayerAdapter(adapter);
+        }
+      } catch (error) {
+        console.error("Erreur lors de la création du player adapter:", error);
+      } finally {
+        setIsPlayerInitializing(false);
+      }
+    };
+
+    initPlayer();
   }, [musicSource, spotifyToken, spotifyAutoMode.spotifyDeviceId, spotifyAIMode.spotifyDeviceId]);
 
   // Vérifier si les questions Quiz sont déjà générées au chargement
@@ -734,8 +746,14 @@ export default function Master({
 
     // Si en mode Spotify et player/deviceId manquant, tenter réinitialisation
     if ((musicSource === 'spotify-auto' || musicSource === 'spotify-ai') && !playerAdapter) {
+      if (isPlayerInitializing) {
+        setDebugInfo('⏳ Initialisation du player en cours...');
+        return;
+      }
+
       console.log('⚠️ Player non initialisé, tentative de réinitialisation...');
       setDebugInfo('⏳ Initialisation du player Spotify...');
+      setIsPlayerInitializing(true);
 
       try {
         // Réinitialiser le player selon le mode
@@ -746,24 +764,35 @@ export default function Master({
         }
 
         // Attendre que le playerAdapter soit créé (max 5 secondes)
-        const startTime = Date.now();
-        while (!playerAdapter && (Date.now() - startTime) < 5000) {
+        // Note: Le useEffect ci-dessus mettra à jour playerAdapter quand deviceId sera dispo
+        let attempts = 0;
+        const maxAttempts = 50; // 5 secondes (100ms interval)
+
+        while (!playerAdapter && attempts < maxAttempts) {
           await new Promise(resolve => setTimeout(resolve, 100));
+          attempts++;
+
+          // Vérifier si le deviceId est arrivé (ce qui déclenche le useEffect)
+          if ((musicSource === 'spotify-auto' && spotifyAutoMode.spotifyDeviceId) ||
+              (musicSource === 'spotify-ai' && spotifyAIMode.spotifyDeviceId)) {
+             // On laisse le temps au useEffect de créer l'adapter
+             await new Promise(resolve => setTimeout(resolve, 500));
+             break;
+          }
         }
 
-        if (!playerAdapter) {
-          setDebugInfo('❌ Impossible d\'initialiser le player Spotify. Rafraîchissez la page et reconnectez-vous.');
-          updateIsPlaying(false);
-          return;
-        }
+        // Vérification finale (le state playerAdapter peut ne pas être encore à jour dans cette closure)
+        // On affichera un message d'erreur si ça échoue au prochain clic
 
-        setDebugInfo('✅ Player Spotify initialisé');
+        setDebugInfo('✅ Tentative de connexion terminée. Réessayez de lancer la lecture.');
       } catch (error) {
         console.error('❌ Erreur initialisation player:', error);
         setDebugInfo('❌ Erreur initialisation Spotify. Rafraîchissez la page et reconnectez-vous.');
+      } finally {
+        setIsPlayerInitializing(false);
         updateIsPlaying(false);
-        return;
       }
+      return;
     }
 
     if (!playerAdapter) {
@@ -1272,6 +1301,48 @@ export default function Master({
           </button>
         </div>
       </header>
+
+      {/* Message d'erreur Player Spotify */}
+      {(musicSource === 'spotify-auto' || musicSource === 'spotify-ai') && !playerAdapter && !isPlayerInitializing && (
+        <div style={{
+          backgroundColor: 'rgba(239, 68, 68, 0.9)',
+          color: 'white',
+          padding: '0.75rem',
+          textAlign: 'center',
+          fontWeight: 'bold',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: '1rem',
+          zIndex: 99
+        }}>
+          ⚠️ Le lecteur Spotify n'est pas connecté.
+          <button
+            onClick={async () => {
+              setIsPlayerInitializing(true);
+              try {
+                if (musicSource === 'spotify-auto') await spotifyAutoMode.initSpotifyPlayer();
+                else if (musicSource === 'spotify-ai') await spotifyAIMode.initSpotifyPlayer();
+              } catch (e) {
+                console.error(e);
+              } finally {
+                setTimeout(() => setIsPlayerInitializing(false), 2000);
+              }
+            }}
+            style={{
+              padding: '0.25rem 0.75rem',
+              backgroundColor: 'white',
+              color: '#ef4444',
+              border: 'none',
+              borderRadius: '0.25rem',
+              cursor: 'pointer',
+              fontWeight: 'bold'
+            }}
+          >
+            Reconnecter
+          </button>
+        </div>
+      )}
 
       {/* MAIN LAYOUT */}
       <div style={{
