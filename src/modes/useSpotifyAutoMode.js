@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { spotifyService } from '../spotifyService';
 import { ref, set } from 'firebase/database';
 import { database } from '../firebase';
@@ -13,7 +13,6 @@ export function useSpotifyAutoMode(spotifyToken, sessionId) {
   const [spotifyDeviceId, setSpotifyDeviceId] = useState(null);
   const [showPlaylistSelector, setShowPlaylistSelector] = useState(false);
   const [songDuration, setSongDuration] = useState(0);
-  const initializingRef = useRef(false);
 
   // Charger les playlists de l'utilisateur
   useEffect(() => {
@@ -33,9 +32,8 @@ export function useSpotifyAutoMode(spotifyToken, sessionId) {
 
   // Initialiser le player Spotify
   const initSpotifyPlayer = async () => {
-    if (!spotifyToken || spotifyPlayer || initializingRef.current) return;
+    if (!spotifyToken || spotifyPlayer) return;
 
-    initializingRef.current = true;
     try {
       const player = await spotifyService.initPlayer(
         spotifyToken,
@@ -49,7 +47,6 @@ export function useSpotifyAutoMode(spotifyToken, sessionId) {
       setSpotifyPlayer(player);
     } catch (error) {
       console.error('Error initializing Spotify player:', error);
-      initializingRef.current = false;
     }
   };
 
