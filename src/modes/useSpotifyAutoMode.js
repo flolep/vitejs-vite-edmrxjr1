@@ -107,5 +107,5 @@ export function useSpotifyAutoMode(spotifyToken, sessionId) {
     setShowPlaylistSelector,
     handleSelectPlaylist,
     initSpotifyPlayer
-  }), [spotifyPlaylists, spotifyPlayer, spotifyDeviceId, showPlaylistSelector, songDuration]);
+  }), [spotifyPlaylists, spotifyPlayer, spotifyDeviceId, showPlaylistSelector, songDuration, handleSelectPlaylist, initSpotifyPlayer]);
 }
