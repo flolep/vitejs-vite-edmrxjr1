@@ -15,6 +15,16 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
   const [playlist, setPlaylist] = useState([]);
   const initializingRef = useRef(false);
 
+  // Nettoyage du player à la destruction
+  useEffect(() => {
+    return () => {
+      if (spotifyPlayer) {
+        console.log('🔌 [AIMode] Déconnexion du player Spotify');
+        spotifyPlayer.disconnect();
+      }
+    };
+  }, [spotifyPlayer]);
+
   // Initialiser le player Spotify
   const initSpotifyPlayer = async () => {
     if (!spotifyToken || spotifyPlayer || initializingRef.current) return;

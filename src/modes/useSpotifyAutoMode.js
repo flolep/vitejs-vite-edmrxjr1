@@ -31,6 +31,16 @@ export function useSpotifyAutoMode(spotifyToken, sessionId) {
     loadPlaylists();
   }, [spotifyToken]);
 
+  // Nettoyage du player à la destruction
+  useEffect(() => {
+    return () => {
+      if (spotifyPlayer) {
+        console.log('🔌 [AutoMode] Déconnexion du player Spotify');
+        spotifyPlayer.disconnect();
+      }
+    };
+  }, [spotifyPlayer]);
+
   // Initialiser le player Spotify
   const initSpotifyPlayer = async () => {
     if (!spotifyToken || spotifyPlayer || initializingRef.current) return;
