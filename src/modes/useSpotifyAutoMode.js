@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { spotifyService } from '../spotifyService';
 import { ref, set } from 'firebase/database';
 import { database } from '../firebase';
@@ -42,7 +42,7 @@ export function useSpotifyAutoMode(spotifyToken, sessionId) {
   }, [spotifyPlayer]);
 
   // Initialiser le player Spotify
-  const initSpotifyPlayer = async () => {
+  const initSpotifyPlayer = useCallback(async () => {
     if (!spotifyToken || spotifyPlayer || initializingRef.current) return;
 
     initializingRef.current = true;
@@ -61,9 +61,9 @@ export function useSpotifyAutoMode(spotifyToken, sessionId) {
       console.error('Error initializing Spotify player:', error);
       initializingRef.current = false;
     }
-  };
+  }, [spotifyToken, spotifyPlayer]);
 
-  const handleSelectPlaylist = async (playlistId, setPlaylist, resetScores) => {
+  const handleSelectPlaylist = useCallback(async (playlistId, setPlaylist, resetScores) => {
     try {
       const tracks = await spotifyService.getPlaylistTracks(spotifyToken, playlistId);
 
@@ -96,7 +96,7 @@ export function useSpotifyAutoMode(spotifyToken, sessionId) {
       console.error('Error importing playlist:', error);
       throw error;
     }
-  };
+  }, [spotifyToken, sessionId, initSpotifyPlayer]);
 
   return useMemo(() => ({
     spotifyPlaylists,
