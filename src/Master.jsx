@@ -190,6 +190,14 @@ export default function Master({
         if (sessionData.playlistId && spotifyToken) {
           if (sessionData.musicSource === 'spotify-ai') {
             spotifyAIMode.loadPlaylistById(sessionData.playlistId, setPlaylist);
+          } else if (sessionData.musicSource === 'spotify-auto') {
+            console.log('🔄 [MASTER] Rechargement playlist Spotify Auto:', sessionData.playlistId);
+            spotifyService.getPlaylistTracks(spotifyToken, sessionData.playlistId)
+              .then(tracks => {
+                setPlaylist(tracks);
+                console.log('✅ [MASTER] Playlist Spotify Auto rechargée:', tracks.length);
+              })
+              .catch(err => console.error('❌ [MASTER] Erreur rechargement playlist Auto:', err));
           }
         }
       }

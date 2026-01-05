@@ -33,6 +33,45 @@ export function useGameSession(sessionId) {
     currentChronoRef.current = currentChrono;
   }, [currentChrono]);
 
+  // Synchroniser scores avec Firebase
+  useEffect(() => {
+    if (!sessionId) return;
+    const scoresRef = ref(database, `sessions/${sessionId}/scores`);
+    const unsubscribe = onValue(scoresRef, (snapshot) => {
+      const value = snapshot.val();
+      if (value) {
+        setScores(value);
+      }
+    });
+    return () => unsubscribe();
+  }, [sessionId]);
+
+  // Synchroniser isPlaying avec Firebase
+  useEffect(() => {
+    if (!sessionId) return;
+    const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
+    const unsubscribe = onValue(playingRef, (snapshot) => {
+      const value = snapshot.val();
+      if (value !== null) {
+        setIsPlaying(value);
+      }
+    });
+    return () => unsubscribe();
+  }, [sessionId]);
+
+  // Synchroniser currentTrackNumber avec Firebase
+  useEffect(() => {
+    if (!sessionId) return;
+    const trackRef = ref(database, `sessions/${sessionId}/currentTrackNumber`);
+    const unsubscribe = onValue(trackRef, (snapshot) => {
+      const value = snapshot.val();
+      if (value !== null) {
+        setCurrentTrack(value);
+      }
+    });
+    return () => unsubscribe();
+  }, [sessionId]);
+
   // Synchroniser songDuration avec Firebase
   useEffect(() => {
     if (!sessionId) return;
