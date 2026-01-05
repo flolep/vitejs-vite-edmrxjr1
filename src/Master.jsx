@@ -192,12 +192,20 @@ export default function Master({
             spotifyAIMode.loadPlaylistById(sessionData.playlistId, setPlaylist);
           } else if (sessionData.musicSource === 'spotify-auto') {
             console.log('🔄 [MASTER] Rechargement playlist Spotify Auto:', sessionData.playlistId);
-            spotifyService.getPlaylistTracks(spotifyToken, sessionData.playlistId)
-              .then(tracks => {
-                setPlaylist(tracks);
-                console.log('✅ [MASTER] Playlist Spotify Auto rechargée:', tracks.length);
-              })
-              .catch(err => console.error('❌ [MASTER] Erreur rechargement playlist Auto:', err));
+            if (spotifyService && typeof spotifyService.getPlaylistTracks === 'function') {
+              spotifyService.getPlaylistTracks(spotifyToken, sessionData.playlistId)
+                .then(tracks => {
+                  if (Array.isArray(tracks)) {
+                    setPlaylist(tracks);
+                    console.log('✅ [MASTER] Playlist Spotify Auto rechargée:', tracks.length);
+                  } else {
+                    console.error('❌ [MASTER] Format playlist invalide:', tracks);
+                  }
+                })
+                .catch(err => console.error('❌ [MASTER] Erreur rechargement playlist Auto:', err));
+            } else {
+              console.error('❌ [MASTER] spotifyService non disponible');
+            }
           }
         }
       }
@@ -279,11 +287,25 @@ export default function Master({
   // Créer le player adapter avec useMemo pour garantir la synchronisation
   const playerAdapter = useMemo(() => {
     try {
+      console.log('🎧 [Master] Tentative création PlayerAdapter pour:', musicSource);
+
       if (musicSource === 'mp3') {
+        if (!mp3Mode || !mp3Mode.audioRef) {
+          console.warn('⚠️ [Master] mp3Mode ou audioRef manquant');
+          return null;
+        }
         return createPlayerAdapter('mp3', { audioRef: mp3Mode.audioRef });
       }
 
-      if (musicSource === 'spotify-auto' && spotifyAutoMode.spotifyDeviceId && spotifyToken) {
+      if (musicSource === 'spotify-auto') {
+        if (!spotifyToken) {
+          console.log('⏳ [Master] Attente token Spotify');
+          return null;
+        }
+        if (!spotifyAutoMode || !spotifyAutoMode.spotifyDeviceId) {
+           console.log('⏳ [Master] Attente deviceId Spotify Auto');
+           return null;
+        }
         console.log('🎧 [Master] Création PlayerAdapter Spotify Auto', { deviceId: spotifyAutoMode.spotifyDeviceId });
         return createPlayerAdapter('spotify-auto', {
           token: spotifyToken,
@@ -292,7 +314,15 @@ export default function Master({
         });
       }
 
-      if (musicSource === 'spotify-ai' && spotifyAIMode.spotifyDeviceId && spotifyToken) {
+      if (musicSource === 'spotify-ai') {
+        if (!spotifyToken) {
+          console.log('⏳ [Master] Attente token Spotify');
+          return null;
+        }
+        if (!spotifyAIMode || !spotifyAIMode.spotifyDeviceId) {
+           console.log('⏳ [Master] Attente deviceId Spotify IA');
+           return null;
+        }
         console.log('🎧 [Master] Création PlayerAdapter Spotify IA', { deviceId: spotifyAIMode.spotifyDeviceId });
         return createPlayerAdapter('spotify-ai', {
           token: spotifyToken,
