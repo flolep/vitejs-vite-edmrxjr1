@@ -192,12 +192,20 @@ export default function Master({
             spotifyAIMode.loadPlaylistById(sessionData.playlistId, setPlaylist);
           } else if (sessionData.musicSource === 'spotify-auto') {
             console.log('🔄 [MASTER] Rechargement playlist Spotify Auto:', sessionData.playlistId);
-            spotifyService.getPlaylistTracks(spotifyToken, sessionData.playlistId)
-              .then(tracks => {
-                setPlaylist(tracks);
-                console.log('✅ [MASTER] Playlist Spotify Auto rechargée:', tracks.length);
-              })
-              .catch(err => console.error('❌ [MASTER] Erreur rechargement playlist Auto:', err));
+            if (spotifyService && typeof spotifyService.getPlaylistTracks === 'function') {
+              spotifyService.getPlaylistTracks(spotifyToken, sessionData.playlistId)
+                .then(tracks => {
+                  if (Array.isArray(tracks)) {
+                    setPlaylist(tracks);
+                    console.log('✅ [MASTER] Playlist Spotify Auto rechargée:', tracks.length);
+                  } else {
+                    console.error('❌ [MASTER] Format playlist invalide:', tracks);
+                  }
+                })
+                .catch(err => console.error('❌ [MASTER] Erreur rechargement playlist Auto:', err));
+            } else {
+              console.error('❌ [MASTER] spotifyService non disponible');
+            }
           }
         }
       }
