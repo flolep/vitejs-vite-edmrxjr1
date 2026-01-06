@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { spotifyService } from '../spotifyService';
 import { ref, set, onValue } from 'firebase/database';
 import { database } from '../firebase';
@@ -13,6 +13,7 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
   const [spotifyDeviceId, setSpotifyDeviceId] = useState(null);
   const [songDuration, setSongDuration] = useState(0);
   const [playlist, setPlaylist] = useState([]);
+  const initializingRef = useRef(false);
 
   // Nettoyage du player à la destruction
   useEffect(() => {
@@ -26,8 +27,9 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
 
   // Initialiser le player Spotify
   const initSpotifyPlayer = async () => {
-    if (!spotifyToken || spotifyPlayer) return;
+    if (!spotifyToken || spotifyPlayer || initializingRef.current) return;
 
+    initializingRef.current = true;
     try {
       const player = await spotifyService.initPlayer(
         spotifyToken,
@@ -41,6 +43,7 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
       setSpotifyPlayer(player);
     } catch (error) {
       console.error('Error initializing Spotify player:', error);
+      initializingRef.current = false;
     }
   };
 
@@ -170,7 +173,7 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
     }
   };
 
-  return {
+  return useMemo(() => ({
     playlistUpdates,
     spotifyPlayer,
     spotifyDeviceId,
@@ -179,5 +182,5 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
     loadPlaylistById,
     checkPersonalBonus,
     initSpotifyPlayer
-  };
+  }), [playlistUpdates, spotifyPlayer, spotifyDeviceId, songDuration, playlist]);
 }
