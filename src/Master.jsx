@@ -1168,6 +1168,9 @@ export default function Master({
     return <Login onLoginSuccess={() => {}} />;
   }
 
+  // Si on a un ID de playlist mais pas encore de tracks, on affiche un chargement
+  const isLoadingPlaylist = (initialPlaylistId || (sessionId && musicSource !== 'mp3')) && playlist.length === 0;
+
   // ✅ currentTrack commence à 1, donc accès tableau avec currentTrack - 1
   const currentSong = playlist[currentTrack - 1];
   const availablePoints = calculatePoints();
@@ -1613,7 +1616,34 @@ export default function Master({
           overflowY: 'auto',
           padding: '2rem'
         }}>
-          {playlist.length > 0 ? (
+          {isLoadingPlaylist ? (
+            <div style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexDirection: 'column',
+              gap: '1rem'
+            }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                border: '4px solid rgba(255, 255, 255, 0.3)',
+                borderTopColor: 'white',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+              }} />
+              <div style={{ opacity: 0.8 }}>
+                Chargement de la playlist...
+              </div>
+              <style>{`
+                @keyframes spin {
+                  from { transform: rotate(0deg); }
+                  to { transform: rotate(360deg); }
+                }
+              `}</style>
+            </div>
+          ) : playlist.length > 0 ? (
             <>
               {/* Scores (Mode Équipe uniquement) */}
               {playMode === 'team' && <ScoreDisplay scores={scores} />}
