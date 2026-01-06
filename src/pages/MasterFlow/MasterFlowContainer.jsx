@@ -192,46 +192,28 @@ export default function MasterFlowContainer() {
   /**
    * Depuis StepModeSelection → Rejoindre la partie en cours
    */
-  const handleResumeGame = async () => {
+  const handleResumeGame = () => {
     if (!activeGame) return;
 
-    try {
-      setIsLoading(true);
-      console.log('▶️ Reprise de la partie en cours:', activeGame.sessionId);
+    console.log('▶️ Reprise de la partie en cours:', activeGame.sessionId);
 
-      // Charger la playlist depuis Firebase
-      const playlistRef = ref(database, `sessions/${activeGame.sessionId}/playlist`);
-      const playlistSnapshot = await get(playlistRef);
-      const savedPlaylist = playlistSnapshot.val() || [];
+    // Restaurer les données de session
+    setSessionData({
+      sessionId: activeGame.sessionId,
+      playMode: activeGame.playMode,
+      musicSource: activeGame.musicSource,
+      gameMode: activeGame.gameMode,
+      players: [],
+      playlist: [],
+      playlistId: activeGame.playlistId,
+      spotifyToken: activeGame.spotifyToken
+    });
 
-      console.log('📋 Playlist restaurée depuis Firebase:', savedPlaylist.length, 'chansons');
-      console.log('📋 Type de savedPlaylist:', typeof savedPlaylist, Array.isArray(savedPlaylist));
-      console.log('📋 Première chanson:', savedPlaylist[0]);
+    // Réinitialiser activeGame pour éviter de l'afficher à nouveau
+    setActiveGame(null);
 
-      // Restaurer les données de session avec la playlist
-      setSessionData({
-        sessionId: activeGame.sessionId,
-        playMode: activeGame.playMode,
-        musicSource: activeGame.musicSource,
-        gameMode: activeGame.gameMode,
-        players: [],
-        playlist: savedPlaylist,
-        playlistId: activeGame.playlistId,
-        spotifyToken: activeGame.spotifyToken
-      });
-
-      // Réinitialiser activeGame pour éviter de l'afficher à nouveau
-      setActiveGame(null);
-
-      // Aller directement à la partie active
-      setFlowState(FLOW_STATES.GAME_PLAYING);
-
-    } catch (error) {
-      console.error('❌ Erreur lors de la reprise de la partie:', error);
-      setError('Erreur lors de la reprise de la partie');
-    } finally {
-      setIsLoading(false);
-    }
+    // Aller directement à la partie active
+    setFlowState(FLOW_STATES.GAME_PLAYING);
   };
 
   /**
