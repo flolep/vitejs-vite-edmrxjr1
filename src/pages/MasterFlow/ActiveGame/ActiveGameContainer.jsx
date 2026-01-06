@@ -134,8 +134,14 @@ export default function ActiveGameContainer({
   const initialPlaylist = getInitialPlaylist();
   console.log('🎵 [ActiveGameContainer] Rendu Master avec playlist:', initialPlaylist.length, 'chansons');
 
+  // ✨ Utiliser une key unique pour forcer le remontage de Master lors de la restauration
+  // Cela garantit que tous les hooks (useState, useEffect, etc.) sont réinitialisés
+  const masterKey = `master-${sessionId}-${initialPlaylist.length}`;
+  console.log('🔑 [ActiveGameContainer] Master key:', masterKey);
+
   return (
     <Master
+      key={masterKey}
       initialSessionId={sessionId}
       initialMusicSource={musicSource}
       initialPlayMode={playMode}
