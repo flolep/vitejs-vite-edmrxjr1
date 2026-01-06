@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 /**
  * Hook pour gérer la playlist et la navigation
@@ -6,6 +6,21 @@ import { useState } from 'react';
  */
 export function usePlaylist(initialPlaylist = []) {
   const [playlist, setPlaylist] = useState(initialPlaylist);
+  const prevInitialPlaylistRef = useRef(initialPlaylist);
+
+  // Mettre à jour la playlist quand initialPlaylist change
+  // Ceci est important pour la restauration de parties en cours
+  useEffect(() => {
+    // Vérifier si initialPlaylist a vraiment changé (référence différente)
+    if (initialPlaylist !== prevInitialPlaylistRef.current) {
+      prevInitialPlaylistRef.current = initialPlaylist;
+
+      if (initialPlaylist && initialPlaylist.length > 0) {
+        console.log('🔄 [usePlaylist] Mise à jour de la playlist:', initialPlaylist.length, 'chansons');
+        setPlaylist(initialPlaylist);
+      }
+    }
+  }, [initialPlaylist]);
 
   const addTrack = (track) => {
     setPlaylist(prev => [...prev, track]);

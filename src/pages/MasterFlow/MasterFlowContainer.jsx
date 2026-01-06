@@ -205,6 +205,8 @@ export default function MasterFlowContainer() {
       const savedPlaylist = playlistSnapshot.val() || [];
 
       console.log('📋 Playlist restaurée depuis Firebase:', savedPlaylist.length, 'chansons');
+      console.log('📋 Type de savedPlaylist:', typeof savedPlaylist, Array.isArray(savedPlaylist));
+      console.log('📋 Première chanson:', savedPlaylist[0]);
 
       // Restaurer les données de session avec la playlist
       setSessionData({

@@ -64,6 +64,11 @@ export default function ActiveGameContainer({
 
   // Construire la playlist initiale selon la source musicale
   const getInitialPlaylist = () => {
+    console.log('🔍 [ActiveGameContainer] getInitialPlaylist appelé');
+    console.log('🔍 [ActiveGameContainer] playlistFromSessionData:', playlistFromSessionData);
+    console.log('🔍 [ActiveGameContainer] Type:', typeof playlistFromSessionData, 'Array?', Array.isArray(playlistFromSessionData));
+    console.log('🔍 [ActiveGameContainer] Length:', playlistFromSessionData?.length);
+
     // Priorité 1 : Playlist depuis sessionData (nouveau flux)
     if (playlistFromSessionData && playlistFromSessionData.length > 0) {
       console.log('🎵 [ActiveGameContainer] Utilisation playlist depuis sessionData:', playlistFromSessionData.length, 'chansons');
