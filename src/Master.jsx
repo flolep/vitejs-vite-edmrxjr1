@@ -476,17 +476,6 @@ export default function Master({
     return () => unsubscribe();
   }, [sessionId]);
 
-  // Initialisation forcée du player Spotify dès que possible
-  useEffect(() => {
-    if (spotifyToken) {
-      if (musicSource === 'spotify-ai') {
-        spotifyAIMode.initSpotifyPlayer();
-      } else if (musicSource === 'spotify-auto') {
-        spotifyAutoMode.initSpotifyPlayer();
-      }
-    }
-  }, [musicSource, spotifyToken]);
-
   // === ACTIONS ===
 
   // Écouter le statut de la playlist dans Firebase pour déclencher la suite automatiquement
@@ -801,7 +790,7 @@ export default function Master({
       }
 
       console.log('⚠️ Player non initialisé, tentative de réinitialisation...');
-      setDebugInfo('⏳ Initialisation du player Spotify en cours... Veuillez patienter et réessayer.');
+      setDebugInfo('⏳ Initialisation du player Spotify...');
 
       try {
         // Réinitialiser le player selon le mode
@@ -811,19 +800,29 @@ export default function Master({
           await spotifyAIMode.initSpotifyPlayer();
         }
 
-        // On ne bloque pas l'UI, on informe juste l'utilisateur
-        updateIsPlaying(false);
-        return;
+        // Attendre que le playerAdapter soit créé (max 5 secondes)
+        const startTime = Date.now();
+        while (!playerAdapter && (Date.now() - startTime) < 5000) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
+        if (!playerAdapter) {
+          setDebugInfo('❌ Impossible d\'initialiser le player Spotify. Rafraîchissez la page et reconnectez-vous.');
+          updateIsPlaying(false);
+          return;
+        }
+
+        setDebugInfo('✅ Player Spotify initialisé');
       } catch (error) {
         console.error('❌ Erreur initialisation player:', error);
-        setDebugInfo('❌ Erreur initialisation Spotify. Rafraîchissez la page.');
+        setDebugInfo('❌ Erreur initialisation Spotify. Rafraîchissez la page et reconnectez-vous.');
         updateIsPlaying(false);
       }
       return;
     }
 
     if (!playerAdapter) {
-      setDebugInfo('❌ Player non initialisé. Veuillez patienter...');
+      setDebugInfo('❌ Player non initialisé');
       return;
     }
 

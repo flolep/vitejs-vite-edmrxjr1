@@ -13,7 +13,6 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
   const [spotifyDeviceId, setSpotifyDeviceId] = useState(null);
   const [songDuration, setSongDuration] = useState(0);
   const [playlist, setPlaylist] = useState([]);
-  const initializingRef = useRef(false);
 
   // Nettoyage du player à la destruction
   useEffect(() => {
@@ -27,9 +26,8 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
 
   // Initialiser le player Spotify
   const initSpotifyPlayer = async () => {
-    if (!spotifyToken || spotifyPlayer || initializingRef.current) return;
+    if (!spotifyToken || spotifyPlayer) return;
 
-    initializingRef.current = true;
     try {
       const player = await spotifyService.initPlayer(
         spotifyToken,
@@ -43,7 +41,6 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
       setSpotifyPlayer(player);
     } catch (error) {
       console.error('Error initializing Spotify player:', error);
-      initializingRef.current = false;
     }
   };
 
