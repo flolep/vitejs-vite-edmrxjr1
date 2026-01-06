@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { spotifyService } from '../spotifyService';
 import { ref, set } from 'firebase/database';
 import { database } from '../firebase';
@@ -29,6 +29,16 @@ export function useSpotifyAutoMode(spotifyToken, sessionId) {
 
     loadPlaylists();
   }, [spotifyToken]);
+
+  // Nettoyage du player à la destruction
+  useEffect(() => {
+    return () => {
+      if (spotifyPlayer) {
+        console.log('🔌 [AutoMode] Déconnexion du player Spotify');
+        spotifyPlayer.disconnect();
+      }
+    };
+  }, [spotifyPlayer]);
 
   // Initialiser le player Spotify
   const initSpotifyPlayer = async () => {
@@ -85,7 +95,7 @@ export function useSpotifyAutoMode(spotifyToken, sessionId) {
     }
   };
 
-  return {
+  return useMemo(() => ({
     spotifyPlaylists,
     spotifyPlayer,
     spotifyDeviceId,
@@ -94,5 +104,5 @@ export function useSpotifyAutoMode(spotifyToken, sessionId) {
     setShowPlaylistSelector,
     handleSelectPlaylist,
     initSpotifyPlayer
-  };
+  }), [spotifyPlaylists, spotifyPlayer, spotifyDeviceId, showPlaylistSelector, songDuration, handleSelectPlaylist, initSpotifyPlayer]);
 }

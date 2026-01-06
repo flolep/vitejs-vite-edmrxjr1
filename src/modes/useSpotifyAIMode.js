@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { spotifyService } from '../spotifyService';
 import { ref, set, onValue } from 'firebase/database';
 import { database } from '../firebase';
@@ -13,6 +13,16 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
   const [spotifyDeviceId, setSpotifyDeviceId] = useState(null);
   const [songDuration, setSongDuration] = useState(0);
   const [playlist, setPlaylist] = useState([]);
+
+  // Nettoyage du player à la destruction
+  useEffect(() => {
+    return () => {
+      if (spotifyPlayer) {
+        console.log('🔌 [AIMode] Déconnexion du player Spotify');
+        spotifyPlayer.disconnect();
+      }
+    };
+  }, [spotifyPlayer]);
 
   // Initialiser le player Spotify
   const initSpotifyPlayer = async () => {
@@ -36,7 +46,10 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
 
   // Charger automatiquement la playlist en mode IA quand le token Spotify est disponible
   const loadPlaylistById = async (playlistId, setPlaylist) => {
-    if (!spotifyToken || !playlistId) return;
+    if (!spotifyToken || !playlistId) {
+      console.warn('⚠️ loadPlaylistById: token ou playlistId manquant');
+      return []; // Retourner un tableau vide au lieu de undefined
+    }
 
     try {
       const tracks = await spotifyService.getPlaylistTracks(spotifyToken, playlistId);
@@ -55,7 +68,7 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
       return tracks;
     } catch (error) {
       console.error('Error loading playlist by ID:', error);
-      throw error;
+      return []; // Retourner un tableau vide au lieu de lancer une erreur
     }
   };
 
@@ -157,7 +170,7 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
     }
   };
 
-  return {
+  return useMemo(() => ({
     playlistUpdates,
     spotifyPlayer,
     spotifyDeviceId,
@@ -166,5 +179,5 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
     loadPlaylistById,
     checkPersonalBonus,
     initSpotifyPlayer
-  };
+  }), [playlistUpdates, spotifyPlayer, spotifyDeviceId, songDuration, playlist]);
 }
