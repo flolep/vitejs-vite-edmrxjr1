@@ -120,6 +120,70 @@ export default function Master({
     canNavigatePrev
   } = usePlaylist(initialPlaylist);
 
+  // Hooks spécifiques par mode
+  const mp3Mode = useMP3Mode(playlist, setPlaylist, sessionId);
+
+  const spotifyAutoMode = useSpotifyAutoMode(spotifyToken, sessionId);
+
+  const spotifyAIMode = useSpotifyAIMode(spotifyToken, sessionId, musicSource);
+
+  const quizMode = useQuizMode(sessionId, currentTrack, playlist, currentChronoRef);
+
+  // Créer le player adapter avec useMemo pour garantir la synchronisation
+  // IMPORTANT: Doit être défini AVANT useBuzzer qui l'utilise comme dépendance
+  const playerAdapter = useMemo(() => {
+    try {
+      console.log('🎧 [Master] Tentative création PlayerAdapter pour:', musicSource);
+
+      if (musicSource === 'mp3') {
+        if (!mp3Mode || !mp3Mode.audioRef) {
+          console.warn('⚠️ [Master] mp3Mode ou audioRef manquant');
+          return null;
+        }
+        return createPlayerAdapter('mp3', { audioRef: mp3Mode.audioRef });
+      }
+
+      if (musicSource === 'spotify-auto') {
+        if (!spotifyToken) {
+          console.log('⏳ [Master] Attente token Spotify');
+          return null;
+        }
+        if (!spotifyAutoMode || !spotifyAutoMode.spotifyDeviceId) {
+           console.log('⏳ [Master] Attente deviceId Spotify Auto');
+           return null;
+        }
+        console.log('🎧 [Master] Création PlayerAdapter Spotify Auto', { deviceId: spotifyAutoMode.spotifyDeviceId });
+        return createPlayerAdapter('spotify-auto', {
+          token: spotifyToken,
+          deviceId: spotifyAutoMode.spotifyDeviceId,
+          player: spotifyAutoMode.spotifyPlayer
+        });
+      }
+
+      if (musicSource === 'spotify-ai') {
+        if (!spotifyToken) {
+          console.log('⏳ [Master] Attente token Spotify');
+          return null;
+        }
+        if (!spotifyAIMode || !spotifyAIMode.spotifyDeviceId) {
+           console.log('⏳ [Master] Attente deviceId Spotify IA');
+           return null;
+        }
+        console.log('🎧 [Master] Création PlayerAdapter Spotify IA', { deviceId: spotifyAIMode.spotifyDeviceId });
+        return createPlayerAdapter('spotify-ai', {
+          token: spotifyToken,
+          deviceId: spotifyAIMode.spotifyDeviceId,
+          player: spotifyAIMode.spotifyPlayer
+        });
+      }
+
+      return null;
+    } catch (error) {
+      console.error("❌ Erreur création player adapter:", error);
+      return null;
+    }
+  }, [musicSource, spotifyToken, spotifyAutoMode.spotifyDeviceId, spotifyAutoMode.spotifyPlayer, spotifyAIMode.spotifyDeviceId, spotifyAIMode.spotifyPlayer, mp3Mode.audioRef]);
+
   const {
     buzzedTeam,
     buzzedPlayerKey,
@@ -138,15 +202,6 @@ export default function Master({
     threshold: cooldownThreshold,
     duration: cooldownDuration
   });
-
-  // Hooks spécifiques par mode
-  const mp3Mode = useMP3Mode(playlist, setPlaylist, sessionId);
-
-  const spotifyAutoMode = useSpotifyAutoMode(spotifyToken, sessionId);
-
-  const spotifyAIMode = useSpotifyAIMode(spotifyToken, sessionId, musicSource);
-
-  const quizMode = useQuizMode(sessionId, currentTrack, playlist, currentChronoRef);
 
   // Gestion de l'authentification
   useEffect(() => {
@@ -283,60 +338,6 @@ export default function Master({
 
     return () => unsubscribe();
   }, [sessionId, musicSource]);
-
-  // Créer le player adapter avec useMemo pour garantir la synchronisation
-  const playerAdapter = useMemo(() => {
-    try {
-      console.log('🎧 [Master] Tentative création PlayerAdapter pour:', musicSource);
-
-      if (musicSource === 'mp3') {
-        if (!mp3Mode || !mp3Mode.audioRef) {
-          console.warn('⚠️ [Master] mp3Mode ou audioRef manquant');
-          return null;
-        }
-        return createPlayerAdapter('mp3', { audioRef: mp3Mode.audioRef });
-      }
-
-      if (musicSource === 'spotify-auto') {
-        if (!spotifyToken) {
-          console.log('⏳ [Master] Attente token Spotify');
-          return null;
-        }
-        if (!spotifyAutoMode || !spotifyAutoMode.spotifyDeviceId) {
-           console.log('⏳ [Master] Attente deviceId Spotify Auto');
-           return null;
-        }
-        console.log('🎧 [Master] Création PlayerAdapter Spotify Auto', { deviceId: spotifyAutoMode.spotifyDeviceId });
-        return createPlayerAdapter('spotify-auto', {
-          token: spotifyToken,
-          deviceId: spotifyAutoMode.spotifyDeviceId,
-          player: spotifyAutoMode.spotifyPlayer
-        });
-      }
-
-      if (musicSource === 'spotify-ai') {
-        if (!spotifyToken) {
-          console.log('⏳ [Master] Attente token Spotify');
-          return null;
-        }
-        if (!spotifyAIMode || !spotifyAIMode.spotifyDeviceId) {
-           console.log('⏳ [Master] Attente deviceId Spotify IA');
-           return null;
-        }
-        console.log('🎧 [Master] Création PlayerAdapter Spotify IA', { deviceId: spotifyAIMode.spotifyDeviceId });
-        return createPlayerAdapter('spotify-ai', {
-          token: spotifyToken,
-          deviceId: spotifyAIMode.spotifyDeviceId,
-          player: spotifyAIMode.spotifyPlayer
-        });
-      }
-
-      return null;
-    } catch (error) {
-      console.error("❌ Erreur création player adapter:", error);
-      return null;
-    }
-  }, [musicSource, spotifyToken, spotifyAutoMode.spotifyDeviceId, spotifyAutoMode.spotifyPlayer, spotifyAIMode.spotifyDeviceId, spotifyAIMode.spotifyPlayer, mp3Mode.audioRef]);
 
   // Vérifier si les questions Quiz sont déjà générées au chargement
   useEffect(() => {
