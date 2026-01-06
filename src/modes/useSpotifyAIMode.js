@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { spotifyService } from '../spotifyService';
 import { ref, set, onValue } from 'firebase/database';
 import { database } from '../firebase';
@@ -26,7 +26,7 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
   }, [spotifyPlayer]);
 
   // Initialiser le player Spotify
-  const initSpotifyPlayer = async () => {
+  const initSpotifyPlayer = useCallback(async () => {
     if (!spotifyToken || spotifyPlayer || initializingRef.current) return;
 
     initializingRef.current = true;
@@ -45,10 +45,10 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
       console.error('Error initializing Spotify player:', error);
       initializingRef.current = false;
     }
-  };
+  }, [spotifyToken, spotifyPlayer]);
 
   // Charger automatiquement la playlist en mode IA quand le token Spotify est disponible
-  const loadPlaylistById = async (playlistId, setPlaylist) => {
+  const loadPlaylistById = useCallback(async (playlistId, setPlaylist) => {
     if (!spotifyToken || !playlistId) {
       console.warn('⚠️ loadPlaylistById: token ou playlistId manquant');
       return []; // Retourner un tableau vide au lieu de undefined
@@ -73,7 +73,7 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
       console.error('Error loading playlist by ID:', error);
       return []; // Retourner un tableau vide au lieu de lancer une erreur
     }
-  };
+  }, [spotifyToken, sessionId, initSpotifyPlayer]);
 
   // Écouter les mises à jour de la playlist et rafraîchir automatiquement
   useEffect(() => {
@@ -145,7 +145,7 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
   }, [sessionId, spotifyToken, musicSource]);
 
   // Vérifier le bonus personnel pour un joueur
-  const checkPersonalBonus = async (currentSongUri, buzzData) => {
+  const checkPersonalBonus = useCallback(async (currentSongUri, buzzData) => {
     if (!currentSongUri || !buzzData?.playerId || !sessionId) {
       return { hasBonus: false, playerName: '' };
     }
@@ -171,7 +171,7 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
       console.error('Erreur vérification bonus personnel:', error);
       return { hasBonus: false, playerName: '' };
     }
-  };
+  }, [sessionId]);
 
   return useMemo(() => ({
     playlistUpdates,
@@ -182,5 +182,5 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
     loadPlaylistById,
     checkPersonalBonus,
     initSpotifyPlayer
-  }), [playlistUpdates, spotifyPlayer, spotifyDeviceId, songDuration, playlist]);
+  }), [playlistUpdates, spotifyPlayer, spotifyDeviceId, songDuration, playlist, loadPlaylistById, checkPersonalBonus, initSpotifyPlayer]);
 }
