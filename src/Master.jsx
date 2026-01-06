@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { database, auth } from './firebase';
 import { ref, onValue, set, update, remove } from 'firebase/database';
 import { spotifyService } from './spotifyService';
