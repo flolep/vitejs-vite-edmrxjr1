@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { spotifyService } from '../spotifyService';
 import { ref, set, onValue } from 'firebase/database';
 import { database } from '../firebase';
@@ -170,7 +170,7 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
     }
   };
 
-  return useMemo(() => ({
+  return {
     playlistUpdates,
     spotifyPlayer,
     spotifyDeviceId,
@@ -179,5 +179,5 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
     loadPlaylistById,
     checkPersonalBonus,
     initSpotifyPlayer
-  }), [playlistUpdates, spotifyPlayer, spotifyDeviceId, songDuration, playlist]);
+  };
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { spotifyService } from '../spotifyService';
 import { ref, set } from 'firebase/database';
 import { database } from '../firebase';
@@ -95,7 +95,7 @@ export function useSpotifyAutoMode(spotifyToken, sessionId) {
     }
   };
 
-  return useMemo(() => ({
+  return {
     spotifyPlaylists,
     spotifyPlayer,
     spotifyDeviceId,
@@ -104,5 +104,5 @@ export function useSpotifyAutoMode(spotifyToken, sessionId) {
     setShowPlaylistSelector,
     handleSelectPlaylist,
     initSpotifyPlayer
-  }), [spotifyPlaylists, spotifyPlayer, spotifyDeviceId, showPlaylistSelector, songDuration, handleSelectPlaylist, initSpotifyPlayer]);
+  };
 }
