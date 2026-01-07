@@ -1169,7 +1169,10 @@ export default function Master({
   }
 
   // Si on a un ID de playlist mais pas encore de tracks, on affiche un chargement
-  const isLoadingPlaylist = (initialPlaylistId || (sessionId && musicSource !== 'mp3')) && playlist.length === 0;
+  // Modifié pour être moins restrictif : si on a une session ID et qu'on n'est pas en MP3, on attend probablement une playlist
+  // Mais si playMode est 'team' et qu'on n'a pas de playlistId explicite (possible bug de persistance), on évite le blocage
+  const isLoadingPlaylist = (initialPlaylistId && playlist.length === 0) ||
+                            (sessionId && musicSource !== 'mp3' && playlist.length === 0 && (musicSource === 'spotify-ai' ? playersPreferences.length > 0 : true));
 
   // ✅ currentTrack commence à 1, donc accès tableau avec currentTrack - 1
   const currentSong = playlist[currentTrack - 1];
@@ -1355,9 +1358,13 @@ export default function Master({
                 if (musicSource === 'spotify-auto') await spotifyAutoMode.initSpotifyPlayer();
                 else if (musicSource === 'spotify-ai') await spotifyAIMode.initSpotifyPlayer();
               } catch (e) {
-                console.error(e);
+                console.error('❌ Erreur lors de la reconnexion manuelle:', e);
+                // On garde l'état initializing false pour réafficher le message d'erreur
               } finally {
-                setTimeout(() => setIsPlayerInitializing(false), 2000);
+                // On attend un peu plus longtemps pour laisser le temps au playerAdapter de se mettre à jour
+                // Si la connexion réussit, playerAdapter sera recréé et ce bloc disparaitra
+                // Si elle échoue, le message réapparaitra
+                setTimeout(() => setIsPlayerInitializing(false), 5000);
               }
             }}
             style={{
@@ -1428,7 +1435,7 @@ export default function Master({
 
           {/* ⚠️ Masquer la section génération playlist/questions dans le NOUVEAU flux (MasterFlowContainer)
               Car tout est déjà généré automatiquement dans les 3 étapes du flow */}
-          {musicSource === 'spotify-ai' && playersPreferences.length > 0 && !(initialPlaylist && initialPlaylist.length > 0) && (
+          {musicSource === 'spotify-ai' && playersPreferences.length > 0 && !(initialPlaylist && initialPlaylist.length > 0) && playlist.length === 0 && (
             <div style={{
               marginBottom: '1rem',
               padding: '0.75rem',
