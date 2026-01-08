@@ -165,10 +165,18 @@ export default function MasterFlowContainer() {
       console.log('✅ Partie en cours détectée !');
 
       // 4. Stocker les infos de la partie active
+      // Fallback musicSource depuis gameMode si manquant
+      let derivedMusicSource = existingSession.musicSource;
+      if (!derivedMusicSource && existingSession.gameMode) {
+        if (existingSession.gameMode.startsWith('spotify-auto')) derivedMusicSource = 'spotify-auto';
+        else if (existingSession.gameMode.startsWith('spotify-ai')) derivedMusicSource = 'spotify-ai';
+        else if (existingSession.gameMode.startsWith('mp3')) derivedMusicSource = 'mp3';
+      }
+
       setActiveGame({
         sessionId: lastSessionId,
         playMode: existingSession.playMode || null,
-        musicSource: existingSession.musicSource || null,
+        musicSource: derivedMusicSource || null,
         gameMode: existingSession.gameMode || null,
         playlistId: existingSession.playlistId || null,
         spotifyToken: getValidSpotifyToken()
