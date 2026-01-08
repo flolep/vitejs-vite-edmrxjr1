@@ -62,13 +62,13 @@ export default function MasterWizard({ onComplete }) {
   // Vérifier le token Spotify au chargement
   useEffect(() => {
     console.log('🔍 [WIZARD] useEffect chargement token');
-    console.log('🔍 [WIZARD] sessionStorage keys:', Object.keys(sessionStorage));
+    console.log('🔍 [WIZARD] localStorage keys:', Object.keys(localStorage));
     setCheckingSpotify(true);
 
-    const token = sessionStorage.getItem('spotify_access_token');
-    const tokenExpiry = sessionStorage.getItem('spotify_token_expiry');
+    const token = localStorage.getItem('spotify_access_token');
+    const tokenExpiry = localStorage.getItem('spotify_token_expiry');
 
-    console.log('🔍 [WIZARD] Token lu depuis sessionStorage:', token ? token.substring(0, 20) + '...' : 'AUCUN');
+    console.log('🔍 [WIZARD] Token lu depuis localStorage:', token ? token.substring(0, 20) + '...' : 'AUCUN');
 
     if (token) {
       // Vérifier si le token est expiré
@@ -82,11 +82,11 @@ export default function MasterWizard({ onComplete }) {
         setInitialToken(token);
       } else {
         console.log('⚠️ [WIZARD] Token Spotify expiré, nettoyage...');
-        sessionStorage.removeItem('spotify_access_token');
-        sessionStorage.removeItem('spotify_token_expiry');
+        localStorage.removeItem('spotify_access_token');
+        localStorage.removeItem('spotify_token_expiry');
       }
     } else {
-      console.log('❌ [WIZARD] Pas de token dans sessionStorage');
+      console.log('❌ [WIZARD] Pas de token dans localStorage');
     }
 
     setCheckingSpotify(false);
