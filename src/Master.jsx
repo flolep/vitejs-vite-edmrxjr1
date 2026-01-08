@@ -1455,9 +1455,8 @@ export default function Master({
             </button>
           )}
 
-          {/* ⚠️ Masquer la section génération playlist/questions dans le NOUVEAU flux (MasterFlowContainer)
-              Car tout est déjà généré automatiquement dans les 3 étapes du flow */}
-          {musicSource === 'spotify-ai' && playersPreferences.length > 0 && !(initialPlaylist && initialPlaylist.length > 0) && playlist.length === 0 && (
+          {/* Section Préférences des joueurs (Toujours visible en mode Spotify AI) */}
+          {musicSource === 'spotify-ai' && playersPreferences.length > 0 && (
             <div style={{
               marginBottom: '1rem',
               padding: '0.75rem',
@@ -1503,54 +1502,52 @@ export default function Master({
                   </div>
                 ))}
               </div>
-              <button
-                onClick={handleGeneratePlaylistWithAllPreferences}
-                disabled={isGeneratingPlaylist}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  backgroundColor: isGeneratingPlaylist ? 'rgba(156, 163, 175, 0.3)' : 'rgba(16, 185, 129, 0.3)',
-                  border: isGeneratingPlaylist ? '1px solid #9ca3af' : '1px solid #10b981',
-                  borderRadius: '0.5rem',
-                  color: 'white',
-                  cursor: isGeneratingPlaylist ? 'not-allowed' : 'pointer',
-                  fontWeight: '500'
-                }}
-              >
-                {isGeneratingPlaylist
-                  ? `⏳ Génération en cours... ${playlistPollAttempt > 0 ? `(vérification ${playlistPollAttempt}/10)` : ''}`
-                  : '🎵 Générer la playlist'
-                }
-              </button>
 
-              {/* Bouton Générer les questions Quiz (uniquement en mode Quiz) */}
-              {playMode === 'quiz' && !isGeneratingPlaylist && playlist.length > 0 && (
+              {/* Bouton Générer Playlist - Visible uniquement si pas de playlist */}
+              {!(initialPlaylist && initialPlaylist.length > 0) && playlist.length === 0 && (
+                <button
+                  onClick={handleGeneratePlaylistWithAllPreferences}
+                  disabled={isGeneratingPlaylist}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    backgroundColor: isGeneratingPlaylist ? 'rgba(156, 163, 175, 0.3)' : 'rgba(16, 185, 129, 0.3)',
+                    border: isGeneratingPlaylist ? '1px solid #9ca3af' : '1px solid #10b981',
+                    borderRadius: '0.5rem',
+                    color: 'white',
+                    cursor: isGeneratingPlaylist ? 'not-allowed' : 'pointer',
+                    fontWeight: '500'
+                  }}
+                >
+                  {isGeneratingPlaylist
+                    ? `⏳ Génération en cours... ${playlistPollAttempt > 0 ? `(vérification ${playlistPollAttempt}/10)` : ''}`
+                    : '🎵 Générer la playlist'
+                  }
+                </button>
+              )}
+
+              {/* Bouton Générer les questions Quiz (uniquement en mode Quiz et si pas encore prêtes) */}
+              {playMode === 'quiz' && !isGeneratingPlaylist && playlist.length > 0 && !quizQuestionsReady && (
                 <button
                   onClick={handleGenerateQuizQuestions}
-                  disabled={isGeneratingQuizQuestions || quizQuestionsReady}
+                  disabled={isGeneratingQuizQuestions}
                   style={{
                     width: '100%',
                     padding: '0.75rem',
                     marginTop: '0.75rem',
-                    backgroundColor: quizQuestionsReady
-                      ? 'rgba(16, 185, 129, 0.3)'
-                      : isGeneratingQuizQuestions
+                    backgroundColor: isGeneratingQuizQuestions
                         ? 'rgba(156, 163, 175, 0.3)'
                         : 'rgba(251, 191, 36, 0.3)',
-                    border: quizQuestionsReady
-                      ? '1px solid #10b981'
-                      : isGeneratingQuizQuestions
+                    border: isGeneratingQuizQuestions
                         ? '1px solid #9ca3af'
                         : '1px solid #fbbf24',
                     borderRadius: '0.5rem',
                     color: 'white',
-                    cursor: (isGeneratingQuizQuestions || quizQuestionsReady) ? 'not-allowed' : 'pointer',
+                    cursor: isGeneratingQuizQuestions ? 'not-allowed' : 'pointer',
                     fontWeight: '500'
                   }}
                 >
-                  {quizQuestionsReady
-                    ? '✅ Questions prêtes !'
-                    : isGeneratingQuizQuestions
+                  {isGeneratingQuizQuestions
                       ? '🎲 Génération des questions...'
                       : '🎲 Générer les questions Quiz'
                   }
@@ -1674,6 +1671,23 @@ export default function Master({
             </div>
           ) : playlist.length > 0 ? (
             <>
+              {/* Player Controls - Placé en haut selon demande Admin Screen */}
+              <PlayerControls
+                currentTrack={currentTrack}
+                playlistLength={playlist.length}
+                isPlaying={isPlaying}
+                currentSong={currentSong}
+                currentTrackData={playlist[currentTrack - 1]}
+                currentChrono={currentChrono}
+                availablePoints={availablePoints}
+                songDuration={songDuration}
+                isSpotifyMode={musicSource !== 'mp3'}
+                onPrev={prevTrack}
+                onTogglePlay={togglePlay}
+                onNext={nextTrack}
+                onReveal={revealAnswer}
+              />
+
               {/* Scores (Mode Équipe uniquement) */}
               {playMode === 'team' && <ScoreDisplay scores={scores} />}
 
@@ -1716,23 +1730,6 @@ export default function Master({
                   isRevealed={currentSong?.revealed}
                 />
               )}
-
-              {/* Player Controls */}
-              <PlayerControls
-                currentTrack={currentTrack}
-                playlistLength={playlist.length}
-                isPlaying={isPlaying}
-                currentSong={currentSong}
-                currentTrackData={playlist[currentTrack - 1]}
-                currentChrono={currentChrono}
-                availablePoints={availablePoints}
-                songDuration={songDuration}
-                isSpotifyMode={musicSource !== 'mp3'}
-                onPrev={prevTrack}
-                onTogglePlay={togglePlay}
-                onNext={nextTrack}
-                onReveal={revealAnswer}
-              />
 
               {debugInfo && (
                 <div style={{
