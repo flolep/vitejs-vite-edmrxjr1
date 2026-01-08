@@ -17,7 +17,7 @@ import CooldownText from './components/buzzer/CooldownText';
  */
 export default function BuzzerTeam({ sessionIdFromRouter = null }) {
   // Hooks personnalisés
-  const { sessionId, sessionValid, isLoading, isPlaying } = useBuzzerSession(sessionIdFromRouter);
+  const { sessionId, sessionValid, isLoading, isPlaying, gameStarted } = useBuzzerSession(sessionIdFromRouter);
   const localStorage = useBuzzerLocalStorage();
   const camera = useBuzzerCamera();
 
@@ -191,13 +191,13 @@ export default function BuzzerTeam({ sessionIdFromRouter = null }) {
       console.log('✅ Joueur enregistré dans', teamKey, 'clé:', playerKey);
 
       // Aller aux préférences ou directement au jeu
-      // Si une chanson est en cours, skip les préférences
-      console.log('🎮 [Team] isPlaying:', isPlaying);
-      if (isPlaying) {
-        console.log('⚡ Chanson en cours → skip préférences, aller directement au jeu');
+      // Si la partie a déjà commencé, skip les préférences
+      console.log('🎮 [Team] gameStarted:', gameStarted);
+      if (gameStarted) {
+        console.log('⚡ Partie déjà commencée → skip préférences, aller directement au jeu');
         setStep('game');
       } else {
-        console.log('🎵 Aucune chanson en cours → demander les préférences');
+        console.log('🎵 Partie pas encore commencée → demander les préférences');
         setStep('preferences');
       }
     } catch (error) {
