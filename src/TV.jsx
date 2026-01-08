@@ -824,6 +824,9 @@ return (
 
   const timeRemaining = Math.max(0, songDuration - chrono);
 
+  // Vérifier si tous les joueurs ont répondu
+  const allPlayersAnswered = totalPlayers > 0 && playerAnswers.length >= totalPlayers;
+
   // MAIN GAME SCREEN - Nouveau design unifié pour tous les modes
   return (
   <div style={{
@@ -901,7 +904,7 @@ return (
         opacity: 0.6,
         marginBottom: '1rem'
       }}>
-        Plus tu attends, moins tu gagnes
+        Plus tu tardes, moins tu as de points
       </p>
 
       {/* Pills Temps et Points */}
@@ -1058,6 +1061,24 @@ return (
                     {answer.label}
                   </div>
 
+                  {/* Album Cover for correct answer */}
+                  {isCorrect && currentSong?.imageUrl && (
+                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
+                      <img
+                        src={currentSong.imageUrl}
+                        alt={currentSong.title}
+                        style={{
+                          width: '120px',
+                          height: '120px',
+                          borderRadius: '0.75rem',
+                          objectFit: 'cover',
+                          border: '3px solid #10b981',
+                          boxShadow: '0 4px 12px rgba(16, 185, 129, 0.4)'
+                        }}
+                      />
+                    </div>
+                  )}
+
                   {/* Status Badge */}
                   {quizRevealed && (
                     <div style={{
@@ -1092,6 +1113,7 @@ return (
                   </div>
 
                   {/* Player Avatars who chose this answer */}
+                  {(allPlayersAnswered || quizRevealed) && (
                   <div style={{
                     display: 'flex',
                     flexWrap: 'wrap',
@@ -1136,6 +1158,7 @@ return (
                         </div>
                       ))}
                   </div>
+                  )}
                 </div>
               );
             })}
@@ -1331,19 +1354,31 @@ return (
                       {player.playerName}
                     </div>
                     <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>
-                      Réponse {player.answer} · {player.isCorrect ? 'Bonne réponse' : player.isCorrect === false ? 'Mauvaise réponse' : 'En attente'}
+                      {(allPlayersAnswered || quizRevealed) ? (
+                        <>Réponse {player.answer} · {player.isCorrect ? 'Bonne réponse' : player.isCorrect === false ? 'Mauvaise réponse' : 'En attente'}</>
+                      ) : (
+                        <span style={{ fontStyle: 'italic', color: '#9ca3af' }}>En attente...</span>
+                      )}
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '0.85rem', fontWeight: '500' }}>
-                      {player.time?.toFixed(1)}s
-                    </div>
-                    <div style={{
-                      fontSize: '0.75rem',
-                      color: player.isCorrect ? '#22c55e' : '#6b7280'
-                    }}>
-                      {player.isCorrect ? `+${player.points || 0} pts` : '0 pt'}
-                    </div>
+                    {(allPlayersAnswered || quizRevealed) ? (
+                      <>
+                        <div style={{ fontSize: '0.85rem', fontWeight: '500' }}>
+                          {player.time?.toFixed(1)}s
+                        </div>
+                        <div style={{
+                          fontSize: '0.75rem',
+                          color: player.isCorrect ? '#22c55e' : '#6b7280'
+                        }}>
+                          {player.isCorrect ? `+${player.points || 0} pts` : '0 pt'}
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ fontSize: '0.75rem', opacity: 0.6, fontStyle: 'italic' }}>
+                        -
+                      </div>
+                    )}
                   </div>
                 </div>
               );
