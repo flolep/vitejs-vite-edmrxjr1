@@ -911,7 +911,18 @@ return (
             }}>
               / 2500 pts
             </div>
-            
+
+            {/* Message d'encouragement */}
+            <div style={{
+              marginTop: '1.5rem',
+              fontSize: '1.2rem',
+              opacity: 0.8,
+              fontStyle: 'italic',
+              color: '#fbbf24'
+            }}>
+              Plus tu tardes, moins tu as de points
+            </div>
+
             {/* Alertes paliers */}
             {isAt5s && (
               <div style={{
