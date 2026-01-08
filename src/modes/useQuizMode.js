@@ -237,68 +237,73 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
     const answersRef = ref(database, `sessions/${sessionId}/quiz_answers/${currentTrack}`);
     onValue(answersRef, (snapshot) => {
       const answersData = snapshot.val();
-      if (answersData) {
-        // Convertir en array et trier par temps de réponse pour calculer le rang
-        const answersArray = Object.entries(answersData).map(([playerId, answer]) => ({
-          playerId,
-          ...answer
-        }));
-        answersArray.sort((a, b) => a.time - b.time);
 
-        // Déterminer qui peut passer à la chanson suivante :
-        // 1. Si bonne réponse : le gagnant le plus rapide
-        // 2. Si aucune bonne réponse : le dernier à avoir répondu (pour ne pas bloquer le jeu)
-        const correctAnswer = String.fromCharCode(65 + correctAnswerIndex);
-        const winnersOnly = answersArray.filter(answer => answer.answer === correctAnswer);
+      // Convertir en array et trier par temps de réponse (si réponses)
+      const answersArray = answersData
+        ? Object.entries(answersData).map(([playerId, answer]) => ({
+            playerId,
+            ...answer
+          })).sort((a, b) => a.time - b.time)
+        : [];
 
-        let nextSongTriggerId;
-        if (winnersOnly.length > 0) {
-          // Cas 1 : Au moins une bonne réponse → le plus rapide des gagnants
-          nextSongTriggerId = winnersOnly[0].playerId;
-        } else if (answersArray.length > 0) {
-          // Cas 2 : Aucune bonne réponse → le dernier à avoir répondu
-          nextSongTriggerId = answersArray[answersArray.length - 1].playerId;
-        } else {
-          // Cas 3 : Personne n'a répondu → null (animateur doit intervenir)
-          nextSongTriggerId = null;
-        }
+      // Déterminer qui peut passer à la chanson suivante :
+      // 1. Si bonne réponse : le gagnant le plus rapide
+      // 2. Si aucune bonne réponse : le dernier à avoir répondu (pour ne pas bloquer le jeu)
+      // 3. Si aucune réponse : null (l'animateur doit intervenir)
+      const correctAnswer = String.fromCharCode(65 + correctAnswerIndex);
+      const winnersOnly = answersArray.filter(answer => answer.answer === correctAnswer);
 
-        // Marquer comme révélé et désigner qui peut passer à la chanson suivante
-        onValue(quizRef, (quizSnapshot) => {
-          const quizData = quizSnapshot.val();
-          if (quizData) {
-            set(quizRef, {
-              ...quizData,
-              revealed: true,
-              nextSongTriggerPlayerId: nextSongTriggerId
-            });
-          }
-        }, { onlyOnce: true });
-
-        // Mettre à jour chaque réponse avec correction, points, et infos chanson
-        // Utilise la fonction centralisée avec la durée de la chanson
-        const songDuration = playlist[currentTrack - 1]?.duration || 30;
-
-        answersArray.forEach((answer, rank) => {
-          const isCorrect = answer.answer === correctAnswer;
-
-          // Calculer les points avec la fonction centralisée
-          const points = isCorrect ? calculatePoints(answer.time, songDuration) : 0;
-
-          // Mettre à jour avec la correction, points, et infos chanson
-          const playerAnswerRef = ref(database, `sessions/${sessionId}/quiz_answers/${currentTrack}/${answer.playerId}`);
-          set(playerAnswerRef, {
-            ...answer,
-            isCorrect,
-            points,
-            songTitle,
-            songArtist
-          });
-        });
-
-        // Note: Le classement sera automatiquement mis à jour par updateLeaderboard()
-        // qui est appelé par le useEffect écoutant quiz_answers quand isCorrect est ajouté
+      let nextSongTriggerId;
+      if (winnersOnly.length > 0) {
+        // Cas 1 : Au moins une bonne réponse → le plus rapide des gagnants
+        nextSongTriggerId = winnersOnly[0].playerId;
+      } else if (answersArray.length > 0) {
+        // Cas 2 : Aucune bonne réponse → le dernier à avoir répondu
+        nextSongTriggerId = answersArray[answersArray.length - 1].playerId;
+      } else {
+        // Cas 3 : Personne n'a répondu → null (animateur doit intervenir)
+        nextSongTriggerId = null;
       }
+
+      // Marquer comme révélé et désigner qui peut passer à la chanson suivante
+      // IMPORTANT : Cela doit être fait MÊME si answersData est null
+      onValue(quizRef, (quizSnapshot) => {
+        const quizData = quizSnapshot.val();
+        if (quizData) {
+          set(quizRef, {
+            ...quizData,
+            revealed: true,
+            nextSongTriggerPlayerId: nextSongTriggerId
+          });
+        }
+      }, { onlyOnce: true });
+
+      // Si pas de réponses, on s'arrête là pour le traitement des scores
+      if (!answersData || answersArray.length === 0) return;
+
+      // Mettre à jour chaque réponse avec correction, points, et infos chanson
+      // Utilise la fonction centralisée avec la durée de la chanson
+      const songDuration = playlist[currentTrack - 1]?.duration || 30;
+
+      answersArray.forEach((answer) => {
+        const isCorrect = answer.answer === correctAnswer;
+
+        // Calculer les points avec la fonction centralisée
+        const points = isCorrect ? calculatePoints(answer.time, songDuration) : 0;
+
+        // Mettre à jour avec la correction, points, et infos chanson
+        const playerAnswerRef = ref(database, `sessions/${sessionId}/quiz_answers/${currentTrack}/${answer.playerId}`);
+        set(playerAnswerRef, {
+          ...answer,
+          isCorrect,
+          points,
+          songTitle,
+          songArtist
+        });
+      });
+
+      // Note: Le classement sera automatiquement mis à jour par updateLeaderboard()
+      // qui est appelé par le useEffect écoutant quiz_answers quand isCorrect est ajouté
     }, { onlyOnce: true });
   };
 
