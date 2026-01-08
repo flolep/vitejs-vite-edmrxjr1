@@ -39,14 +39,16 @@ export default function ActiveGameContainer({
   }, [sessionId]);
 
   // Extraire les données de la session
+  // Utiliser || pour musicSource pour attraper null (pas seulement undefined)
   const {
     playMode = 'team',
-    musicSource = 'mp3',
     musicConfigData = {},
     playlistId = null,
     spotifyToken = null,
     playlist: playlistFromSessionData = []
   } = sessionData || {};
+
+  const musicSource = (sessionData && sessionData.musicSource) || 'mp3';
 
   // État de chargement (pour compatibilité)
   const [isLoadingPlaylist, setIsLoadingPlaylist] = useState(false);

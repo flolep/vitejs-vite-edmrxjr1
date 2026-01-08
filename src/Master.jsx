@@ -47,7 +47,18 @@ export default function Master({
   // États d'authentification et session
   const [user, setUser] = useState(null);
   const [sessionId, setSessionId] = useState(initialSessionId);
-  const [musicSource, setMusicSource] = useState(initialMusicSource); // 'mp3' | 'spotify-auto' | 'spotify-ai'
+
+  // Initialisation robuste de musicSource (fallback sur gameMode si nécessaire)
+  const [musicSource, setMusicSource] = useState(() => {
+    if (initialMusicSource) return initialMusicSource;
+    if (initialGameMode) {
+      if (initialGameMode.startsWith('spotify-auto')) return 'spotify-auto';
+      if (initialGameMode.startsWith('spotify-ai')) return 'spotify-ai';
+      if (initialGameMode.startsWith('mp3')) return 'mp3';
+    }
+    return null;
+  });
+
   const [playMode, setPlayMode] = useState(initialPlayMode); // 'team' | 'quiz'
   const [gameMode, setGameMode] = useState(initialGameMode); // Combinaison
 
@@ -239,7 +250,8 @@ export default function Master({
         return;
       }
 
-      console.log('📥 [MASTER] Rechargement playlist depuis Spotify...');
+      console.log('📥 [MASTER] Rechargement playlist depuis Spotify...', { musicSource, initialPlaylistId });
+
       if (musicSource === 'spotify-ai') {
         spotifyAIMode.loadPlaylistById(initialPlaylistId, setPlaylist);
       } else if (musicSource === 'spotify-auto') {
@@ -253,6 +265,8 @@ export default function Master({
             })
             .catch(err => console.error('❌ [MASTER] Erreur rechargement:', err));
         }
+      } else {
+        console.warn('⚠️ [MASTER] Impossible de recharger la playlist : source musicale inconnue', musicSource);
       }
       return;
     }
