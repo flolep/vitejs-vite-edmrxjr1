@@ -13,6 +13,7 @@ export function useBuzzerSession(sessionIdFromProps = null) {
   const [isLoading, setIsLoading] = useState(true);
   const [playMode, setPlayMode] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [gameStarted, setGameStarted] = useState(false);
 
   // Récupérer le sessionId depuis l'URL au chargement (sauf si fourni en props)
   useEffect(() => {
@@ -62,14 +63,14 @@ export function useBuzzerSession(sessionIdFromProps = null) {
         setSessionValid(true);
 
         // Détecter si la partie a déjà démarré
-        const gameStarted = sessionData.isPlaying === true || (sessionData.currentTrack && sessionData.currentTrack > 0);
+        const hasGameStarted = sessionData.isPlaying === true || (sessionData.currentTrack && sessionData.currentTrack > 0);
 
-        if (gameStarted) {
+        if (hasGameStarted) {
           console.log('⚡ La partie a déjà démarré');
-          localStorage.setItem('gameAlreadyStarted', 'true');
+          setGameStarted(true);
         } else {
           console.log('⏸️ La partie n\'a pas encore démarré');
-          localStorage.setItem('gameAlreadyStarted', 'false');
+          setGameStarted(false);
         }
       } else {
         console.warn('❌ [useBuzzerSession] Session invalide:', sessionId);
@@ -116,6 +117,7 @@ export function useBuzzerSession(sessionIdFromProps = null) {
     setSessionValid,
     isLoading,
     playMode,
-    isPlaying
+    isPlaying,
+    gameStarted
   };
 }

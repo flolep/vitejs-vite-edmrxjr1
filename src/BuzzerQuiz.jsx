@@ -86,7 +86,7 @@ async function registerPlayerInFirebase(sessionId, player, photoData = null) {
  */
 export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
   // Hooks personnalisés
-  const { sessionId, sessionValid, isLoading, isPlaying } = useBuzzerSession(sessionIdFromRouter);
+  const { sessionId, sessionValid, isLoading, isPlaying, gameStarted } = useBuzzerSession(sessionIdFromRouter);
   const localStorage = useBuzzerLocalStorage();
   const camera = useBuzzerCamera();
 
@@ -223,9 +223,8 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
     }
 
     // Mode Quiz : aller directement aux préférences ou au quiz
-    // Si la partie a déjà commencé (au moins une chanson jouée), skip les préférences
-    const gameStarted = window.localStorage.getItem('gameAlreadyStarted') === 'true';
-    console.log('🎮 [Quiz] gameAlreadyStarted:', gameStarted);
+    // Si la partie a déjà commencé, skip les préférences
+    console.log('🎮 [Quiz] gameStarted:', gameStarted);
     if (gameStarted) {
       console.log('⚡ Partie déjà commencée → skip préférences, aller directement au quiz');
       setStep('quiz');
@@ -262,9 +261,8 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
       localStorage.save({ playerFirebaseKey: firebaseKey });
     }
 
-    // Si la partie a déjà commencé (au moins une chanson jouée), skip les préférences
-    const gameStarted = window.localStorage.getItem('gameAlreadyStarted') === 'true';
-    console.log('🎮 [Quiz] gameAlreadyStarted:', gameStarted);
+    // Si la partie a déjà commencé, skip les préférences
+    console.log('🎮 [Quiz] gameStarted:', gameStarted);
     if (gameStarted) {
       console.log('⚡ Partie déjà commencée → skip préférences, aller directement au quiz');
       setStep('quiz');
@@ -302,7 +300,14 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
         localStorage.save({ playerFirebaseKey: firebaseKey });
       }
 
-      setStep('preferences');
+      // Si la partie a déjà commencé, skip les préférences
+      if (gameStarted) {
+        console.log('⚡ Partie déjà commencée → skip préférences, aller directement au quiz');
+        setStep('quiz');
+      } else {
+        console.log('🎵 Partie pas encore commencée → demander les préférences');
+        setStep('preferences');
+      }
     } catch (err) {
       console.error('Erreur création joueur:', err);
       setError('Erreur lors de la sauvegarde. Continuons quand même !');
@@ -320,7 +325,14 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
           localStorage.save({ playerFirebaseKey: firebaseKey });
         }
 
-        setStep('preferences');
+        // Si la partie a déjà commencé, skip les préférences
+        if (gameStarted) {
+          console.log('⚡ Partie déjà commencée → skip préférences, aller directement au quiz');
+          setStep('quiz');
+        } else {
+          console.log('🎵 Partie pas encore commencée → demander les préférences');
+          setStep('preferences');
+        }
       }, 2000);
     } finally {
       setIsSearching(false);
