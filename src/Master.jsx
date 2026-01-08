@@ -244,6 +244,12 @@ export default function Master({
     // On a l'ID de la playlist via les props, mais pas le contenu
     if (initialPlaylistId) {
       console.log('🔄 [MASTER] Mode Reprise détecté (Playlist manquante) - ID:', initialPlaylistId);
+      console.log('📋 [MASTER] Debug State:', {
+        musicSource,
+        hasSpotifyToken: !!spotifyToken,
+        spotifyTokenPrefix: spotifyToken ? spotifyToken.substring(0, 10) : 'none',
+        initialPlaylistId
+      });
 
       if (!spotifyToken) {
         console.log('⏳ [MASTER] Attente du token Spotify pour recharger la playlist...');
@@ -252,10 +258,10 @@ export default function Master({
 
       console.log('📥 [MASTER] Rechargement playlist depuis Spotify...', { musicSource, initialPlaylistId });
 
-      if (musicSource === 'spotify-ai') {
-        spotifyAIMode.loadPlaylistById(initialPlaylistId, setPlaylist);
-      } else if (musicSource === 'spotify-auto') {
+      // Logique de chargement
+      const attemptLoadSpotify = () => {
         if (spotifyService && typeof spotifyService.getPlaylistTracks === 'function') {
+          console.log('🔄 [MASTER] Tentative chargement Spotify standard...');
           spotifyService.getPlaylistTracks(spotifyToken, initialPlaylistId)
             .then(tracks => {
               if (Array.isArray(tracks)) {
@@ -265,8 +271,17 @@ export default function Master({
             })
             .catch(err => console.error('❌ [MASTER] Erreur rechargement:', err));
         }
+      };
+
+      if (musicSource === 'spotify-ai') {
+        spotifyAIMode.loadPlaylistById(initialPlaylistId, setPlaylist);
+      } else if (musicSource === 'spotify-auto') {
+        attemptLoadSpotify();
       } else {
-        console.warn('⚠️ [MASTER] Impossible de recharger la playlist : source musicale inconnue', musicSource);
+        // Fallback: Si on a un ID de playlist mais que le mode est inconnu ou 'mp3' (erreur de config),
+        // on suppose que c'est une playlist Spotify et on tente le chargement standard.
+        console.warn(`⚠️ [MASTER] Mode "${musicSource}" détecté avec playlistId. Tentative fallback Spotify...`);
+        attemptLoadSpotify();
       }
       return;
     }
