@@ -1068,6 +1068,20 @@ export default function Master({
   };
 
   const revealAnswer = async () => {
+    // Arrêter la lecture (commun aux deux modes)
+    updateIsPlaying(false);
+    if (playerAdapter) {
+      await playerAdapter.pause();
+    }
+
+    // Mode Quiz : utiliser la logique spécifique
+    if (playMode === 'quiz') {
+      quizMode.revealQuizAnswer();
+      setDebugInfo('✅ Réponse révélée (Quiz)');
+      return;
+    }
+
+    // Mode Team (Logique existante)
     // Marquer le buzz comme incorrect
     await markBuzzAsWrong();
 
@@ -1089,12 +1103,6 @@ export default function Master({
     revealTrack(currentTrack);
     setBuzzedTeam(null);
     clearBuzz();
-
-    // Arrêter la lecture
-    updateIsPlaying(false);
-    if (playerAdapter) {
-      await playerAdapter.pause();
-    }
 
     // ✅ currentTrack commence à 1, donc accès tableau avec currentTrack - 1
     updateCurrentSong({

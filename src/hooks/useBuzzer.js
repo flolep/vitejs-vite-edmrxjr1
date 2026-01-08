@@ -17,7 +17,16 @@ export function useBuzzer(sessionId, isPlaying, currentTrack, playlist, currentC
   useEffect(() => {
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
-    const playBuzzerSound = () => {
+    const playBuzzerSound = async () => {
+      // S'assurer que le contexte est actif (contournement autoplay policy)
+      if (audioContext.state === 'suspended') {
+        try {
+          await audioContext.resume();
+        } catch (e) {
+          console.error('Erreur reprise AudioContext:', e);
+        }
+      }
+
       const now = audioContext.currentTime;
       const osc1 = audioContext.createOscillator();
       const gain1 = audioContext.createGain();
