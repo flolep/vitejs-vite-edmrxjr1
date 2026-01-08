@@ -219,27 +219,53 @@ export default function Master({
   }, [sessionId]);
 
   // Charger les données de la session
-  // ⚠️ UNIQUEMENT pour le flux ANCIEN (MasterWizard)
-  // Le nouveau flux (MasterFlowContainer) passe déjà tout via les props
+  // Gère à la fois l'ancien flux (MasterWizard) et le nouveau flux (MasterFlowContainer) en mode "Resume"
   useEffect(() => {
     if (!user || !initialSessionId) return;
 
-    // ✅ Si initialPlaylist est fourni, on utilise le NOUVEAU flux (MasterFlowContainer)
-    // → Skip ce hook car toutes les données sont déjà dans les props
+    // 1. Cas "Nouveau Flux" avec Playlist déjà chargée
     if (initialPlaylist && initialPlaylist.length > 0) {
-      console.log('✅ [MASTER] Nouveau flux détecté (MasterFlowContainer) - Skip chargement Firebase');
+      console.log('✅ [MASTER] Nouveau flux détecté (MasterFlowContainer) - Playlist fournie');
       return;
     }
 
-    // ❌ Ancien flux (MasterWizard) : charger depuis Firebase
+    // 2. Cas "Nouveau Flux" en mode Reprise (Resume) sans playlist
+    // On a l'ID de la playlist via les props, mais pas le contenu
+    if (initialPlaylistId) {
+      console.log('🔄 [MASTER] Mode Reprise détecté (Playlist manquante) - ID:', initialPlaylistId);
+
+      if (!spotifyToken) {
+        console.log('⏳ [MASTER] Attente du token Spotify pour recharger la playlist...');
+        return;
+      }
+
+      console.log('📥 [MASTER] Rechargement playlist depuis Spotify...');
+      if (musicSource === 'spotify-ai') {
+        spotifyAIMode.loadPlaylistById(initialPlaylistId, setPlaylist);
+      } else if (musicSource === 'spotify-auto') {
+        if (spotifyService && typeof spotifyService.getPlaylistTracks === 'function') {
+          spotifyService.getPlaylistTracks(spotifyToken, initialPlaylistId)
+            .then(tracks => {
+              if (Array.isArray(tracks)) {
+                setPlaylist(tracks);
+                console.log('✅ [MASTER] Playlist rechargée:', tracks.length);
+              }
+            })
+            .catch(err => console.error('❌ [MASTER] Erreur rechargement:', err));
+        }
+      }
+      return;
+    }
+
+    // 3. Cas "Ancien Flux" (MasterWizard) - Fallback complet sur Firebase
     console.log('⚠️ [MASTER] Ancien flux détecté (MasterWizard) - Chargement depuis Firebase');
     const sessionRef = ref(database, `sessions/${initialSessionId}`);
     onValue(sessionRef, (snapshot) => {
       const sessionData = snapshot.val();
       if (sessionData && sessionData.active !== false) {
-        // Charger les modes
-        setMusicSource(sessionData.musicSource || sessionData.gameMode?.split('-')[0] || 'mp3');
-        setPlayMode(sessionData.playMode || sessionData.gameMode?.split('-')[1] || 'team');
+        // Charger les modes uniquement si non définis
+        if (!musicSource) setMusicSource(sessionData.musicSource || sessionData.gameMode?.split('-')[0] || 'mp3');
+        if (!playMode) setPlayMode(sessionData.playMode || sessionData.gameMode?.split('-')[1] || 'team');
 
         // Charger la playlist si Spotify
         if (sessionData.playlistId && spotifyToken) {
@@ -253,19 +279,15 @@ export default function Master({
                   if (Array.isArray(tracks)) {
                     setPlaylist(tracks);
                     console.log('✅ [MASTER] Playlist Spotify Auto rechargée:', tracks.length);
-                  } else {
-                    console.error('❌ [MASTER] Format playlist invalide:', tracks);
                   }
                 })
                 .catch(err => console.error('❌ [MASTER] Erreur rechargement playlist Auto:', err));
-            } else {
-              console.error('❌ [MASTER] spotifyService non disponible');
             }
           }
         }
       }
     }, { onlyOnce: true });
-  }, [initialSessionId, user, spotifyToken]);
+  }, [initialSessionId, user, spotifyToken, initialPlaylist, initialPlaylistId, musicSource, playMode]);
 
   // Synchroniser la playlist du mode Spotify IA avec la playlist globale
   // ⚠️ UNIQUEMENT pour le flux ANCIEN (MasterWizard)
