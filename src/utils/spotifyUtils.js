@@ -3,13 +3,13 @@
  * @returns {boolean} true si le token existe et n'est pas expiré
  */
 export function isSpotifyTokenValid() {
-  const token = sessionStorage.getItem('spotify_access_token');
+  const token = localStorage.getItem('spotify_access_token');
   if (!token) {
     console.log('🔐 [Spotify] Pas de token trouvé');
     return false;
   }
 
-  const expiryTime = sessionStorage.getItem('spotify_token_expiry');
+  const expiryTime = localStorage.getItem('spotify_token_expiry');
   if (!expiryTime) {
     console.log('⚠️ [Spotify] Token trouvé mais pas d\'expiration → considéré invalide');
     return false;
@@ -21,9 +21,9 @@ export function isSpotifyTokenValid() {
   if (now >= expiry) {
     console.log('⏱️ [Spotify] Token expiré');
     // Nettoyer les tokens expirés
-    sessionStorage.removeItem('spotify_access_token');
-    sessionStorage.removeItem('spotify_refresh_token');
-    sessionStorage.removeItem('spotify_token_expiry');
+    localStorage.removeItem('spotify_access_token');
+    localStorage.removeItem('spotify_refresh_token');
+    localStorage.removeItem('spotify_token_expiry');
     return false;
   }
 
@@ -38,7 +38,7 @@ export function isSpotifyTokenValid() {
  */
 export function getValidSpotifyToken() {
   if (isSpotifyTokenValid()) {
-    return sessionStorage.getItem('spotify_access_token');
+    return localStorage.getItem('spotify_access_token');
   }
   return null;
 }
