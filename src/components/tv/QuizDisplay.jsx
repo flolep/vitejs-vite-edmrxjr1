@@ -243,8 +243,8 @@ export function QuizDisplay({
                   {answer.text}
                 </div>
 
-                {/* Photos des joueurs qui ont répondu */}
-                {playersWithPhotos.length > 0 && (
+                {/* Photos des joueurs qui ont répondu - MASQUÉES jusqu'à ce que tous aient répondu */}
+                {(allPlayersAnswered || revealed) && playersWithPhotos.length > 0 && (
                   <div style={{
                     display: 'flex',
                     justifyContent: 'center',
@@ -367,8 +367,8 @@ export function QuizDisplay({
                       </span>
                     </div>
 
-                    {/* Après révélation : réponse + correct/incorrect + points */}
-                    {revealed && (
+                    {/* Après révélation OU quand tous ont répondu : réponse + correct/incorrect + points */}
+                    {(allPlayersAnswered || revealed) ? (
                       <>
                         <div style={{ fontSize: '1.25rem', marginRight: '1rem' }}>
                           → <span style={{ fontWeight: 'bold', color: '#fbbf24' }}>
@@ -384,6 +384,10 @@ export function QuizDisplay({
                           </div>
                         )}
                       </>
+                    ) : (
+                      <div style={{ fontSize: '1.1rem', opacity: 0.7, fontStyle: 'italic', color: '#9ca3af' }}>
+                        En attente...
+                      </div>
                     )}
                   </div>
                 );
