@@ -139,7 +139,7 @@ export default function ActiveGameContainer({
       initialGameMode={gameMode}
       initialPlaylist={initialPlaylist}
       initialPlaylistId={playlistId}
-      initialSpotifyToken={spotifyToken || sessionStorage.getItem('spotify_access_token')}
+      initialSpotifyToken={spotifyToken || localStorage.getItem('spotify_access_token')}
     />
   );
 }
