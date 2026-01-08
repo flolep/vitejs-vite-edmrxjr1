@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { database } from './firebase';
 import { ref, onValue, set } from 'firebase/database';
 import { QRCodeSVG } from 'qrcode.react';
-import QuizBuzzerOrder from './components/tv/QuizBuzzerOrder';
+import { QuizDisplay } from './components/tv/QuizDisplay';
 
 /**
  * Calcule les points disponibles selon le nouveau système
@@ -169,6 +169,12 @@ export default function TV() {
 
   // État pour le QR Code
   const [showQRCode, setShowQRCode] = useState(false);
+
+  // États pour le mode Quiz
+  const [quizQuestion, setQuizQuestion] = useState(null);
+  const [quizAnswers, setQuizAnswers] = useState([]);
+  const [quizLeaderboard, setQuizLeaderboard] = useState([]);
+  const [allPlayers, setAllPlayers] = useState([]);
 
   // Vérifier le code de session depuis l'URL
   useEffect(() => {
@@ -424,6 +430,79 @@ export default function TV() {
     });
     return () => unsubscribe();
   }, [sessionValid, sessionId]);
+
+  // Écouter les données du quiz (mode Quiz uniquement)
+  useEffect(() => {
+    if (!sessionValid || !sessionId || playMode !== 'quiz') return;
+
+    const quizRef = ref(database, `sessions/${sessionId}/quiz`);
+    const unsubscribe = onValue(quizRef, (snapshot) => {
+      const quizData = snapshot.val();
+      setQuizQuestion(quizData);
+    });
+    return () => unsubscribe();
+  }, [sessionValid, sessionId, playMode]);
+
+  // Écouter les réponses des joueurs (mode Quiz)
+  useEffect(() => {
+    if (!sessionValid || !sessionId || playMode !== 'quiz' || !currentTrack) return;
+
+    const answersRef = ref(database, `sessions/${sessionId}/quiz_answers/${currentTrack}`);
+    const unsubscribe = onValue(answersRef, (snapshot) => {
+      const answersData = snapshot.val();
+      if (answersData) {
+        const answersList = Object.entries(answersData).map(([playerId, answer]) => ({
+          playerId,
+          ...answer
+        }));
+        answersList.sort((a, b) => a.time - b.time);
+        setQuizAnswers(answersList);
+      } else {
+        setQuizAnswers([]);
+      }
+    });
+    return () => unsubscribe();
+  }, [sessionValid, sessionId, playMode, currentTrack]);
+
+  // Écouter le classement quiz
+  useEffect(() => {
+    if (!sessionValid || !sessionId || playMode !== 'quiz') return;
+
+    const leaderboardRef = ref(database, `sessions/${sessionId}/quiz_leaderboard`);
+    const unsubscribe = onValue(leaderboardRef, (snapshot) => {
+      const leaderboardData = snapshot.val();
+      if (leaderboardData) {
+        const leaderboardArray = Object.values(leaderboardData)
+          .sort((a, b) => b.totalPoints - a.totalPoints);
+        setQuizLeaderboard(leaderboardArray);
+      } else {
+        setQuizLeaderboard([]);
+      }
+    });
+    return () => unsubscribe();
+  }, [sessionValid, sessionId, playMode]);
+
+  // Écouter tous les joueurs (pour mode Quiz)
+  useEffect(() => {
+    if (!sessionValid || !sessionId || playMode !== 'quiz') return;
+
+    const team1Ref = ref(database, `sessions/${sessionId}/players_session/team1`);
+    const team2Ref = ref(database, `sessions/${sessionId}/players_session/team2`);
+
+    const unsubscribe1 = onValue(team1Ref, (snapshot) => {
+      const team1Players = snapshot.val() || {};
+      onValue(team2Ref, (snapshot2) => {
+        const team2Players = snapshot2.val() || {};
+        const allPlayersList = [
+          ...Object.entries(team1Players).map(([id, player]) => ({ id, ...player })),
+          ...Object.entries(team2Players).map(([id, player]) => ({ id, ...player }))
+        ];
+        setAllPlayers(allPlayersList);
+      });
+    });
+
+    return () => unsubscribe1();
+  }, [sessionValid, sessionId, playMode]);
 
   // Calculer les points disponibles avec le nouveau système
   const availablePoints = calculatePoints(chrono, songDuration);
@@ -709,31 +788,36 @@ return (
     padding: '2rem',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
   }}>
-    
-    {/* ===== TITRE CENTRÉ EN HAUT ===== */}
-    <h1 style={{
-      fontSize: '4rem',
-      fontWeight: 'bold',
-      textAlign: 'center',
-      color: '#fbbf24',
-      textShadow: '0 0 20px rgba(251, 191, 36, 0.5)',
-      marginBottom: '3rem'
-    }}>
-      🎵 BLIND TEST 🎵
-    </h1>
 
-    {/* ===== ORDRE DES BUZZERS (MODE QUIZ) ===== */}
-    {playMode === 'quiz' && (
-      <QuizBuzzerOrder
-        sessionId={sessionId}
-        currentTrack={currentTrack}
-        isRevealed={currentSong?.revealed}
+    {/* ===== AFFICHAGE MODE QUIZ ===== */}
+    {playMode === 'quiz' ? (
+      <QuizDisplay
+        quizQuestion={quizQuestion}
+        quizAnswers={quizAnswers}
+        quizLeaderboard={quizLeaderboard}
+        allPlayers={allPlayers}
+        isPlaying={isPlaying}
+        gameStatus={isPlaying ? 'playing' : 'stopped'}
+        chrono={chrono}
+        songDuration={songDuration}
+        currentSong={currentSong}
       />
-    )}
+    ) : (
+      <>
+        {/* ===== TITRE CENTRÉ EN HAUT (MODE ÉQUIPE) ===== */}
+        <h1 style={{
+          fontSize: '4rem',
+          fontWeight: 'bold',
+          textAlign: 'center',
+          color: '#fbbf24',
+          textShadow: '0 0 20px rgba(251, 191, 36, 0.5)',
+          marginBottom: '3rem'
+        }}>
+          🎵 BLIND TEST 🎵
+        </h1>
 
-    {/* ===== SCORES ET JOUEURS - LAYOUT 2 COLONNES (MODE ÉQUIPE) ===== */}
-    {playMode === 'team' && (
-    <div style={{
+        {/* ===== SCORES ET JOUEURS - LAYOUT 2 COLONNES (MODE ÉQUIPE) ===== */}
+        <div style={{
       display: 'grid',
       gridTemplateColumns: '1fr 1fr',
       gap: '3rem',
@@ -1023,7 +1107,8 @@ return (
         )}
       </div>
     )}
-
+    </>
+    )}
 
     {/* Modale QR Code */}
     {showQRCode && sessionId && (
