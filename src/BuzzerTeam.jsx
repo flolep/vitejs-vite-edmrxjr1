@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { database } from './firebase';
-import { ref, set, onValue, remove, serverTimestamp } from 'firebase/database';
+import { ref, set, onValue, remove, serverTimestamp, get } from 'firebase/database';
 import { airtableService } from './airtableService';
 import { useBuzzerLocalStorage } from './hooks/buzzer/useBuzzerLocalStorage';
 import { useBuzzerCamera } from './hooks/buzzer/useBuzzerCamera';
@@ -22,7 +22,7 @@ export default function BuzzerTeam({ sessionIdFromRouter = null }) {
   const camera = useBuzzerCamera();
 
   // États du flux
-  const [step, setStep] = useState('name'); // 'name' | 'select' | 'photo' | 'team' | 'preferences' | 'game'
+  const [step, setStep] = useState('loading_auto_join'); // Nouveau state initial pour attendre la vérification
   const [error, setError] = useState('');
   const [isSearching, setIsSearching] = useState(false);
 
@@ -46,7 +46,81 @@ export default function BuzzerTeam({ sessionIdFromRouter = null }) {
   const [buzzerEnabled, setBuzzerEnabled] = useState(true);
   const [cooldownEnd, setCooldownEnd] = useState(null);
 
+  // ========== AUTO-REJOIN LOGIC ==========
+
+  useEffect(() => {
+    // Ne rien faire tant que la session n'est pas validée ou si on a déjà passé l'étape de chargement
+    if (!sessionValid || !sessionId) {
+      if (sessionValid === false && !isLoading) {
+        // Session invalide confirmée
+        setStep('name');
+      }
+      return;
+    }
+
+    // Si on est déjà dans une étape autre que le chargement initial, ne rien faire
+    if (step !== 'loading_auto_join' && step !== 'name') return;
+
+    const checkAutoRejoin = async () => {
+      console.log('🔄 [Auto-Rejoin] Vérification du LocalStorage...');
+      const savedData = localStorage.load();
+
+      if (savedData && savedData.playerFirebaseKey && savedData.team) {
+        console.log('🔍 [Auto-Rejoin] Données trouvées, vérification Firebase...', savedData);
+
+        try {
+          // Vérifier que le joueur existe toujours dans la session actuelle
+          const playerPath = `sessions/${sessionId}/players_session/team${savedData.team}/${savedData.playerFirebaseKey}`;
+          const playerRef = ref(database, playerPath);
+          const snapshot = await get(playerRef);
+
+          if (snapshot.exists()) {
+            console.log('✅ [Auto-Rejoin] Joueur confirmé dans Firebase ! Restauration...');
+
+            // Restaurer les états
+            setPlayerName(savedData.playerName || '');
+            if (savedData.selectedPlayer) setSelectedPlayer(savedData.selectedPlayer);
+            setTeam(savedData.team);
+            setPlayerFirebaseKey(savedData.playerFirebaseKey);
+
+            // Restaurer préférences si dispos
+            if (savedData.playerAge) setPlayerAge(savedData.playerAge);
+            if (savedData.selectedGenres) setSelectedGenres(savedData.selectedGenres);
+            if (savedData.specialPhrase) setSpecialPhrase(savedData.specialPhrase);
+
+            // Aller directement au jeu
+            setStep('game');
+          } else {
+            console.warn('⚠️ [Auto-Rejoin] Joueur non trouvé dans Firebase (supprimé ?). Nettoyage LocalStorage.');
+            localStorage.clear();
+            setStep('name');
+          }
+        } catch (err) {
+          console.error('❌ [Auto-Rejoin] Erreur vérification Firebase:', err);
+          // En cas d'erreur, par sécurité on demande de se reconnecter
+          setStep('name');
+        }
+      } else {
+        console.log('ℹ️ [Auto-Rejoin] Aucune donnée valide trouvée.');
+        setStep('name');
+      }
+    };
+
+    checkAutoRejoin();
+  }, [sessionId, sessionValid]); // Exécuter quand la session devient valide
+
   // ========== HANDLERS - NAME SCREEN ==========
+
+  const handleQuitGame = () => {
+    if (confirm('Voulez-vous vraiment quitter la partie et changer de joueur ?')) {
+      localStorage.clear();
+      setPlayerName('');
+      setSelectedPlayer(null);
+      setTeam(null);
+      setPlayerFirebaseKey(null);
+      setStep('name');
+    }
+  };
 
   const handleSearchPlayer = async () => {
     if (!playerName.trim()) {
@@ -359,13 +433,14 @@ export default function BuzzerTeam({ sessionIdFromRouter = null }) {
 
   // ========== RENDU DES ÉCRANS ==========
 
-  // Écran de chargement pendant la vérification de la session
-  if (isLoading) {
+  // Écran de chargement pendant la vérification de la session ou l'auto-rejoin
+  if (isLoading || step === 'loading_auto_join') {
     return (
       <div className="bg-gradient flex-center">
         <div className="text-center">
           <h2 className="title">Chargement...</h2>
           <div style={{ fontSize: '3rem', marginTop: '1rem' }}>⏳</div>
+          {step === 'loading_auto_join' && <p style={{marginTop: '1rem', opacity: 0.8}}>Vérification de votre session...</p>}
         </div>
       </div>
     );
@@ -482,6 +557,26 @@ export default function BuzzerTeam({ sessionIdFromRouter = null }) {
     return (
       <div className={`${bgClass} flex-center`} style={{ minHeight: '100vh' }}>
         <div className="text-center" style={{ padding: '2rem', maxWidth: '600px', width: '100%' }}>
+
+          {/* Bouton Quitter */}
+          <button
+            onClick={handleQuitGame}
+            style={{
+              position: 'absolute',
+              top: '1rem',
+              right: '1rem',
+              background: 'rgba(0,0,0,0.3)',
+              border: '1px solid rgba(255,255,255,0.5)',
+              color: 'white',
+              borderRadius: '20px',
+              padding: '0.5rem 1rem',
+              fontSize: '0.8rem',
+              cursor: 'pointer'
+            }}
+          >
+            Changer de joueur
+          </button>
+
           {/* En-tête */}
           <div style={{ marginBottom: '2rem' }}>
             {selectedPlayer?.photo && (
