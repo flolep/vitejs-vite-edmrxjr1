@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { database } from '../../../firebase';
-import { ref, onValue, set } from 'firebase/database';
+import { ref, onValue, set, get } from 'firebase/database';
 import { n8nService } from '../../../n8nService';
 import { useSpotifyAIMode } from '../../../modes/useSpotifyAIMode';
 import { useSpotifyAutoMode } from '../../../modes/useSpotifyAutoMode';
@@ -387,9 +387,22 @@ export default function StepReadyToStart({
     }
 
     setIsGeneratingQuestions(true);
-    console.log('🎲 Génération des wrongAnswers pour', playlistData.length, 'chansons');
 
     try {
+      // Vérifier si les questions existent déjà dans Firebase
+      // Cela évite de régénérer (et écraser) les questions quand on reprend une partie existante
+      const quizDataRef = ref(database, `sessions/${sessionId}/quiz_data`);
+      const snapshot = await get(quizDataRef);
+
+      if (snapshot.exists() && snapshot.numChildren() > 0) {
+        console.log('✅ Les questions Quiz existent déjà dans Firebase. Saut de la génération.');
+        setQuestionsReady(true);
+        setIsGeneratingQuestions(false);
+        return;
+      }
+
+      console.log('🎲 Génération des wrongAnswers pour', playlistData.length, 'chansons');
+
       // Formater les chansons pour n8nService
       const songsForWrongAnswers = playlistData
         .map((track) => ({
