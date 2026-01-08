@@ -417,30 +417,13 @@ export function QuizInterface({
   showStats,
   setShowStats,
   personalStats,
-  onNextSong // Fonction pour passer à la chanson suivante
+  onNextSong, // Fonction pour passer à la chanson suivante
+  onQuit // Fonction pour quitter/changer de joueur
 }) {
   // Styles toujours inclus
   const stylesElement = <style>{quizStyles}</style>;
 
-  if (!quizQuestion) {
-    return (
-      <div className="buzzer-quiz-container">
-        {stylesElement}
-        <div className="buzzer-quiz-content">
-          <h1 className="buzzer-quiz-title">BUZZER</h1>
-          <p className="buzzer-quiz-subtitle">
-            {isPlaying ? 'Génération de la question...' : 'En attente du démarrage...'}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  const { answers, revealed, trackNumber, correctAnswer, totalTracks, nextSongTriggerPlayerId } = quizQuestion;
-
-  // Vérifier si c'est ce joueur qui peut déclencher la chanson suivante
-  const playerId = selectedPlayer?.id || `temp_${playerName}`;
-  const canTriggerNextSong = revealed && nextSongTriggerPlayerId === playerId;
+  const { answers, revealed, trackNumber, totalTracks, nextSongTriggerPlayerId } = quizQuestion || {};
 
   // 🎲 Mélanger les positions visuelles des réponses (stable par chanson)
   // Utilise le trackNumber comme seed pour avoir toujours le même ordre pendant la question
@@ -460,6 +443,24 @@ export function QuizInterface({
 
     return shuffled.map(item => item.answer);
   }, [answers, trackNumber]);
+
+  if (!quizQuestion) {
+    return (
+      <div className="buzzer-quiz-container">
+        {stylesElement}
+        <div className="buzzer-quiz-content">
+          <h1 className="buzzer-quiz-title">BUZZER</h1>
+          <p className="buzzer-quiz-subtitle">
+            {isPlaying ? 'Génération de la question...' : 'En attente du démarrage...'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Vérifier si c'est ce joueur qui peut déclencher la chanson suivante
+  const playerId = selectedPlayer?.id || `temp_${playerName}`;
+  const canTriggerNextSong = revealed && nextSongTriggerPlayerId === playerId;
 
   // Trouver si la réponse du joueur est correcte
   const playerAnswerData = shuffledAnswers?.find(a => a.label === selectedAnswer);
@@ -542,6 +543,29 @@ export function QuizInterface({
       >
         📊
       </button>
+
+      {/* Bouton Quitter (Petit et discret) */}
+      {onQuit && (
+        <button
+          onClick={onQuit}
+          style={{
+            position: 'absolute',
+            top: '1rem',
+            left: '1rem',
+            background: 'rgba(0,0,0,0.3)',
+            border: '1px solid rgba(255,255,255,0.3)',
+            color: 'white',
+            borderRadius: '20px',
+            padding: '6px 12px',
+            fontSize: '11px',
+            cursor: 'pointer',
+            backdropFilter: 'blur(5px)',
+            zIndex: 90
+          }}
+        >
+          Sortir
+        </button>
+      )}
 
       {/* Section Top : Header + Status */}
       <div style={{ marginBottom: '24px', width: '100%', maxWidth: '400px' }}>
