@@ -32,7 +32,7 @@ export function useSpotifyTokenRefresh(initialToken, onTokenRefreshed) {
       return;
     }
 
-    const refreshTokenValue = sessionStorage.getItem('spotify_refresh_token');
+    const refreshTokenValue = localStorage.getItem('spotify_refresh_token');
 
     if (!refreshTokenValue) {
       console.error('❌ Pas de refresh_token disponible');
@@ -49,17 +49,17 @@ export function useSpotifyTokenRefresh(initialToken, onTokenRefreshed) {
       const tokenData = await spotifyService.refreshAccessToken(refreshTokenValue);
 
       if (tokenData.access_token) {
-        // Mettre à jour le sessionStorage
-        sessionStorage.setItem('spotify_access_token', tokenData.access_token);
+        // Mettre à jour le localStorage
+        localStorage.setItem('spotify_access_token', tokenData.access_token);
 
         // Calculer la nouvelle expiration
         const expiresIn = tokenData.expires_in || 3600;
         const expiryTime = Date.now() + (expiresIn * 1000);
-        sessionStorage.setItem('spotify_token_expiry', expiryTime.toString());
+        localStorage.setItem('spotify_token_expiry', expiryTime.toString());
 
         // Si un nouveau refresh_token est fourni, le stocker aussi
         if (tokenData.refresh_token) {
-          sessionStorage.setItem('spotify_refresh_token', tokenData.refresh_token);
+          localStorage.setItem('spotify_refresh_token', tokenData.refresh_token);
         }
 
         // Mettre à jour le state
@@ -80,9 +80,9 @@ export function useSpotifyTokenRefresh(initialToken, onTokenRefreshed) {
       setError(err.message);
 
       // Si le refresh échoue, nettoyer les tokens
-      sessionStorage.removeItem('spotify_access_token');
-      sessionStorage.removeItem('spotify_refresh_token');
-      sessionStorage.removeItem('spotify_token_expiry');
+      localStorage.removeItem('spotify_access_token');
+      localStorage.removeItem('spotify_refresh_token');
+      localStorage.removeItem('spotify_token_expiry');
     } finally {
       isRefreshingRef.current = false;
       setIsRefreshing(false);
@@ -94,7 +94,7 @@ export function useSpotifyTokenRefresh(initialToken, onTokenRefreshed) {
    * Rafraîchit 5 minutes avant l'expiration
    */
   const checkAndRefreshToken = () => {
-    const tokenExpiry = sessionStorage.getItem('spotify_token_expiry');
+    const tokenExpiry = localStorage.getItem('spotify_token_expiry');
 
     if (!tokenExpiry) {
       console.log('⚠️ Pas d\'expiration de token trouvée');

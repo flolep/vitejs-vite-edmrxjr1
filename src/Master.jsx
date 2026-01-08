@@ -94,7 +94,7 @@ export default function Master({
   // Déterminer le token initial
   const getInitialToken = () => {
     if (initialSpotifyToken) return initialSpotifyToken;
-    return sessionStorage.getItem('spotify_access_token');
+    return localStorage.getItem('spotify_access_token');
   };
 
   // Hook de rafraîchissement automatique du token Spotify
@@ -1192,6 +1192,11 @@ export default function Master({
   };
 
   const handleLogout = async () => {
+    // Nettoyer les tokens Spotify
+    localStorage.removeItem('spotify_access_token');
+    localStorage.removeItem('spotify_refresh_token');
+    localStorage.removeItem('spotify_token_expiry');
+
     await signOut(auth);
     setSessionId(null);
   };
