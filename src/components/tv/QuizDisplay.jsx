@@ -235,6 +235,29 @@ export function QuizDisplay({
                   {showCorrect && '✅ '}
                   {answer.label}
                 </div>
+
+                {/* Pochette de l'album pour la bonne réponse */}
+                {showCorrect && currentSong?.imageUrl && (
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    marginBottom: '1rem'
+                  }}>
+                    <img
+                      src={currentSong.imageUrl}
+                      alt={currentSong.title}
+                      style={{
+                        width: '120px',
+                        height: '120px',
+                        borderRadius: '0.75rem',
+                        objectFit: 'cover',
+                        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)',
+                        border: '3px solid #10b981'
+                      }}
+                    />
+                  </div>
+                )}
+
                 <div style={{
                   fontSize: '1.25rem',
                   lineHeight: '1.4',
@@ -243,8 +266,8 @@ export function QuizDisplay({
                   {answer.text}
                 </div>
 
-                {/* Photos des joueurs qui ont répondu */}
-                {playersWithPhotos.length > 0 && (
+                {/* Photos des joueurs qui ont répondu - MASQUÉES jusqu'à ce que tous aient répondu */}
+                {(allPlayersAnswered || revealed) && playersWithPhotos.length > 0 && (
                   <div style={{
                     display: 'flex',
                     justifyContent: 'center',
@@ -279,44 +302,7 @@ export function QuizDisplay({
           })}
         </div>
 
-        {/* Affichage de la pochette et infos chanson après révélation */}
-        {revealed && currentSong?.revealed && (
-          <div style={{
-            backgroundColor: 'rgba(0, 0, 0, 0.3)',
-            borderRadius: '1.5rem',
-            padding: '1.5rem',
-            maxWidth: '1000px',
-            margin: '0 auto 2rem',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '2rem'
-          }}>
-            {/* Pochette */}
-            {currentSong.imageUrl && (
-              <img
-                src={currentSong.imageUrl}
-                alt={currentSong.title}
-                style={{
-                  width: '100px',
-                  height: '100px',
-                  borderRadius: '1rem',
-                  objectFit: 'cover',
-                  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)'
-                }}
-              />
-            )}
-            {/* Titre et artiste */}
-            <div style={{ textAlign: 'left' }}>
-              <div style={{ fontSize: '1.75rem', fontWeight: 'bold', marginBottom: '0.25rem', color: '#fbbf24' }}>
-                {currentSong.title}
-              </div>
-              <div style={{ fontSize: '1.25rem', opacity: 0.8 }}>
-                {currentSong.artist}
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Pochette maintenant affichée dans la bonne réponse directement */}
 
         {/* Classement de la chanson actuelle */}
         {quizAnswers.length > 0 && (
@@ -367,8 +353,8 @@ export function QuizDisplay({
                       </span>
                     </div>
 
-                    {/* Après révélation : réponse + correct/incorrect + points */}
-                    {revealed && (
+                    {/* Après révélation OU quand tous ont répondu : réponse + correct/incorrect + points */}
+                    {(allPlayersAnswered || revealed) ? (
                       <>
                         <div style={{ fontSize: '1.25rem', marginRight: '1rem' }}>
                           → <span style={{ fontWeight: 'bold', color: '#fbbf24' }}>
@@ -384,6 +370,10 @@ export function QuizDisplay({
                           </div>
                         )}
                       </>
+                    ) : (
+                      <div style={{ fontSize: '1.1rem', opacity: 0.7, fontStyle: 'italic', color: '#9ca3af' }}>
+                        En attente...
+                      </div>
                     )}
                   </div>
                 );
