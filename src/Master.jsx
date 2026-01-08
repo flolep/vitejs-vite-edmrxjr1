@@ -1753,7 +1753,16 @@ export default function Master({
                   allPlayers={allQuizPlayers}
                   isPlaying={isPlaying}
                   currentTrack={currentTrack}
-                  onReveal={quizMode.revealQuizAnswer}
+                  onReveal={async () => {
+                    // Arrêter la musique
+                    if (playerAdapter) {
+                      await playerAdapter.pause();
+                      updateIsPlaying(false);
+                    }
+                    // Révéler la réponse
+                    quizMode.revealQuizAnswer();
+                    setDebugInfo('✅ Réponse révélée (Quiz)');
+                  }}
                   onPause={async () => {
                     if (playerAdapter) {
                       await playerAdapter.pause();
