@@ -191,14 +191,13 @@ export default function BuzzerTeam({ sessionIdFromRouter = null }) {
       console.log('✅ Joueur enregistré dans', teamKey, 'clé:', playerKey);
 
       // Aller aux préférences ou directement au jeu
-      // Si la partie a déjà commencé (au moins une chanson jouée), skip les préférences
-      const gameStarted = window.localStorage.getItem('gameAlreadyStarted') === 'true';
-      console.log('🎮 gameAlreadyStarted:', gameStarted);
-      if (gameStarted) {
-        console.log('⚡ Partie déjà commencée → skip préférences, aller directement au jeu');
+      // Si une chanson est en cours, skip les préférences
+      console.log('🎮 [Team] isPlaying:', isPlaying);
+      if (isPlaying) {
+        console.log('⚡ Chanson en cours → skip préférences, aller directement au jeu');
         setStep('game');
       } else {
-        console.log('🎵 Partie pas encore commencée → demander les préférences');
+        console.log('🎵 Aucune chanson en cours → demander les préférences');
         setStep('preferences');
       }
     } catch (error) {

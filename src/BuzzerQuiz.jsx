@@ -223,14 +223,13 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
     }
 
     // Mode Quiz : aller directement aux préférences ou au quiz
-    // Si la partie a déjà commencé (au moins une chanson jouée), skip les préférences
-    const gameStarted = window.localStorage.getItem('gameAlreadyStarted') === 'true';
-    console.log('🎮 [Quiz] gameAlreadyStarted:', gameStarted);
-    if (gameStarted) {
-      console.log('⚡ Partie déjà commencée → skip préférences, aller directement au quiz');
+    // Si une chanson est en cours, skip les préférences
+    console.log('🎮 [Quiz] isPlaying:', isPlaying);
+    if (isPlaying) {
+      console.log('⚡ Chanson en cours → skip préférences, aller directement au quiz');
       setStep('quiz');
     } else {
-      console.log('🎵 Partie pas encore commencée → demander les préférences');
+      console.log('🎵 Aucune chanson en cours → demander les préférences');
       setStep('preferences');
     }
   };
@@ -262,14 +261,13 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
       localStorage.save({ playerFirebaseKey: firebaseKey });
     }
 
-    // Si la partie a déjà commencé (au moins une chanson jouée), skip les préférences
-    const gameStarted = window.localStorage.getItem('gameAlreadyStarted') === 'true';
-    console.log('🎮 [Quiz] gameAlreadyStarted:', gameStarted);
-    if (gameStarted) {
-      console.log('⚡ Partie déjà commencée → skip préférences, aller directement au quiz');
+    // Si une chanson est en cours, skip les préférences
+    console.log('🎮 [Quiz] isPlaying:', isPlaying);
+    if (isPlaying) {
+      console.log('⚡ Chanson en cours → skip préférences, aller directement au quiz');
       setStep('quiz');
     } else {
-      console.log('🎵 Partie pas encore commencée → demander les préférences');
+      console.log('🎵 Aucune chanson en cours → demander les préférences');
       setStep('preferences');
     }
   };
@@ -302,7 +300,14 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
         localStorage.save({ playerFirebaseKey: firebaseKey });
       }
 
-      setStep('preferences');
+      // Si une chanson est en cours, skip les préférences
+      if (isPlaying) {
+        console.log('⚡ Chanson en cours → skip préférences, aller directement au quiz');
+        setStep('quiz');
+      } else {
+        console.log('🎵 Aucune chanson en cours → demander les préférences');
+        setStep('preferences');
+      }
     } catch (err) {
       console.error('Erreur création joueur:', err);
       setError('Erreur lors de la sauvegarde. Continuons quand même !');
@@ -320,7 +325,14 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
           localStorage.save({ playerFirebaseKey: firebaseKey });
         }
 
-        setStep('preferences');
+        // Si une chanson est en cours, skip les préférences
+        if (isPlaying) {
+          console.log('⚡ Chanson en cours → skip préférences, aller directement au quiz');
+          setStep('quiz');
+        } else {
+          console.log('🎵 Aucune chanson en cours → demander les préférences');
+          setStep('preferences');
+        }
       }, 2000);
     } finally {
       setIsSearching(false);
