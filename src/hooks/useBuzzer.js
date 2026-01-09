@@ -11,11 +11,13 @@ export function useBuzzer(sessionId, isPlaying, currentTrack, playlist, currentC
   const [buzzedPlayerKey, setBuzzedPlayerKey] = useState(null);
   const [buzzedPlayerName, setBuzzedPlayerName] = useState(null);
   const [buzzedPlayerPhoto, setBuzzedPlayerPhoto] = useState(null);
+  const audioContextRef = useRef(null);
   const buzzerSoundRef = useRef(null);
 
   // Créer le son de buzzer
   useEffect(() => {
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    audioContextRef.current = audioContext;
 
     const playBuzzerSound = async () => {
       // S'assurer que le contexte est actif (contournement autoplay policy)
@@ -47,7 +49,24 @@ export function useBuzzer(sessionId, isPlaying, currentTrack, playlist, currentC
     };
 
     buzzerSoundRef.current = { play: playBuzzerSound };
+
+    return () => {
+      if (audioContext.state !== 'closed') {
+        audioContext.close();
+      }
+    };
   }, []);
+
+  const unlockAudioContext = async () => {
+    if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+      try {
+        await audioContextRef.current.resume();
+        console.log('🔊 AudioContext Buzzer activé via interaction utilisateur');
+      } catch (e) {
+        console.error('❌ Echec activation AudioContext Buzzer:', e);
+      }
+    }
+  };
 
   // Écouter les buzz
   useEffect(() => {
@@ -141,6 +160,7 @@ export function useBuzzer(sessionId, isPlaying, currentTrack, playlist, currentC
     buzzedPlayerName,
     buzzedPlayerPhoto,
     setBuzzedTeam,
-    clearBuzz
+    clearBuzz,
+    unlockAudioContext
   };
 }

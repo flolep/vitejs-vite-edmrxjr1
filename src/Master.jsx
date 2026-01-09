@@ -201,7 +201,8 @@ export default function Master({
     buzzedPlayerName,
     buzzedPlayerPhoto,
     setBuzzedTeam,
-    clearBuzz
+    clearBuzz,
+    unlockAudioContext
   } = useBuzzer(sessionId, isPlaying, currentTrack, playlist, currentChronoRef, updateIsPlaying, playerAdapter);
 
   const {
@@ -881,6 +882,9 @@ export default function Master({
 
     try {
       if (!isPlaying) {
+        // Débloquer l'audio du buzzer sur interaction utilisateur
+        unlockAudioContext();
+
         // Activer les cooldowns en attente
         await activatePendingCooldowns();
 
