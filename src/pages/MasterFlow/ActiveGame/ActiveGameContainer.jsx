@@ -43,10 +43,12 @@ export default function ActiveGameContainer({
   const {
     playMode = 'team',
     musicConfigData = {},
-    playlistId = null,
     spotifyToken = null,
     playlist: playlistFromSessionData = []
   } = sessionData || {};
+
+  // Extraction robuste de playlistId (racine ou dans musicConfigData)
+  const playlistId = (sessionData && sessionData.playlistId) || (musicConfigData && musicConfigData.playlistId) || null;
 
   const musicSource = (sessionData && sessionData.musicSource) || 'mp3';
 
