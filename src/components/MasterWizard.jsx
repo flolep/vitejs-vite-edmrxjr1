@@ -136,26 +136,39 @@ export default function MasterWizard({ onComplete }) {
     // Charger la session depuis Firebase
     try {
       const sessionRef = ref(database, `sessions/${lastSessionId}`);
-      onValue(sessionRef, (snapshot) => {
-        const sessionData = snapshot.val();
-        if (sessionData && sessionData.active !== false) {
-          // Charger le mode de jeu (ancien format ou nouveau)
-          const legacyMode = sessionData.gameMode; // 'mp3', 'spotify-auto', 'spotify-ai'
-          setMusicSource(sessionData.musicSource || legacyMode || 'mp3');
-          setPlayMode(sessionData.playMode || 'team');
-          setGameMode(`${sessionData.musicSource || legacyMode}-${sessionData.playMode || 'team'}`);
 
-          // Charger la playlist selon le mode
-          if (sessionData.playlistId && spotifyToken) {
-            loadSpotifyPlaylistById(sessionData.playlistId);
-          }
+      // Utiliser une Promise pour attendre les données de session
+      const sessionData = await new Promise((resolve, reject) => {
+        onValue(sessionRef, (snapshot) => {
+          const data = snapshot.val();
+          resolve(data);
+        }, (error) => {
+          reject(error);
+        }, { onlyOnce: true });
+      });
 
-          setStep('ready');
-        } else {
-          setError('Session expirée ou inactive');
-          setStep('choice');
+      if (sessionData && sessionData.active !== false) {
+        // Charger le mode de jeu (ancien format ou nouveau)
+        const legacyMode = sessionData.gameMode; // 'mp3', 'spotify-auto', 'spotify-ai'
+        const loadedMusicSource = sessionData.musicSource || legacyMode || 'mp3';
+        const loadedPlayMode = sessionData.playMode || 'team';
+
+        setMusicSource(loadedMusicSource);
+        setPlayMode(loadedPlayMode);
+        setGameMode(`${loadedMusicSource}-${loadedPlayMode}`);
+
+        // Charger la playlist selon le mode - ATTENDRE le chargement
+        if (sessionData.playlistId && spotifyToken) {
+          console.log('📥 [WIZARD] Chargement de la playlist en cours...');
+          await loadSpotifyPlaylistById(sessionData.playlistId);
+          console.log('✅ [WIZARD] Playlist chargée avec succès');
         }
-      }, { onlyOnce: true });
+
+        setStep('ready');
+      } else {
+        setError('Session expirée ou inactive');
+        setStep('choice');
+      }
     } catch (err) {
       console.error('Erreur chargement session:', err);
       setError('Impossible de charger la session');

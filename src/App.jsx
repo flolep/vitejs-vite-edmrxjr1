@@ -71,6 +71,8 @@ export default function App() {
     return (
       <Master
         initialSessionId={masterConfig?.sessionId}
+        initialMusicSource={masterConfig?.musicSource}
+        initialPlayMode={masterConfig?.playMode}
         initialGameMode={masterConfig?.gameMode}
         initialPlaylist={masterConfig?.playlist}
         initialPlaylistId={masterConfig?.playlistId}
