@@ -275,7 +275,9 @@ export default function Master({
       };
 
       if (musicSource === 'spotify-ai') {
-        spotifyAIMode.loadPlaylistById(initialPlaylistId, setPlaylist);
+        spotifyAIMode.loadPlaylistById(initialPlaylistId, setPlaylist)
+          .then(tracks => console.log('✅ [MASTER] Playlist Spotify AI rechargée:', tracks?.length))
+          .catch(err => console.error('❌ [MASTER] Erreur rechargement playlist AI:', err));
       } else if (musicSource === 'spotify-auto') {
         attemptLoadSpotify();
       } else {
