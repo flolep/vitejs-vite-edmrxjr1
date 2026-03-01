@@ -4,6 +4,7 @@ import { ref, get, set, update } from 'firebase/database';
 import { onAuthStateChanged } from 'firebase/auth';
 import Login from '../../components/Login';
 import { getValidSpotifyToken } from '../../utils/spotifyUtils';
+import { spotifyService } from '../../spotifyService';
 
 // Import des étapes
 import StepModeSelection from './steps/StepModeSelection';
@@ -173,13 +174,19 @@ export default function MasterFlowContainer() {
         else if (existingSession.gameMode.startsWith('mp3')) derivedMusicSource = 'mp3';
       }
 
+      // Récupérer le token Spotify (peut être null si expiré)
+      // On stocke aussi hasRefreshToken pour savoir si un refresh est possible
+      const currentToken = getValidSpotifyToken();
+      const hasRefreshToken = !!localStorage.getItem('spotify_refresh_token');
+
       setActiveGame({
         sessionId: lastSessionId,
         playMode: existingSession.playMode || null,
         musicSource: derivedMusicSource || null,
         gameMode: existingSession.gameMode || null,
         playlistId: existingSession.playlistId || null,
-        spotifyToken: getValidSpotifyToken()
+        spotifyToken: currentToken,
+        hasRefreshToken
       });
 
       // 5. Aller à la sélection de mode (qui affichera l'option de reprendre la partie)
@@ -200,10 +207,70 @@ export default function MasterFlowContainer() {
   /**
    * Depuis StepModeSelection → Rejoindre la partie en cours
    */
-  const handleResumeGame = () => {
+  const handleResumeGame = async () => {
     if (!activeGame) return;
 
     console.log('▶️ Reprise de la partie en cours:', activeGame.sessionId);
+
+    // Si c'est un mode Spotify et que le token est expiré, tenter un refresh silencieux
+    let spotifyToken = activeGame.spotifyToken;
+    const isSpotifyMode = activeGame.musicSource === 'spotify-ai' || activeGame.musicSource === 'spotify-auto';
+
+    if (isSpotifyMode && !spotifyToken && activeGame.hasRefreshToken) {
+      console.log('🔄 Token expiré, tentative de refresh silencieux...');
+      setIsLoading(true);
+
+      try {
+        const refreshTokenValue = localStorage.getItem('spotify_refresh_token');
+        if (refreshTokenValue) {
+          const tokenData = await spotifyService.refreshAccessToken(refreshTokenValue);
+
+          if (tokenData.access_token) {
+            spotifyToken = tokenData.access_token;
+            localStorage.setItem('spotify_access_token', tokenData.access_token);
+            const expiryTime = Date.now() + ((tokenData.expires_in || 3600) * 1000);
+            localStorage.setItem('spotify_token_expiry', expiryTime.toString());
+            if (tokenData.refresh_token) {
+              localStorage.setItem('spotify_refresh_token', tokenData.refresh_token);
+            }
+            console.log('✅ Token rafraîchi avec succès avant reprise');
+          }
+        }
+      } catch (err) {
+        console.error('❌ Échec du refresh token:', err);
+        // On continue quand même — Master.jsx tentera aussi un refresh via useSpotifyTokenRefresh
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    // Recharger les joueurs connectés depuis Firebase
+    let players = [];
+    try {
+      const team1Snap = await get(ref(database, `sessions/${activeGame.sessionId}/players_session/team1`));
+      const team2Snap = await get(ref(database, `sessions/${activeGame.sessionId}/players_session/team2`));
+
+      const parseTeam = (snapshot, teamName) => {
+        const data = snapshot.val();
+        if (!data) return [];
+        return Object.entries(data)
+          .filter(([_, player]) => player.connected)
+          .map(([key, player]) => ({
+            id: player.id || key,
+            name: player.name,
+            photo: player.photo,
+            team: teamName
+          }));
+      };
+
+      players = [
+        ...parseTeam(team1Snap, 'team1'),
+        ...parseTeam(team2Snap, 'team2')
+      ];
+      console.log('👥 Joueurs rechargés depuis Firebase:', players.length);
+    } catch (err) {
+      console.error('❌ Erreur rechargement joueurs:', err);
+    }
 
     // Restaurer les données de session
     setSessionData({
@@ -211,10 +278,10 @@ export default function MasterFlowContainer() {
       playMode: activeGame.playMode,
       musicSource: activeGame.musicSource,
       gameMode: activeGame.gameMode,
-      players: [],
+      players,
       playlist: [],
       playlistId: activeGame.playlistId,
-      spotifyToken: activeGame.spotifyToken
+      spotifyToken: spotifyToken
     });
 
     // Réinitialiser activeGame pour éviter de l'afficher à nouveau
@@ -285,14 +352,26 @@ export default function MasterFlowContainer() {
    * Depuis StepPlayerConnection → StepReadyToStart
    * Quand joueurs connectés + musique configurée
    */
-  const handleConnectionComplete = (musicSource, additionalData = {}) => {
+  const handleConnectionComplete = async (musicSource, additionalData = {}) => {
     console.log('✅ Configuration connexion/musique complète');
+
+    const gameMode = `${musicSource}-${sessionData.playMode}`;
+
+    // Persister musicSource et gameMode dans Firebase immédiatement
+    // pour que la reprise de session fonctionne même si le navigateur est fermé avant handleStartGame
+    try {
+      const sessionRef = ref(database, `sessions/${sessionData.sessionId}`);
+      await update(sessionRef, { musicSource, gameMode });
+      console.log('✅ musicSource et gameMode persistés dans Firebase:', { musicSource, gameMode });
+    } catch (err) {
+      console.error('❌ Erreur persistance musicSource/gameMode:', err);
+    }
 
     // Mettre à jour les données de session
     setSessionData(prev => ({
       ...prev,
       musicSource,
-      gameMode: `${musicSource}-${prev.playMode}`,
+      gameMode,
       ...additionalData
     }));
 
@@ -313,11 +392,10 @@ export default function MasterFlowContainer() {
         playlist: playlistData
       }));
 
-      // Marquer la partie comme démarrée dans Firebase (si nécessaire)
+      // Marquer la partie comme démarrée dans Firebase
+      // Note: musicSource et gameMode sont déjà persistés par handleConnectionComplete()
       const sessionRef = ref(database, `sessions/${sessionData.sessionId}`);
       await update(sessionRef, {
-        musicSource: sessionData.musicSource,
-        gameMode: sessionData.gameMode,
         startedAt: Date.now()
       });
 
