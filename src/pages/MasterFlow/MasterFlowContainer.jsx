@@ -3,7 +3,7 @@ import { auth, database } from '../../firebase';
 import { ref, get, set, update } from 'firebase/database';
 import { onAuthStateChanged } from 'firebase/auth';
 import Login from '../../components/Login';
-import { getValidSpotifyToken } from '../../utils/spotifyUtils';
+import { getValidSpotifyToken, hasRefreshToken, getRefreshToken } from '../../utils/spotifyUtils';
 import { spotifyService } from '../../spotifyService';
 
 // Import des étapes
@@ -131,42 +131,46 @@ export default function MasterFlowContainer() {
     try {
       setIsLoading(true);
 
-      // 1. Récupérer le dernier sessionId depuis localStorage
       const lastSessionId = localStorage.getItem('lastSessionId');
 
       if (!lastSessionId) {
-        console.log('📝 Aucune session précédente trouvée');
+        console.log('[Resume] Aucune session précédente trouvée');
         setFlowState(FLOW_STATES.MODE_SELECTION);
         return;
       }
 
-      console.log('🔍 Vérification de la session:', lastSessionId);
+      console.log('[Resume] Vérification de la session:', lastSessionId);
 
-      // 2. Vérifier dans Firebase si la session existe et est active
       const sessionRef = ref(database, `sessions/${lastSessionId}`);
       const snapshot = await get(sessionRef);
       const existingSession = snapshot.val();
 
       if (!existingSession) {
-        console.log('❌ Session inexistante dans Firebase');
+        console.log('[Resume] Session inexistante dans Firebase');
         setFlowState(FLOW_STATES.MODE_SELECTION);
         return;
       }
 
-      // 3. Vérifier si la partie est active et non terminée
-      const isActive = existingSession.active === true &&
-                      existingSession.game_status?.ended !== true;
+      // Critères stricts : active, non terminée, démarrée, avec playlist
+      const isResumable = existingSession.active === true
+        && existingSession.game_status?.ended !== true
+        && existingSession.startedAt != null
+        && existingSession.playlistId != null;
 
-      if (!isActive) {
-        console.log('⏸️ Session trouvée mais inactive ou terminée');
+      if (!isResumable) {
+        console.log('[Resume] Session trouvée mais non reprendable:', {
+          active: existingSession.active,
+          ended: existingSession.game_status?.ended,
+          startedAt: existingSession.startedAt,
+          playlistId: existingSession.playlistId
+        });
         setFlowState(FLOW_STATES.MODE_SELECTION);
         return;
       }
 
-      console.log('✅ Partie en cours détectée !');
+      console.log('[Resume] Partie reprendable détectée !');
 
-      // 4. Stocker les infos de la partie active
-      // Fallback musicSource depuis gameMode si manquant
+      // Dériver musicSource depuis gameMode si manquant
       let derivedMusicSource = existingSession.musicSource;
       if (!derivedMusicSource && existingSession.gameMode) {
         if (existingSession.gameMode.startsWith('spotify-auto')) derivedMusicSource = 'spotify-auto';
@@ -174,28 +178,20 @@ export default function MasterFlowContainer() {
         else if (existingSession.gameMode.startsWith('mp3')) derivedMusicSource = 'mp3';
       }
 
-      // Récupérer le token Spotify (peut être null si expiré)
-      // On stocke aussi hasRefreshToken pour savoir si un refresh est possible
-      const currentToken = getValidSpotifyToken();
-      const hasRefreshToken = !!localStorage.getItem('spotify_refresh_token');
-
       setActiveGame({
         sessionId: lastSessionId,
         playMode: existingSession.playMode || null,
         musicSource: derivedMusicSource || null,
         gameMode: existingSession.gameMode || null,
         playlistId: existingSession.playlistId || null,
-        spotifyToken: currentToken,
-        hasRefreshToken
+        spotifyToken: getValidSpotifyToken(),
+        canRefresh: hasRefreshToken()
       });
 
-      // 5. Aller à la sélection de mode (qui affichera l'option de reprendre la partie)
       setFlowState(FLOW_STATES.MODE_SELECTION);
 
     } catch (error) {
-      // Log de l'erreur en console mais pas de message à l'utilisateur
-      // C'est normal de ne pas avoir de partie en cours
-      console.error('❌ Erreur lors de la vérification de partie active:', error);
+      console.error('[Resume] Erreur vérification partie active:', error);
       setFlowState(FLOW_STATES.MODE_SELECTION);
     } finally {
       setIsLoading(false);
@@ -210,85 +206,88 @@ export default function MasterFlowContainer() {
   const handleResumeGame = async () => {
     if (!activeGame) return;
 
-    console.log('▶️ Reprise de la partie en cours:', activeGame.sessionId);
+    console.log('[Resume] Reprise de la partie:', activeGame.sessionId);
+    setIsLoading(true);
 
-    // Si c'est un mode Spotify et que le token est expiré, tenter un refresh silencieux
-    let spotifyToken = activeGame.spotifyToken;
-    const isSpotifyMode = activeGame.musicSource === 'spotify-ai' || activeGame.musicSource === 'spotify-auto';
-
-    if (isSpotifyMode && !spotifyToken && activeGame.hasRefreshToken) {
-      console.log('🔄 Token expiré, tentative de refresh silencieux...');
-      setIsLoading(true);
-
-      try {
-        const refreshTokenValue = localStorage.getItem('spotify_refresh_token');
-        if (refreshTokenValue) {
-          const tokenData = await spotifyService.refreshAccessToken(refreshTokenValue);
-
-          if (tokenData.access_token) {
-            spotifyToken = tokenData.access_token;
-            localStorage.setItem('spotify_access_token', tokenData.access_token);
-            const expiryTime = Date.now() + ((tokenData.expires_in || 3600) * 1000);
-            localStorage.setItem('spotify_token_expiry', expiryTime.toString());
-            if (tokenData.refresh_token) {
-              localStorage.setItem('spotify_refresh_token', tokenData.refresh_token);
-            }
-            console.log('✅ Token rafraîchi avec succès avant reprise');
-          }
-        }
-      } catch (err) {
-        console.error('❌ Échec du refresh token:', err);
-        // On continue quand même — Master.jsx tentera aussi un refresh via useSpotifyTokenRefresh
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    // Recharger les joueurs connectés depuis Firebase
-    let players = [];
     try {
-      const team1Snap = await get(ref(database, `sessions/${activeGame.sessionId}/players_session/team1`));
-      const team2Snap = await get(ref(database, `sessions/${activeGame.sessionId}/players_session/team2`));
+      // 1. Résoudre le token Spotify si nécessaire
+      let spotifyToken = activeGame.spotifyToken;
+      const isSpotifyMode = activeGame.musicSource === 'spotify-ai' || activeGame.musicSource === 'spotify-auto';
 
-      const parseTeam = (snapshot, teamName) => {
-        const data = snapshot.val();
-        if (!data) return [];
-        return Object.entries(data)
-          .filter(([_, player]) => player.connected)
-          .map(([key, player]) => ({
-            id: player.id || key,
-            name: player.name,
-            photo: player.photo,
-            team: teamName
-          }));
-      };
+      if (isSpotifyMode && !spotifyToken) {
+        // Token expiré — tenter un refresh avec le refresh_token
+        const refreshTokenValue = getRefreshToken();
 
-      players = [
-        ...parseTeam(team1Snap, 'team1'),
-        ...parseTeam(team2Snap, 'team2')
-      ];
-      console.log('👥 Joueurs rechargés depuis Firebase:', players.length);
-    } catch (err) {
-      console.error('❌ Erreur rechargement joueurs:', err);
+        if (refreshTokenValue) {
+          console.log('[Resume] Token expiré, refresh silencieux...');
+          try {
+            const tokenData = await spotifyService.refreshAccessToken(refreshTokenValue);
+
+            if (tokenData.access_token) {
+              spotifyToken = tokenData.access_token;
+              localStorage.setItem('spotify_access_token', tokenData.access_token);
+              const expiryTime = Date.now() + ((tokenData.expires_in || 3600) * 1000);
+              localStorage.setItem('spotify_token_expiry', expiryTime.toString());
+              if (tokenData.refresh_token) {
+                localStorage.setItem('spotify_refresh_token', tokenData.refresh_token);
+              }
+              console.log('[Resume] Token rafraîchi avec succès');
+            }
+          } catch (err) {
+            console.error('[Resume] Échec refresh token:', err);
+            // On continue — useSpotifyTokenRefresh dans Master.jsx tentera aussi un bootstrap
+          }
+        } else {
+          console.warn('[Resume] Pas de refresh_token, Spotify ne sera pas disponible');
+        }
+      }
+
+      // 2. Recharger les joueurs connectés depuis Firebase
+      let players = [];
+      try {
+        const team1Snap = await get(ref(database, `sessions/${activeGame.sessionId}/players_session/team1`));
+        const team2Snap = await get(ref(database, `sessions/${activeGame.sessionId}/players_session/team2`));
+
+        const parseTeam = (snapshot, teamName) => {
+          const data = snapshot.val();
+          if (!data) return [];
+          return Object.entries(data)
+            .filter(([_, player]) => player.connected)
+            .map(([key, player]) => ({
+              id: player.id || key,
+              name: player.name,
+              photo: player.photo,
+              team: teamName
+            }));
+        };
+
+        players = [
+          ...parseTeam(team1Snap, 'team1'),
+          ...parseTeam(team2Snap, 'team2')
+        ];
+        console.log('[Resume] Joueurs rechargés:', players.length);
+      } catch (err) {
+        console.error('[Resume] Erreur rechargement joueurs:', err);
+      }
+
+      // 3. Restaurer les données de session et lancer la partie
+      setSessionData({
+        sessionId: activeGame.sessionId,
+        playMode: activeGame.playMode,
+        musicSource: activeGame.musicSource,
+        gameMode: activeGame.gameMode,
+        players,
+        playlist: [],
+        playlistId: activeGame.playlistId,
+        spotifyToken
+      });
+
+      setActiveGame(null);
+      setFlowState(FLOW_STATES.GAME_PLAYING);
+
+    } finally {
+      setIsLoading(false);
     }
-
-    // Restaurer les données de session
-    setSessionData({
-      sessionId: activeGame.sessionId,
-      playMode: activeGame.playMode,
-      musicSource: activeGame.musicSource,
-      gameMode: activeGame.gameMode,
-      players,
-      playlist: [],
-      playlistId: activeGame.playlistId,
-      spotifyToken: spotifyToken
-    });
-
-    // Réinitialiser activeGame pour éviter de l'afficher à nouveau
-    setActiveGame(null);
-
-    // Aller directement à la partie active
-    setFlowState(FLOW_STATES.GAME_PLAYING);
   };
 
   /**
