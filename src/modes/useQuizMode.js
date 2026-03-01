@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ref, set, get, onValue, remove } from 'firebase/database';
+import { ref, set, get, update, onValue, remove } from 'firebase/database';
 import { database } from '../firebase';
 import { calculatePoints } from '../hooks/useScoring';
 
@@ -297,8 +297,7 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
       updates[`sessions/${sessionId}/quiz_answers/${currentTrack}/${answer.playerId}`] = answer;
     });
 
-    const { update: fbUpdate } = await import('firebase/database');
-    await fbUpdate(ref(database), updates);
+    await update(ref(database), updates);
 
     // Appeler updateLeaderboard UNE SEULE FOIS avec les réponses corrigées
     await updateLeaderboard(correctedAnswers);
