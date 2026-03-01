@@ -34,6 +34,12 @@
 **Complexité :** S
 **Lien technologique :** Firebase
 
+> **Note (commit 5de2e2e) :** 4 bugs corrigés sur le flow de reprise :
+> 1. `musicSource`/`gameMode` sont maintenant persistés dans Firebase dès `handleConnectionComplete` (plus seulement au lancement)
+> 2. Le token Spotify expiré est rafraîchi silencieusement avant la reprise (+ message "Reconnexion Spotify en cours...")
+> 3. Race condition éliminée dans le `useEffect` de chargement de Master.jsx (dépendances réduites de 7 à 3, garde `hasLoadedPlaylistRef`)
+> 4. Les joueurs connectés sont rechargés depuis Firebase (`players_session/team1` et `team2`) au lieu d'être perdus
+
 ---
 
 ### US-1.3 — Parcourir le wizard de configuration `[DONE]`
@@ -144,6 +150,8 @@
 **Complexité :** M
 **Lien technologique :** React
 
+> **`[KNOWN LIMITATION]`** La reprise de session MP3 n'est pas supportée (P3). Les fichiers uploadés sont stockés en mémoire (JavaScript `File` objects) et perdus au rechargement du navigateur. Un fix nécessiterait de persister les fichiers (Firebase Storage, IndexedDB ou URLs signées).
+
 ---
 
 ### US-2.2 — Importer une playlist Spotify `[DONE]`
@@ -175,6 +183,8 @@
 **Priorité :** P1
 **Complexité :** XL
 **Lien technologique :** n8n, LLM, Spotify, Firebase
+
+> **Note (commit 5de2e2e) :** La reprise de session en mode Spotify IA est maintenant stable (refresh token silencieux, chargement playlist via `loadPlaylistById` sans race condition).
 
 ---
 

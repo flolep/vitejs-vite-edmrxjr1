@@ -337,8 +337,8 @@ sessions/{sessionId}/
 - **Travail restant** : réduire la fréquence d'écriture Firebase (ex: 1 write/s), synchroniser le chrono avec la position audio réelle.
 
 ### 5.5 Gestion de la reconnexion joueur
-- **État** : le Buzzer sauvegarde les données de session dans localStorage et tente une reconnexion automatique au rechargement.
-- **Limitation** : la reconnexion peut échouer si la session a changé d'état entre-temps. Pas de gestion de la perte de connexion Firebase (offline).
+- **État** : le Buzzer sauvegarde les données de session dans localStorage et tente une reconnexion automatique au rechargement. Côté Master, les joueurs connectés (`players_session/team1` et `team2`) sont désormais rechargés depuis Firebase lors d'une reprise de session (commit `5de2e2e`).
+- **Limitation** : la reconnexion côté Buzzer peut échouer si la session a changé d'état entre-temps. Pas de gestion de la perte de connexion Firebase (offline).
 - **Travail restant** : Firebase `.info/connected` listener, re-sync automatique, UI de reconnexion explicite.
 
 ---
