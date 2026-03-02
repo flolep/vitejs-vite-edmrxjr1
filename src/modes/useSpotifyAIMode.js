@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { spotifyService } from '../spotifyService';
 import { ref, set, onValue } from 'firebase/database';
 import { database } from '../firebase';
+import { loadStubPlaylist, generateStubPlaylist, persistStubPlaylist } from '../utils/quizStubs';
 
 /**
  * Hook pour gérer le mode Spotify IA
@@ -47,11 +48,50 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
     }
   }, [spotifyToken, spotifyPlayer]);
 
-  // Charger automatiquement la playlist en mode IA quand le token Spotify est disponible
+  // Charger la playlist — bypass Spotify en mode test, relit depuis Firebase
   const loadPlaylistById = useCallback(async (playlistId, setPlaylist) => {
+    // En mode test, lire la playlist stub depuis Firebase au lieu d'appeler Spotify
+    const isTestMode = localStorage.getItem('quizTestMode') === 'true';
+
+    if (isTestMode && sessionId) {
+      console.log('[TEST MODE] loadPlaylistById: bypass Spotify, lecture depuis Firebase...');
+      try {
+        // 1. Essayer de relire depuis Firebase (session déjà jouée)
+        const stubTracks = await loadStubPlaylist(sessionId);
+        if (stubTracks && stubTracks.length > 0) {
+          setPlaylist(stubTracks);
+          console.log(`[TEST MODE] Playlist stub relue depuis Firebase: ${stubTracks.length} chansons`);
+          return stubTracks;
+        }
+
+        // 2. Fallback : générer une nouvelle playlist stub et la persister
+        console.log('[TEST MODE] Aucune stub en Firebase, génération...');
+        const result = await generateStubPlaylist({ playlistId, players: [] });
+        const generatedTracks = result.songs.map(song => ({
+          spotifyUri: song.uri,
+          title: song.title,
+          artist: song.artist,
+          imageUrl: 'https://via.placeholder.com/300?text=Test+Mode',
+          duration: 180,
+          durationMs: 180000,
+          previewUrl: null
+        }));
+
+        // Persister pour les reprises futures
+        await persistStubPlaylist(sessionId, generatedTracks);
+        setPlaylist(generatedTracks);
+        console.log(`[TEST MODE] Playlist stub générée et persistée: ${generatedTracks.length} chansons`);
+        return generatedTracks;
+      } catch (error) {
+        console.error('[TEST MODE] Erreur stub playlist:', error);
+        return [];
+      }
+    }
+
+    // Mode production : appel Spotify réel
     if (!spotifyToken || !playlistId) {
-      console.warn('⚠️ loadPlaylistById: token ou playlistId manquant');
-      return []; // Retourner un tableau vide au lieu de undefined
+      console.warn('[AIMode] loadPlaylistById: token ou playlistId manquant');
+      return [];
     }
 
     try {
@@ -71,7 +111,7 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
       return tracks;
     } catch (error) {
       console.error('Error loading playlist by ID:', error);
-      return []; // Retourner un tableau vide au lieu de lancer une erreur
+      return [];
     }
   }, [spotifyToken, sessionId, initSpotifyPlayer]);
 
