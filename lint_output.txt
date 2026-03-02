@@ -1,0 +1,172 @@
+
+> vite-react-starter@0.0.0 lint /app
+> eslint .
+
+
+/app/netlify/functions/n8n-proxy.js
+   8:24  error  'process' is not defined             no-undef
+  10:1   error  'exports' is not defined             no-undef
+  10:33  error  'context' is defined but never used  no-unused-vars
+
+/app/netlify/functions/notify-playlist-ready.js
+   1:15  error  'require' is not defined  no-undef
+   7:18  error  'process' is not defined  no-undef
+   7:59  error  'process' is not defined  no-undef
+   8:20  error  'process' is not defined  no-undef
+   8:62  error  'process' is not defined  no-undef
+   9:20  error  'process' is not defined  no-undef
+   9:63  error  'process' is not defined  no-undef
+  11:18  error  'process' is not defined  no-undef
+  11:61  error  'process' is not defined  no-undef
+  19:1   error  'exports' is not defined  no-undef
+  36:31  error  'process' is not defined  no-undef
+
+/app/netlify/functions/save-player-preferences.js
+   1:15  error  'require' is not defined  no-undef
+  10:10  error  'process' is not defined  no-undef
+  10:51  error  'process' is not defined  no-undef
+  10:95  error  'process' is not defined  no-undef
+  16:20  error  'process' is not defined  no-undef
+  17:22  error  'process' is not defined  no-undef
+  18:21  error  'process' is not defined  no-undef
+  20:20  error  'process' is not defined  no-undef
+  37:1   error  'exports' is not defined  no-undef
+
+/app/netlify/functions/spotify-auth.js
+   1:1   error  'exports' is not defined  no-undef
+   2:22  error  'process' is not defined  no-undef
+   3:26  error  'process' is not defined  no-undef
+  40:39  error  'Buffer' is not defined   no-undef
+
+/app/scripts/check-hostinger-docker-env.js
+  97:40  error  Parsing error: Unexpected token environnement
+
+/app/src/BuzzerQuiz.jsx
+    8:10  error    'calculatePoints' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                           no-unused-vars
+  133:6   warning  React Hook useEffect has a missing dependency: 'localStorage'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  160:6   warning  React Hook useEffect has a missing dependency: 'quizQuestion'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  178:6   warning  React Hook useEffect has a missing dependency: 'quizQuestion'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/app/src/BuzzerTeam.jsx
+  3:29  error  'remove' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+/app/src/Master.jsx
+     3:29  error    'update' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                                                       no-unused-vars
+    63:10  error    'gameMode' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                            no-unused-vars
+    63:20  error    'setGameMode' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                         no-unused-vars
+    68:10  error    'showModeSelection' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                   no-unused-vars
+    68:29  error    'setShowModeSelection' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                no-unused-vars
+   101:46  error    'tokenRefreshing' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                     no-unused-vars
+   101:70  error    'tokenError' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                          no-unused-vars
+   103:6   error    'newToken' is defined but never used                                                                                                                no-unused-vars
+   116:5   error    'setSongDuration' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                     no-unused-vars
+   127:5   error    'addTrack' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                            no-unused-vars
+   128:5   error    'updateTrack' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                         no-unused-vars
+   196:6   warning  React Hook useMemo has missing dependencies: 'mp3Mode', 'spotifyAIMode', and 'spotifyAutoMode'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+   319:6   warning  React Hook useEffect has missing dependencies: 'setPlaylist' and 'spotifyAIMode'. Either include them or remove the dependency array                react-hooks/exhaustive-deps
+   339:6   warning  React Hook useEffect has missing dependencies: 'initialPlaylist' and 'setPlaylist'. Either include them or remove the dependency array              react-hooks/exhaustive-deps
+   352:6   warning  React Hook useEffect has a missing dependency: 'playlist'. Either include it or remove the dependency array                                         react-hooks/exhaustive-deps
+   377:21  error    '_' is defined but never used                                                                                                                       no-unused-vars
+   424:21  error    '_' is defined but never used                                                                                                                       no-unused-vars
+   540:6   warning  React Hook useEffect has missing dependencies: 'spotifyAIMode' and 'spotifyAutoMode'. Either include them or remove the dependency array            react-hooks/exhaustive-deps
+   573:6   warning  React Hook useEffect has missing dependencies: 'handleGenerateQuizQuestions' and 'setPlaylist'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+   614:54  error    'index' is defined but never used                                                                                                                   no-unused-vars
+   738:22  error    'index' is defined but never used                                                                                                                   no-unused-vars
+  1504:48  error    'index' is defined but never used                                                                                                                   no-unused-vars
+
+/app/src/Master.old.jsx
+    44:3  error    'initialPlaylistId' is assigned a value but never used                                                                                              no-unused-vars
+   168:6  warning  React Hook useEffect has a missing dependency: 'loadSpotifyPlaylistById'. Either include it or remove the dependency array                          react-hooks/exhaustive-deps
+   205:6  warning  React Hook useEffect has missing dependencies: 'loadSpotifyPlaylistById' and 'playlist.length'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+   311:6  warning  React Hook useEffect has a missing dependency: 'loadSpotifyPlaylistById'. Either include it or remove the dependency array                          react-hooks/exhaustive-deps
+   514:9  error    'handleImageForTrack' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                 no-unused-vars
+   526:9  error    'handleAudioForTrack' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                 no-unused-vars
+  1118:9  error    'handleEndGame' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                       no-unused-vars
+
+/app/src/TV.jsx
+     3:24  error  'set' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                         no-unused-vars
+    23:50  error  'buzzedPlayerName' is defined but never used                                                       no-unused-vars
+   146:10  error  'buzzedPlayerName' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u   no-unused-vars
+   147:10  error  'buzzedPlayerPhoto' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+   148:10  error  'buzzedPlayerKey' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u    no-unused-vars
+   149:10  error  'buzzedTeam' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u         no-unused-vars
+   167:10  error  'quizAnswers' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u        no-unused-vars
+   176:10  error  'roundStatus' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u        no-unused-vars
+   176:23  error  'setRoundStatus' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u     no-unused-vars
+   547:9   error  'total' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u              no-unused-vars
+   596:30  error  'pointsColor' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u        no-unused-vars
+   601:9   error  'isNearCritical' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u     no-unused-vars
+  1016:21  error  'isWrong' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u            no-unused-vars
+
+/app/src/components/MasterWizard.jsx
+   31:46  error  'tokenRefreshing' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+   31:70  error  'tokenError' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u       no-unused-vars
+   33:6   error  'newToken' is defined but never used                                                             no-unused-vars
+   39:10  error  'sessionChoice' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u    no-unused-vars
+  318:40  error  'sessionId' is defined but never used                                                            no-unused-vars
+
+/app/src/components/buzzer/QuizInterface.jsx
+  439:43  error  'correctAnswer' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                    no-unused-vars
+  447:27  error  React Hook "React.useMemo" is called conditionally. React Hooks must be called in the exact same order in every component render. Did you accidentally call a React Hook after an early return?  react-hooks/rules-of-hooks
+
+/app/src/components/master/FirebaseCleanup.jsx
+  68:24  error  'errors' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+/app/src/components/master/GameSettings.jsx
+   4:3  error  'playlist' is defined but never used     no-unused-vars
+   9:3  error  'onResetGame' is defined but never used  no-unused-vars
+  11:3  error  'onEndGame' is defined but never used    no-unused-vars
+
+/app/src/components/master/PlayerControls.jsx
+   9:3  error  'currentChrono' is defined but never used    no-unused-vars
+  10:3  error  'availablePoints' is defined but never used  no-unused-vars
+  11:3  error  'songDuration' is defined but never used     no-unused-vars
+
+/app/src/hooks/useScoring.js
+   83:34  error  'buzzData' is defined but never used                                                      no-unused-vars
+  103:62  error  'bonusPlayerName' is defined but never used                                               no-unused-vars
+  129:28  error  'duration' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+/app/src/hooks/useSpotifyTokenRefresh.js
+   23:6  warning  React Hook useEffect has a missing dependency: 'token'. Either include it or remove the dependency array                 react-hooks/exhaustive-deps
+  137:6  warning  React Hook useEffect has a missing dependency: 'checkAndRefreshToken'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/app/src/modes/useQuizMode.js
+   10:64  error    'currentChronoRef' is defined but never used                                                                          no-unused-vars
+  158:6   warning  React Hook useEffect has a missing dependency: 'updateLeaderboard'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  167:30  error    'index' is defined but never used                                                                                     no-unused-vars
+  282:39  error    'rank' is defined but never used                                                                                      no-unused-vars
+
+/app/src/n8nService.js
+  312:70  error  'index' is defined but never used  no-unused-vars
+
+/app/src/pages/MasterFlow/ActiveGame/ActiveGameContainer.jsx
+  18:3  error  'onEndGame' is defined but never used  no-unused-vars
+
+/app/src/pages/MasterFlow/MasterFlowContainer.jsx
+  3:20  error  'set' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+/app/src/pages/MasterFlow/steps/MusicConfigPanel.jsx
+  10:3   error  'spotifyToken' is defined but never used  no-unused-vars
+  30:36  error  'index' is defined but never used         no-unused-vars
+
+/app/src/pages/MasterFlow/steps/StepPlayerConnection.jsx
+  60:19  error  '_' is defined but never used  no-unused-vars
+  73:19  error  '_' is defined but never used  no-unused-vars
+
+/app/src/pages/MasterFlow/steps/StepReadyToStart.jsx
+   79:19  error    '_' is defined but never used                                                                                                                                                                no-unused-vars
+   92:19  error    '_' is defined but never used                                                                                                                                                                no-unused-vars
+  117:6   warning  React Hook useEffect has missing dependencies: 'generationError', 'handleGeneratePlaylist', 'isGeneratingPlaylist', and 'playlistReady'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  135:6   warning  React Hook useEffect has a missing dependency: 'handleStartGame'. Either include it or remove the dependency array                                                                           react-hooks/exhaustive-deps
+  211:60  error    'index' is defined but never used                                                                                                                                                            no-unused-vars
+
+/app/src/services/playerAdapter.js
+  92:13  error  'track' is defined but never used  no-unused-vars
+
+/app/src/utils/sessionCleanup.js
+  1:15  error  'set' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+✖ 112 problems (95 errors, 17 warnings)
+
+ ELIFECYCLE  Command failed with exit code 1.

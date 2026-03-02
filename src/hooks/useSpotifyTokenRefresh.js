@@ -4,9 +4,12 @@ import { spotifyService } from '../spotifyService';
 /**
  * Hook pour rafraîchir automatiquement le token Spotify
  *
- * @param {string} initialToken - Token Spotify initial
+ * Peut bootstrapper depuis un token null : si initialToken est null mais qu'un
+ * refresh_token existe dans localStorage, tente immédiatement un refresh.
+ *
+ * @param {string|null} initialToken - Token Spotify initial (peut être null)
  * @param {Function} onTokenRefreshed - Callback appelé quand le token est rafraîchi
- * @returns {Object} - { token, isRefreshing, error }
+ * @returns {Object} - { token, isRefreshing, error, refreshToken }
  */
 export function useSpotifyTokenRefresh(initialToken, onTokenRefreshed) {
   const [token, setToken] = useState(initialToken);
@@ -14,30 +17,30 @@ export function useSpotifyTokenRefresh(initialToken, onTokenRefreshed) {
   const [error, setError] = useState(null);
   const refreshIntervalRef = useRef(null);
   const isRefreshingRef = useRef(false);
+  const hasBootstrappedRef = useRef(false);
 
+  // Mettre à jour le token si l'initial change (ex: passé depuis un parent)
   useEffect(() => {
-    // Mettre à jour le token si l'initial change
     if (initialToken && initialToken !== token) {
       setToken(initialToken);
     }
   }, [initialToken]);
 
   /**
-   * Rafraîchit le token Spotify
+   * Rafraîchit le token Spotify via le refresh_token
    */
   const refreshToken = async () => {
-    // Éviter les refresh multiples simultanés
     if (isRefreshingRef.current) {
-      console.log('🔄 Refresh déjà en cours, skip');
-      return;
+      console.log('[SpotifyRefresh] Refresh déjà en cours, skip');
+      return null;
     }
 
-    const refreshTokenValue = sessionStorage.getItem('spotify_refresh_token');
+    const refreshTokenValue = localStorage.getItem('spotify_refresh_token');
 
     if (!refreshTokenValue) {
-      console.error('❌ Pas de refresh_token disponible');
+      console.error('[SpotifyRefresh] Pas de refresh_token disponible');
       setError('Refresh token manquant');
-      return;
+      return null;
     }
 
     try {
@@ -45,44 +48,42 @@ export function useSpotifyTokenRefresh(initialToken, onTokenRefreshed) {
       setIsRefreshing(true);
       setError(null);
 
-      console.log('🔄 Rafraîchissement du token Spotify...');
+      console.log('[SpotifyRefresh] Rafraîchissement du token...');
       const tokenData = await spotifyService.refreshAccessToken(refreshTokenValue);
 
       if (tokenData.access_token) {
-        // Mettre à jour le sessionStorage
-        sessionStorage.setItem('spotify_access_token', tokenData.access_token);
-
-        // Calculer la nouvelle expiration
+        // Mettre à jour localStorage
+        localStorage.setItem('spotify_access_token', tokenData.access_token);
         const expiresIn = tokenData.expires_in || 3600;
         const expiryTime = Date.now() + (expiresIn * 1000);
-        sessionStorage.setItem('spotify_token_expiry', expiryTime.toString());
+        localStorage.setItem('spotify_token_expiry', expiryTime.toString());
 
-        // Si un nouveau refresh_token est fourni, le stocker aussi
+        // Si un nouveau refresh_token est fourni, le stocker
         if (tokenData.refresh_token) {
-          sessionStorage.setItem('spotify_refresh_token', tokenData.refresh_token);
+          localStorage.setItem('spotify_refresh_token', tokenData.refresh_token);
         }
 
         // Mettre à jour le state
         setToken(tokenData.access_token);
 
-        // Appeler le callback
+        // Callback
         if (onTokenRefreshed) {
           onTokenRefreshed(tokenData.access_token);
         }
 
-        console.log('✅ Token rafraîchi avec succès');
-        console.log(`✅ Nouveau token expire dans ${expiresIn} secondes`);
+        console.log(`[SpotifyRefresh] Token rafraîchi, expire dans ${expiresIn}s`);
+        return tokenData.access_token;
       } else {
         throw new Error('Pas de access_token dans la réponse');
       }
     } catch (err) {
-      console.error('❌ Erreur lors du refresh du token:', err);
+      console.error('[SpotifyRefresh] Erreur refresh:', err);
       setError(err.message);
-
-      // Si le refresh échoue, nettoyer les tokens
-      sessionStorage.removeItem('spotify_access_token');
-      sessionStorage.removeItem('spotify_refresh_token');
-      sessionStorage.removeItem('spotify_token_expiry');
+      // En cas d'échec, nettoyer access_token mais PAS le refresh_token
+      // (le refresh_token peut encore être valide pour un retry)
+      localStorage.removeItem('spotify_access_token');
+      localStorage.removeItem('spotify_token_expiry');
+      return null;
     } finally {
       isRefreshingRef.current = false;
       setIsRefreshing(false);
@@ -90,48 +91,51 @@ export function useSpotifyTokenRefresh(initialToken, onTokenRefreshed) {
   };
 
   /**
-   * Vérifie si le token doit être rafraîchi
-   * Rafraîchit 5 minutes avant l'expiration
+   * Vérifie si le token doit être rafraîchi (5 min avant expiration)
    */
   const checkAndRefreshToken = () => {
-    const tokenExpiry = sessionStorage.getItem('spotify_token_expiry');
+    const tokenExpiry = localStorage.getItem('spotify_token_expiry');
 
-    if (!tokenExpiry) {
-      console.log('⚠️ Pas d\'expiration de token trouvée');
-      return;
-    }
+    if (!tokenExpiry) return;
 
     const now = Date.now();
-    const expiry = parseInt(tokenExpiry);
+    const expiry = parseInt(tokenExpiry, 10);
     const timeUntilExpiry = expiry - now;
-    const minutesUntilExpiry = Math.floor(timeUntilExpiry / 1000 / 60);
-
-    console.log(`⏱️ Token expire dans ${minutesUntilExpiry} minutes`);
 
     // Rafraîchir 5 minutes avant l'expiration
     if (timeUntilExpiry < 5 * 60 * 1000 && timeUntilExpiry > 0) {
-      console.log('🔄 Token expire bientôt, rafraîchissement...');
+      console.log('[SpotifyRefresh] Token expire bientôt, refresh...');
       refreshToken();
     }
   };
 
+  // Bootstrap : si le token initial est null mais qu'un refresh_token existe, tenter un refresh immédiat
+  useEffect(() => {
+    if (hasBootstrappedRef.current) return;
+    hasBootstrappedRef.current = true;
+
+    if (!initialToken) {
+      const hasRefresh = !!localStorage.getItem('spotify_refresh_token');
+      if (hasRefresh) {
+        console.log('[SpotifyRefresh] Pas de token initial mais refresh_token disponible, bootstrap...');
+        refreshToken();
+      }
+    }
+  }, []);
+
+  // Surveillance périodique : vérifier toutes les minutes si le token doit être rafraîchi
   useEffect(() => {
     if (!token) return;
 
-    // Vérifier immédiatement si le token doit être rafraîchi
+    // Vérifier immédiatement
     checkAndRefreshToken();
 
     // Vérifier toutes les minutes
-    refreshIntervalRef.current = setInterval(() => {
-      checkAndRefreshToken();
-    }, 60 * 1000); // 1 minute
-
-    console.log('✅ Surveillance du token Spotify activée (vérification toutes les minutes)');
+    refreshIntervalRef.current = setInterval(checkAndRefreshToken, 60 * 1000);
 
     return () => {
       if (refreshIntervalRef.current) {
         clearInterval(refreshIntervalRef.current);
-        console.log('🛑 Surveillance du token Spotify arrêtée');
       }
     };
   }, [token]);
@@ -140,6 +144,6 @@ export function useSpotifyTokenRefresh(initialToken, onTokenRefreshed) {
     token,
     isRefreshing,
     error,
-    refreshToken: refreshToken // Exposer la fonction pour refresh manuel si besoin
+    refreshToken
   };
 }

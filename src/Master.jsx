@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { database, auth } from './firebase';
 import { ref, onValue, set, update, remove } from 'firebase/database';
 import { spotifyService } from './spotifyService';
@@ -6,6 +6,7 @@ import { n8nService } from './n8nService';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { QRCodeSVG } from 'qrcode.react';
 import { deactivatePreviousSession } from './utils/sessionCleanup';
+import { getSessionCode } from './utils/sessionUtils';
 
 // Import des hooks
 import { useGameSession } from './hooks/useGameSession';
@@ -46,7 +47,18 @@ export default function Master({
   // États d'authentification et session
   const [user, setUser] = useState(null);
   const [sessionId, setSessionId] = useState(initialSessionId);
-  const [musicSource, setMusicSource] = useState(initialMusicSource); // 'mp3' | 'spotify-auto' | 'spotify-ai'
+
+  // Initialisation robuste de musicSource (fallback sur gameMode si nécessaire)
+  const [musicSource, setMusicSource] = useState(() => {
+    if (initialMusicSource) return initialMusicSource;
+    if (initialGameMode) {
+      if (initialGameMode.startsWith('spotify-auto')) return 'spotify-auto';
+      if (initialGameMode.startsWith('spotify-ai')) return 'spotify-ai';
+      if (initialGameMode.startsWith('mp3')) return 'mp3';
+    }
+    return null;
+  });
+
   const [playMode, setPlayMode] = useState(initialPlayMode); // 'team' | 'quiz'
   const [gameMode, setGameMode] = useState(initialGameMode); // Combinaison
 
@@ -68,7 +80,10 @@ export default function Master({
   const [buzzStats, setBuzzStats] = useState([]);
 
   // États Spotify
-  const [playerAdapter, setPlayerAdapter] = useState(null);
+  const [isPlayerInitializing, setIsPlayerInitializing] = useState(false);
+
+  // État d'attente du token Spotify lors d'une reprise
+  const [waitingForSpotifyToken, setWaitingForSpotifyToken] = useState(false);
 
   // États préférences joueurs (mode Spotify IA)
   const [playersPreferences, setPlayersPreferences] = useState([]);
@@ -82,7 +97,7 @@ export default function Master({
   // Déterminer le token initial
   const getInitialToken = () => {
     if (initialSpotifyToken) return initialSpotifyToken;
-    return sessionStorage.getItem('spotify_access_token');
+    return localStorage.getItem('spotify_access_token');
   };
 
   // Hook de rafraîchissement automatique du token Spotify
@@ -119,13 +134,78 @@ export default function Master({
     canNavigatePrev
   } = usePlaylist(initialPlaylist);
 
+  // Hooks spécifiques par mode
+  const mp3Mode = useMP3Mode(playlist, setPlaylist, sessionId);
+
+  const spotifyAutoMode = useSpotifyAutoMode(spotifyToken, sessionId);
+
+  const spotifyAIMode = useSpotifyAIMode(spotifyToken, sessionId, musicSource);
+
+  const quizMode = useQuizMode(sessionId, currentTrack, playlist, currentChronoRef);
+
+  // Créer le player adapter avec useMemo pour garantir la synchronisation
+  // IMPORTANT: Doit être défini AVANT useBuzzer qui l'utilise comme dépendance
+  const playerAdapter = useMemo(() => {
+    try {
+      console.log('🎧 [Master] Tentative création PlayerAdapter pour:', musicSource);
+
+      if (musicSource === 'mp3') {
+        if (!mp3Mode || !mp3Mode.audioRef) {
+          console.warn('⚠️ [Master] mp3Mode ou audioRef manquant');
+          return null;
+        }
+        return createPlayerAdapter('mp3', { audioRef: mp3Mode.audioRef });
+      }
+
+      if (musicSource === 'spotify-auto') {
+        if (!spotifyToken) {
+          console.log('⏳ [Master] Attente token Spotify');
+          return null;
+        }
+        if (!spotifyAutoMode || !spotifyAutoMode.spotifyDeviceId) {
+           console.log('⏳ [Master] Attente deviceId Spotify Auto');
+           return null;
+        }
+        console.log('🎧 [Master] Création PlayerAdapter Spotify Auto', { deviceId: spotifyAutoMode.spotifyDeviceId });
+        return createPlayerAdapter('spotify-auto', {
+          token: spotifyToken,
+          deviceId: spotifyAutoMode.spotifyDeviceId,
+          player: spotifyAutoMode.spotifyPlayer
+        });
+      }
+
+      if (musicSource === 'spotify-ai') {
+        if (!spotifyToken) {
+          console.log('⏳ [Master] Attente token Spotify');
+          return null;
+        }
+        if (!spotifyAIMode || !spotifyAIMode.spotifyDeviceId) {
+           console.log('⏳ [Master] Attente deviceId Spotify IA');
+           return null;
+        }
+        console.log('🎧 [Master] Création PlayerAdapter Spotify IA', { deviceId: spotifyAIMode.spotifyDeviceId });
+        return createPlayerAdapter('spotify-ai', {
+          token: spotifyToken,
+          deviceId: spotifyAIMode.spotifyDeviceId,
+          player: spotifyAIMode.spotifyPlayer
+        });
+      }
+
+      return null;
+    } catch (error) {
+      console.error("❌ Erreur création player adapter:", error);
+      return null;
+    }
+  }, [musicSource, spotifyToken, spotifyAutoMode.spotifyDeviceId, spotifyAutoMode.spotifyPlayer, spotifyAIMode.spotifyDeviceId, spotifyAIMode.spotifyPlayer, mp3Mode.audioRef]);
+
   const {
     buzzedTeam,
     buzzedPlayerKey,
     buzzedPlayerName,
     buzzedPlayerPhoto,
     setBuzzedTeam,
-    clearBuzz
+    clearBuzz,
+    unlockAudioContext
   } = useBuzzer(sessionId, isPlaying, currentTrack, playlist, currentChronoRef, updateIsPlaying, playerAdapter);
 
   const {
@@ -137,15 +217,6 @@ export default function Master({
     threshold: cooldownThreshold,
     duration: cooldownDuration
   });
-
-  // Hooks spécifiques par mode
-  const mp3Mode = useMP3Mode(playlist, setPlaylist, sessionId);
-
-  const spotifyAutoMode = useSpotifyAutoMode(spotifyToken, sessionId);
-
-  const spotifyAIMode = useSpotifyAIMode(spotifyToken, sessionId, musicSource);
-
-  const quizMode = useQuizMode(sessionId, currentTrack, playlist, currentChronoRef);
 
   // Gestion de l'authentification
   useEffect(() => {
@@ -162,22 +233,105 @@ export default function Master({
     }
   }, [sessionId]);
 
+  // Ref pour empêcher le double chargement de la playlist lors de la reprise
+  const hasLoadedPlaylistRef = useRef(false);
+
   // Charger les données de la session
+  // Gère à la fois l'ancien flux (MasterWizard) et le nouveau flux (MasterFlowContainer) en mode "Resume"
+  // Dépendances réduites : seuls user et spotifyToken sont réactifs (les props initiales ne changent pas)
   useEffect(() => {
     if (!user || !initialSessionId) return;
 
+    // 1. Cas "Nouveau Flux" avec Playlist déjà chargée
+    if (initialPlaylist && initialPlaylist.length > 0) {
+      console.log('✅ [MASTER] Nouveau flux détecté (MasterFlowContainer) - Playlist fournie');
+      return;
+    }
+
+    // 2. Cas "Nouveau Flux" en mode Reprise (Resume) sans playlist
+    // On a l'ID de la playlist via les props, mais pas le contenu
+    if (initialPlaylistId) {
+      if (!spotifyToken) {
+        console.log('⏳ [MASTER] Attente du token Spotify pour recharger la playlist...');
+        setWaitingForSpotifyToken(true);
+        return;
+      }
+
+      // Empêcher le double chargement si le token change après le premier chargement réussi
+      if (hasLoadedPlaylistRef.current) {
+        console.log('ℹ️ [MASTER] Playlist déjà chargée, skip');
+        return;
+      }
+
+      hasLoadedPlaylistRef.current = true;
+      setWaitingForSpotifyToken(false);
+      console.log('📥 [MASTER] Rechargement playlist depuis Spotify...', { musicSource, initialPlaylistId });
+
+      // Logique de chargement
+      const attemptLoadSpotify = () => {
+        if (spotifyService && typeof spotifyService.getPlaylistTracks === 'function') {
+          console.log('🔄 [MASTER] Tentative chargement Spotify standard...');
+          spotifyService.getPlaylistTracks(spotifyToken, initialPlaylistId)
+            .then(tracks => {
+              if (Array.isArray(tracks)) {
+                setPlaylist(tracks);
+                console.log('✅ [MASTER] Playlist rechargée:', tracks.length);
+              } else {
+                hasLoadedPlaylistRef.current = false; // Permettre un retry
+              }
+            })
+            .catch(err => {
+              console.error('❌ [MASTER] Erreur rechargement:', err);
+              hasLoadedPlaylistRef.current = false; // Permettre un retry
+            });
+        }
+      };
+
+      if (musicSource === 'spotify-ai') {
+        spotifyAIMode.loadPlaylistById(initialPlaylistId, setPlaylist)
+          .then(tracks => console.log('✅ [MASTER] Playlist Spotify AI rechargée:', tracks?.length))
+          .catch(err => {
+            console.error('❌ [MASTER] Erreur rechargement playlist AI:', err);
+            hasLoadedPlaylistRef.current = false; // Permettre un retry
+          });
+      } else if (musicSource === 'spotify-auto') {
+        attemptLoadSpotify();
+      } else {
+        console.warn(`⚠️ [MASTER] Mode "${musicSource}" détecté avec playlistId. Tentative fallback Spotify...`);
+        attemptLoadSpotify();
+      }
+      return;
+    }
+
+    // 3. Cas "Ancien Flux" (MasterWizard) - Fallback complet sur Firebase
+    if (hasLoadedPlaylistRef.current) return;
+    hasLoadedPlaylistRef.current = true;
+
+    console.log('⚠️ [MASTER] Ancien flux détecté (MasterWizard) - Chargement depuis Firebase');
     const sessionRef = ref(database, `sessions/${initialSessionId}`);
     onValue(sessionRef, (snapshot) => {
       const sessionData = snapshot.val();
       if (sessionData && sessionData.active !== false) {
-        // Charger les modes
-        setMusicSource(sessionData.musicSource || sessionData.gameMode?.split('-')[0] || 'mp3');
-        setPlayMode(sessionData.playMode || sessionData.gameMode?.split('-')[1] || 'team');
+        // Charger les modes uniquement si non définis
+        if (!musicSource) setMusicSource(sessionData.musicSource || sessionData.gameMode?.split('-')[0] || 'mp3');
+        if (!playMode) setPlayMode(sessionData.playMode || sessionData.gameMode?.split('-')[1] || 'team');
 
         // Charger la playlist si Spotify
         if (sessionData.playlistId && spotifyToken) {
           if (sessionData.musicSource === 'spotify-ai') {
             spotifyAIMode.loadPlaylistById(sessionData.playlistId, setPlaylist);
+          } else if (sessionData.musicSource === 'spotify-auto') {
+            console.log('🔄 [MASTER] Rechargement playlist Spotify Auto:', sessionData.playlistId);
+            if (spotifyService && typeof spotifyService.getPlaylistTracks === 'function') {
+              spotifyService.getPlaylistTracks(spotifyToken, sessionData.playlistId)
+                .then(tracks => {
+                  if (Array.isArray(tracks)) {
+                    setPlaylist(tracks);
+                    console.log('✅ [MASTER] Playlist Spotify Auto rechargée:', tracks.length);
+                  }
+                })
+                .catch(err => console.error('❌ [MASTER] Erreur rechargement playlist Auto:', err));
+            }
           }
         }
       }
@@ -185,12 +339,37 @@ export default function Master({
   }, [initialSessionId, user, spotifyToken]);
 
   // Synchroniser la playlist du mode Spotify IA avec la playlist globale
+  // ⚠️ UNIQUEMENT pour le flux ANCIEN (MasterWizard)
+  // Le nouveau flux (MasterFlowContainer) passe déjà la playlist complète via initialPlaylist
   useEffect(() => {
-    if (musicSource === 'spotify-ai' && spotifyAIMode.playlist && spotifyAIMode.playlist.length > 0) {
+    // ✅ Si initialPlaylist est fourni, on utilise le NOUVEAU flux (MasterFlowContainer)
+    // → Skip ce hook car la playlist est déjà fournie
+    if (initialPlaylist && initialPlaylist.length > 0) {
+      return;
+    }
+
+    // ❌ Ancien flux (MasterWizard) : synchroniser depuis spotifyAIMode
+    if (musicSource === 'spotify-ai' &&
+        spotifyAIMode.playlist &&
+        spotifyAIMode.playlist.length > 0 &&
+        playlist.length === 0) {
       console.log('🔄 [MASTER] Synchronisation de la playlist Spotify IA:', spotifyAIMode.playlist.length, 'chansons');
       setPlaylist(spotifyAIMode.playlist);
     }
-  }, [musicSource, spotifyAIMode.playlist]);
+  }, [musicSource, spotifyAIMode.playlist, playlist.length]);
+
+  // ✅ Initialiser songDuration dans Firebase pour le NOUVEAU flux (MasterFlowContainer)
+  // Quand initialPlaylist est fourni, écrire la durée de la première chanson
+  useEffect(() => {
+    if (!sessionId || !initialPlaylist || initialPlaylist.length === 0) return;
+    if (playlist.length === 0) return; // Attendre que la playlist soit chargée
+
+    // Écrire la durée de la première chanson dans Firebase
+    const firstDuration = playlist[0]?.duration || 30;
+    const durationRef = ref(database, `sessions/${sessionId}/songDuration`);
+    set(durationRef, firstDuration);
+    console.log(`✅ [MASTER] Durée initiale écrite dans Firebase: ${firstDuration}s`);
+  }, [sessionId, initialPlaylist, playlist.length]);
 
   // Synchroniser l'état showQRCode avec Firebase
   useEffect(() => {
@@ -230,28 +409,6 @@ export default function Master({
 
     return () => unsubscribe();
   }, [sessionId, musicSource]);
-
-  // Créer le player adapter selon le mode
-  useEffect(() => {
-    if (musicSource === 'mp3') {
-      const adapter = createPlayerAdapter('mp3', { audioRef: mp3Mode.audioRef });
-      setPlayerAdapter(adapter);
-    } else if (musicSource === 'spotify-auto' && spotifyAutoMode.spotifyDeviceId) {
-      const adapter = createPlayerAdapter('spotify-auto', {
-        token: spotifyToken,
-        deviceId: spotifyAutoMode.spotifyDeviceId,
-        player: spotifyAutoMode.spotifyPlayer
-      });
-      setPlayerAdapter(adapter);
-    } else if (musicSource === 'spotify-ai' && spotifyAIMode.spotifyDeviceId) {
-      const adapter = createPlayerAdapter('spotify-ai', {
-        token: spotifyToken,
-        deviceId: spotifyAIMode.spotifyDeviceId,
-        player: spotifyAIMode.spotifyPlayer
-      });
-      setPlayerAdapter(adapter);
-    }
-  }, [musicSource, spotifyToken, spotifyAutoMode.spotifyDeviceId, spotifyAIMode.spotifyDeviceId]);
 
   // Vérifier si les questions Quiz sont déjà générées au chargement
   useEffect(() => {
@@ -391,7 +548,49 @@ export default function Master({
     return () => unsubscribe();
   }, [sessionId]);
 
+  // Initialisation forcée du player Spotify dès que possible
+  useEffect(() => {
+    if (spotifyToken) {
+      if (musicSource === 'spotify-ai') {
+        spotifyAIMode.initSpotifyPlayer();
+      } else if (musicSource === 'spotify-auto') {
+        spotifyAutoMode.initSpotifyPlayer();
+      }
+    }
+  }, [musicSource, spotifyToken]);
+
   // === ACTIONS ===
+
+  // Écouter le statut de la playlist dans Firebase pour déclencher la suite automatiquement
+  useEffect(() => {
+    if (!initialPlaylistId || testMode) return;
+
+    const playlistRef = ref(database, `playlists/${initialPlaylistId}`);
+    const unsubscribe = onValue(playlistRef, async (snapshot) => {
+      const data = snapshot.val();
+      if (data && data.status === 'playlist_ready') {
+        console.log('🎉 Playlist prête détectée via Firebase !', data);
+
+        // Si nous sommes en mode Quiz et que les questions ne sont pas encore prêtes
+        // ET que nous ne sommes pas déjà en train de les générer
+        if (playMode === 'quiz' && !quizQuestionsReady && !isGeneratingQuizQuestions) {
+          console.log('🚀 Déclenchement automatique de la génération des questions Quiz...');
+
+          // Recharger d'abord la playlist pour être sûr d'avoir les dernières données
+          let tracks = [];
+          if (spotifyAIMode.loadPlaylistById) {
+            tracks = await spotifyAIMode.loadPlaylistById(initialPlaylistId, setPlaylist);
+          }
+
+          // Puis générer les questions
+          // On passe tracks explicitement pour éviter les problèmes de state asynchrone
+          handleGenerateQuizQuestions(tracks);
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [initialPlaylistId, playMode, quizQuestionsReady, isGeneratingQuizQuestions, testMode, spotifyAIMode]);
 
   const handleGeneratePlaylistWithAllPreferences = async () => {
     if (!initialPlaylistId || playersPreferences.length === 0) {
@@ -436,8 +635,9 @@ export default function Master({
             spotifyUri: song.uri,
             title: song.title,
             artist: song.artist,
-            imageUrl: 'https://via.placeholder.com/300?text=Test+Mode', // Image placeholder pour le mode test
-            durationMs: 180000, // 3 minutes par défaut
+            imageUrl: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Crect width='300' height='300' fill='%23312e81'/%3E%3Ctext x='150' y='140' text-anchor='middle' fill='%23fbbf24' font-size='80'%3E%F0%9F%8E%B5%3C/text%3E%3Ctext x='150' y='200' text-anchor='middle' fill='white' font-size='24' font-family='sans-serif'%3ETest Mode%3C/text%3E%3C/svg%3E",
+            duration: 180, // 3 minutes en secondes (utilisé pour le calcul des points)
+            durationMs: 180000, // 3 minutes en millisecondes (pour compatibilité)
             previewUrl: null
           }));
 
@@ -460,13 +660,13 @@ export default function Master({
       return; // Skip le polling Spotify
     }
 
-    // Mode Production : Polling Spotify normal
+    // Mode Production : Polling Spotify normal (gardé comme fallback si Firebase ne répond pas)
     generatePlaylistPromise
       .then(result => {
         console.log('✅ Playlist générée (en arrière-plan):', result);
         console.log(`   🎵 ${result.totalSongs} chansons ajoutées pour ${result.totalPlayers || players.length} joueurs`);
         if (playMode === 'quiz') {
-          console.log('   ℹ️ Utilisez le bouton "Générer les questions" pour créer les wrongAnswers');
+          console.log('   ℹ️ La génération des questions suivra automatiquement une fois la playlist prête');
         }
       })
       .catch(error => {
@@ -481,7 +681,7 @@ export default function Master({
     setPlaylistPollAttempt(0);
     // On garde isGeneratingPlaylist à true pendant le polling
 
-    // ⏰ Polling automatique pour recharger la playlist
+    // ⏰ Polling automatique pour recharger la playlist (Fallback)
     // S'arrête automatiquement quand des chansons sont détectées
     let pollAttempts = 0;
     const maxPollAttempts = 10; // 10 tentatives = 2min30
@@ -491,6 +691,16 @@ export default function Master({
       pollAttempts++;
       setPlaylistPollAttempt(pollAttempts);
       console.log(`🔄 Tentative ${pollAttempts}/${maxPollAttempts} de rechargement de la playlist...`);
+
+      // 🔥 IMPORTANT : Vérifier d'abord si on a atteint le max AVANT de faire quoi que ce soit
+      if (pollAttempts > maxPollAttempts) {
+        console.log('⏱️ Arrêt du polling : nombre max de tentatives dépassé');
+        setDebugInfo('⏱️ Génération terminée ou timeout. Rafraîchissez manuellement si la playlist est vide.');
+        setIsGeneratingPlaylist(false);
+        setPlaylistPollAttempt(0);
+        clearInterval(pollPlaylist);
+        return;
+      }
 
       try {
         const tracks = await spotifyAIMode.loadPlaylistById(initialPlaylistId, setPlaylist);
@@ -504,14 +714,18 @@ export default function Master({
           clearInterval(pollPlaylist);
         } else if (pollAttempts >= maxPollAttempts) {
           console.log('⏱️ Arrêt du polling : nombre max de tentatives atteint');
-          setDebugInfo('⏱️ Génération en cours... Rafraîchissez manuellement si besoin');
+          setDebugInfo('⏱️ Génération terminée ou timeout. Rafraîchissez manuellement si la playlist est vide.');
           setIsGeneratingPlaylist(false);
           setPlaylistPollAttempt(0);
           clearInterval(pollPlaylist);
+        } else {
+          console.log(`⏳ Playlist encore vide, nouvelle tentative dans ${pollInterval / 1000}s...`);
         }
       } catch (error) {
         console.error('❌ Erreur lors du rechargement:', error);
         if (pollAttempts >= maxPollAttempts) {
+          console.log('⏱️ Arrêt du polling après erreur : nombre max de tentatives atteint');
+          setDebugInfo('⏱️ Erreur lors du rechargement. Rafraîchissez manuellement.');
           setIsGeneratingPlaylist(false);
           setPlaylistPollAttempt(0);
           clearInterval(pollPlaylist);
@@ -617,6 +831,11 @@ export default function Master({
         }
       }
 
+      // 🧹 Réinitialiser le classement avant de stocker les nouvelles données
+      console.log('🧹 Réinitialisation du classement...');
+      setDebugInfo('🧹 Réinitialisation du classement...');
+      await quizMode.resetLeaderboard();
+
       console.log('🎯 Stockage des données Quiz dans Firebase...');
       setDebugInfo('💾 Stockage dans Firebase...');
       await quizMode.storeQuizData(allWrongAnswers);
@@ -648,8 +867,13 @@ export default function Master({
 
     // Si en mode Spotify et player/deviceId manquant, tenter réinitialisation
     if ((musicSource === 'spotify-auto' || musicSource === 'spotify-ai') && !playerAdapter) {
+      if (isPlayerInitializing) {
+        setDebugInfo('⏳ Initialisation du player en cours...');
+        return;
+      }
+
       console.log('⚠️ Player non initialisé, tentative de réinitialisation...');
-      setDebugInfo('⏳ Initialisation du player Spotify...');
+      setDebugInfo('⏳ Initialisation du player Spotify en cours... Veuillez patienter et réessayer.');
 
       try {
         // Réinitialiser le player selon le mode
@@ -659,34 +883,27 @@ export default function Master({
           await spotifyAIMode.initSpotifyPlayer();
         }
 
-        // Attendre que le playerAdapter soit créé (max 5 secondes)
-        const startTime = Date.now();
-        while (!playerAdapter && (Date.now() - startTime) < 5000) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-
-        if (!playerAdapter) {
-          setDebugInfo('❌ Impossible d\'initialiser le player Spotify. Rafraîchissez la page et reconnectez-vous.');
-          updateIsPlaying(false);
-          return;
-        }
-
-        setDebugInfo('✅ Player Spotify initialisé');
-      } catch (error) {
-        console.error('❌ Erreur initialisation player:', error);
-        setDebugInfo('❌ Erreur initialisation Spotify. Rafraîchissez la page et reconnectez-vous.');
+        // On ne bloque pas l'UI, on informe juste l'utilisateur
         updateIsPlaying(false);
         return;
+      } catch (error) {
+        console.error('❌ Erreur initialisation player:', error);
+        setDebugInfo('❌ Erreur initialisation Spotify. Rafraîchissez la page.');
+        updateIsPlaying(false);
       }
+      return;
     }
 
     if (!playerAdapter) {
-      setDebugInfo('❌ Player non initialisé');
+      setDebugInfo('❌ Player non initialisé. Veuillez patienter...');
       return;
     }
 
     try {
       if (!isPlaying) {
+        // Débloquer l'audio du buzzer sur interaction utilisateur
+        unlockAudioContext();
+
         // Activer les cooldowns en attente
         await activatePendingCooldowns();
 
@@ -874,6 +1091,20 @@ export default function Master({
   };
 
   const revealAnswer = async () => {
+    // Arrêter la lecture (commun aux deux modes)
+    updateIsPlaying(false);
+    if (playerAdapter) {
+      await playerAdapter.pause();
+    }
+
+    // Mode Quiz : utiliser la logique spécifique
+    if (playMode === 'quiz') {
+      quizMode.revealQuizAnswer();
+      setDebugInfo('✅ Réponse révélée (Quiz)');
+      return;
+    }
+
+    // Mode Team (Logique existante)
     // Marquer le buzz comme incorrect
     await markBuzzAsWrong();
 
@@ -895,12 +1126,6 @@ export default function Master({
     revealTrack(currentTrack);
     setBuzzedTeam(null);
     clearBuzz();
-
-    // Arrêter la lecture
-    updateIsPlaying(false);
-    if (playerAdapter) {
-      await playerAdapter.pause();
-    }
 
     // ✅ currentTrack commence à 1, donc accès tableau avec currentTrack - 1
     updateCurrentSong({
@@ -998,6 +1223,11 @@ export default function Master({
   };
 
   const handleLogout = async () => {
+    // Nettoyer les tokens Spotify
+    localStorage.removeItem('spotify_access_token');
+    localStorage.removeItem('spotify_refresh_token');
+    localStorage.removeItem('spotify_token_expiry');
+
     await signOut(auth);
     setSessionId(null);
   };
@@ -1024,6 +1254,12 @@ export default function Master({
   if (!user) {
     return <Login onLoginSuccess={() => {}} />;
   }
+
+  // Si on a un ID de playlist mais pas encore de tracks, on affiche un chargement
+  // Modifié pour être moins restrictif : si on a une session ID et qu'on n'est pas en MP3, on attend probablement une playlist
+  // Mais si playMode est 'team' et qu'on n'a pas de playlistId explicite (possible bug de persistance), on évite le blocage
+  const isLoadingPlaylist = (initialPlaylistId && playlist.length === 0) ||
+                            (sessionId && musicSource !== 'mp3' && playlist.length === 0 && (musicSource === 'spotify-ai' ? playersPreferences.length > 0 : true));
 
   // ✅ currentTrack commence à 1, donc accès tableau avec currentTrack - 1
   const currentSong = playlist[currentTrack - 1];
@@ -1187,6 +1423,52 @@ export default function Master({
         </div>
       </header>
 
+      {/* Message d'erreur Player Spotify */}
+      {(musicSource === 'spotify-auto' || musicSource === 'spotify-ai') && !playerAdapter && !isPlayerInitializing && (
+        <div style={{
+          backgroundColor: 'rgba(239, 68, 68, 0.9)',
+          color: 'white',
+          padding: '0.75rem',
+          textAlign: 'center',
+          fontWeight: 'bold',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: '1rem',
+          zIndex: 99
+        }}>
+          ⚠️ Le lecteur Spotify n'est pas connecté.
+          <button
+            onClick={async () => {
+              setIsPlayerInitializing(true);
+              try {
+                if (musicSource === 'spotify-auto') await spotifyAutoMode.initSpotifyPlayer();
+                else if (musicSource === 'spotify-ai') await spotifyAIMode.initSpotifyPlayer();
+              } catch (e) {
+                console.error('❌ Erreur lors de la reconnexion manuelle:', e);
+                // On garde l'état initializing false pour réafficher le message d'erreur
+              } finally {
+                // On attend un peu plus longtemps pour laisser le temps au playerAdapter de se mettre à jour
+                // Si la connexion réussit, playerAdapter sera recréé et ce bloc disparaitra
+                // Si elle échoue, le message réapparaitra
+                setTimeout(() => setIsPlayerInitializing(false), 5000);
+              }
+            }}
+            style={{
+              padding: '0.25rem 0.75rem',
+              backgroundColor: 'white',
+              color: '#ef4444',
+              border: 'none',
+              borderRadius: '0.25rem',
+              cursor: 'pointer',
+              fontWeight: 'bold'
+            }}
+          >
+            Reconnecter
+          </button>
+        </div>
+      )}
+
       {/* MAIN LAYOUT */}
       <div style={{
         display: 'flex',
@@ -1238,6 +1520,7 @@ export default function Master({
             </button>
           )}
 
+          {/* Section Préférences des joueurs (Toujours visible en mode Spotify AI) */}
           {musicSource === 'spotify-ai' && playersPreferences.length > 0 && (
             <div style={{
               marginBottom: '1rem',
@@ -1284,54 +1567,52 @@ export default function Master({
                   </div>
                 ))}
               </div>
-              <button
-                onClick={handleGeneratePlaylistWithAllPreferences}
-                disabled={isGeneratingPlaylist}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  backgroundColor: isGeneratingPlaylist ? 'rgba(156, 163, 175, 0.3)' : 'rgba(16, 185, 129, 0.3)',
-                  border: isGeneratingPlaylist ? '1px solid #9ca3af' : '1px solid #10b981',
-                  borderRadius: '0.5rem',
-                  color: 'white',
-                  cursor: isGeneratingPlaylist ? 'not-allowed' : 'pointer',
-                  fontWeight: '500'
-                }}
-              >
-                {isGeneratingPlaylist
-                  ? `⏳ Génération en cours... ${playlistPollAttempt > 0 ? `(vérification ${playlistPollAttempt}/10)` : ''}`
-                  : '🎵 Générer la playlist'
-                }
-              </button>
 
-              {/* Bouton Générer les questions Quiz (uniquement en mode Quiz) */}
-              {playMode === 'quiz' && !isGeneratingPlaylist && playlist.length > 0 && (
+              {/* Bouton Générer Playlist - Visible uniquement si pas de playlist */}
+              {!(initialPlaylist && initialPlaylist.length > 0) && playlist.length === 0 && (
+                <button
+                  onClick={handleGeneratePlaylistWithAllPreferences}
+                  disabled={isGeneratingPlaylist}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    backgroundColor: isGeneratingPlaylist ? 'rgba(156, 163, 175, 0.3)' : 'rgba(16, 185, 129, 0.3)',
+                    border: isGeneratingPlaylist ? '1px solid #9ca3af' : '1px solid #10b981',
+                    borderRadius: '0.5rem',
+                    color: 'white',
+                    cursor: isGeneratingPlaylist ? 'not-allowed' : 'pointer',
+                    fontWeight: '500'
+                  }}
+                >
+                  {isGeneratingPlaylist
+                    ? `⏳ Génération en cours... ${playlistPollAttempt > 0 ? `(vérification ${playlistPollAttempt}/10)` : ''}`
+                    : '🎵 Générer la playlist'
+                  }
+                </button>
+              )}
+
+              {/* Bouton Générer les questions Quiz (uniquement en mode Quiz et si pas encore prêtes) */}
+              {playMode === 'quiz' && !isGeneratingPlaylist && playlist.length > 0 && !quizQuestionsReady && (
                 <button
                   onClick={handleGenerateQuizQuestions}
-                  disabled={isGeneratingQuizQuestions || quizQuestionsReady}
+                  disabled={isGeneratingQuizQuestions}
                   style={{
                     width: '100%',
                     padding: '0.75rem',
                     marginTop: '0.75rem',
-                    backgroundColor: quizQuestionsReady
-                      ? 'rgba(16, 185, 129, 0.3)'
-                      : isGeneratingQuizQuestions
+                    backgroundColor: isGeneratingQuizQuestions
                         ? 'rgba(156, 163, 175, 0.3)'
                         : 'rgba(251, 191, 36, 0.3)',
-                    border: quizQuestionsReady
-                      ? '1px solid #10b981'
-                      : isGeneratingQuizQuestions
+                    border: isGeneratingQuizQuestions
                         ? '1px solid #9ca3af'
                         : '1px solid #fbbf24',
                     borderRadius: '0.5rem',
                     color: 'white',
-                    cursor: (isGeneratingQuizQuestions || quizQuestionsReady) ? 'not-allowed' : 'pointer',
+                    cursor: isGeneratingQuizQuestions ? 'not-allowed' : 'pointer',
                     fontWeight: '500'
                   }}
                 >
-                  {quizQuestionsReady
-                    ? '✅ Questions prêtes !'
-                    : isGeneratingQuizQuestions
+                  {isGeneratingQuizQuestions
                       ? '🎲 Génération des questions...'
                       : '🎲 Générer les questions Quiz'
                   }
@@ -1426,8 +1707,54 @@ export default function Master({
           overflowY: 'auto',
           padding: '2rem'
         }}>
-          {playlist.length > 0 ? (
+          {isLoadingPlaylist ? (
+            <div style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexDirection: 'column',
+              gap: '1rem'
+            }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                border: '4px solid rgba(255, 255, 255, 0.3)',
+                borderTopColor: 'white',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+              }} />
+              <div style={{ opacity: 0.8 }}>
+                {waitingForSpotifyToken
+                  ? 'Reconnexion Spotify en cours...'
+                  : 'Chargement de la playlist...'}
+              </div>
+              <style>{`
+                @keyframes spin {
+                  from { transform: rotate(0deg); }
+                  to { transform: rotate(360deg); }
+                }
+              `}</style>
+            </div>
+          ) : playlist.length > 0 ? (
             <>
+              {/* Player Controls - Placé en haut selon demande Admin Screen */}
+              <PlayerControls
+                currentTrack={currentTrack}
+                playlistLength={playlist.length}
+                isPlaying={isPlaying}
+                currentSong={currentSong}
+                currentTrackData={playlist[currentTrack - 1]}
+                currentChrono={currentChrono}
+                availablePoints={availablePoints}
+                songDuration={songDuration}
+                isSpotifyMode={musicSource !== 'mp3'}
+                onPrev={prevTrack}
+                onTogglePlay={togglePlay}
+                onNext={nextTrack}
+                onReveal={revealAnswer}
+              />
+
               {/* Scores (Mode Équipe uniquement) */}
               {playMode === 'team' && <ScoreDisplay scores={scores} />}
 
@@ -1459,7 +1786,16 @@ export default function Master({
                   allPlayers={allQuizPlayers}
                   isPlaying={isPlaying}
                   currentTrack={currentTrack}
-                  onReveal={quizMode.revealQuizAnswer}
+                  onReveal={async () => {
+                    // Arrêter la musique
+                    if (playerAdapter) {
+                      await playerAdapter.pause();
+                      updateIsPlaying(false);
+                    }
+                    // Révéler la réponse
+                    quizMode.revealQuizAnswer();
+                    setDebugInfo('✅ Réponse révélée (Quiz)');
+                  }}
                   onPause={async () => {
                     if (playerAdapter) {
                       await playerAdapter.pause();
@@ -1470,23 +1806,6 @@ export default function Master({
                   isRevealed={currentSong?.revealed}
                 />
               )}
-
-              {/* Player Controls */}
-              <PlayerControls
-                currentTrack={currentTrack}
-                playlistLength={playlist.length}
-                isPlaying={isPlaying}
-                currentSong={currentSong}
-                currentTrackData={playlist[currentTrack - 1]}
-                currentChrono={currentChrono}
-                availablePoints={availablePoints}
-                songDuration={songDuration}
-                isSpotifyMode={musicSource !== 'mp3'}
-                onPrev={prevTrack}
-                onTogglePlay={togglePlay}
-                onNext={nextTrack}
-                onReveal={revealAnswer}
-              />
 
               {debugInfo && (
                 <div style={{
@@ -1602,7 +1921,7 @@ export default function Master({
                 color: '#fbbf24',
                 textShadow: '0 0 10px rgba(251, 191, 36, 0.3)'
               }}>
-                {sessionId}
+                {getSessionCode(sessionId)}
               </div>
             </div>
 
@@ -1631,7 +1950,7 @@ export default function Master({
             }}>
               <button
                 onClick={() => {
-                  navigator.clipboard.writeText(sessionId);
+                  navigator.clipboard.writeText(getSessionCode(sessionId));
                   setDebugInfo('✅ Code copié !');
                 }}
                 style={{

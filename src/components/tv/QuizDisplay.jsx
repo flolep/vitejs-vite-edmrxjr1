@@ -243,8 +243,8 @@ export function QuizDisplay({
                   {answer.text}
                 </div>
 
-                {/* Photos des joueurs qui ont répondu */}
-                {playersWithPhotos.length > 0 && (
+                {/* Photos des joueurs qui ont répondu — uniquement après révélation */}
+                {revealed && playersWithPhotos.length > 0 && (
                   <div style={{
                     display: 'flex',
                     justifyContent: 'center',

@@ -241,6 +241,40 @@
           "name": "Spotify account"
         }
       }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://blindtestapp-cd177-default-rtdb.europe-west1.firebasedatabase.app/playlists/{{ $node['Parse JSON Body'].json.playlistId }}.json",
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "playlist_ready"
+            },
+            {
+              "name": "totalSongs",
+              "value": "={{ $node['Extract Track URIs'].json.totalFound }}"
+            },
+            {
+              "name": "tracks",
+              "value": "={{ $node['Extract Track URIs'].json.foundSongs }}"
+            },
+            {
+              "name": "updatedAt",
+              "value": "={{ $now }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "firebase-update-playlist",
+      "name": "🔥 Write to Firebase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2064, 16]
     }
   ],
   "connections": {
@@ -344,6 +378,17 @@
       ]
     },
     "Add Songs to Playlist1": {
+      "main": [
+        [
+          {
+            "node": "🔥 Write to Firebase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔥 Write to Firebase": {
       "main": [
         [
           {

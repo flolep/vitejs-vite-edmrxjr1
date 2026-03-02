@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { database } from './firebase';
-import { ref, set, onValue, get } from 'firebase/database';
+import { ref, set, onValue, get, serverTimestamp } from 'firebase/database';
 import { airtableService } from './airtableService';
 import { useBuzzerLocalStorage } from './hooks/buzzer/useBuzzerLocalStorage';
 import { useBuzzerCamera } from './hooks/buzzer/useBuzzerCamera';
 import { useBuzzerSession } from './hooks/buzzer/useBuzzerSession';
+import { calculatePoints } from './hooks/useScoring';
 import { NameScreen } from './components/buzzer/screens/NameScreen';
 import { SelectScreen } from './components/buzzer/screens/SelectScreen';
 import { PhotoScreen } from './components/buzzer/screens/PhotoScreen';
@@ -85,12 +86,12 @@ async function registerPlayerInFirebase(sessionId, player, photoData = null) {
  */
 export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
   // Hooks personnalisés
-  const { sessionId, sessionValid, isLoading, isPlaying } = useBuzzerSession(sessionIdFromRouter);
+  const { sessionId, sessionValid, isLoading, isPlaying, gameStarted } = useBuzzerSession(sessionIdFromRouter);
   const localStorage = useBuzzerLocalStorage();
   const camera = useBuzzerCamera();
 
   // États du flux
-  const [step, setStep] = useState('name'); // 'name' | 'select' | 'photo' | 'preferences' | 'quiz'
+  const [step, setStep] = useState('loading_auto_join'); // Nouveau state initial pour attendre la vérification
   const [error, setError] = useState('');
   const [isSearching, setIsSearching] = useState(false);
 
@@ -109,6 +110,7 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
   const [quizQuestion, setQuizQuestion] = useState(null);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [hasAnswered, setHasAnswered] = useState(false);
+  const [playerAnswerData, setPlayerAnswerData] = useState(null); // Données de réponse du joueur (incluant points)
   const [showStats, setShowStats] = useState(false);
   const [personalStats, setPersonalStats] = useState({
     totalAnswers: 0,
@@ -117,18 +119,85 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
     recognizedSongs: []
   });
 
+  // Mini-classement temps réel (toujours visible)
+  const [liveRank, setLiveRank] = useState(null); // { rank, totalPlayers, totalPoints, correctAnswers }
+
   // État Debug Panel (uniquement visible en mode Test)
   const [showDebug, setShowDebug] = useState(false);
   const isTestMode = window.localStorage.getItem('quizTestMode') === 'true';
 
-  // Initialiser le joueur depuis localStorage au chargement
+  // ========== AUTO-REJOIN LOGIC ==========
+
   useEffect(() => {
-    const savedData = localStorage.load();
-    if (savedData?.playerFirebaseKey) {
-      setPlayerFirebaseKey(savedData.playerFirebaseKey);
-      console.log('🔄 Clé Firebase restaurée depuis localStorage:', savedData.playerFirebaseKey);
+    // Ne rien faire tant que la session n'est pas validée ou si on a déjà passé l'étape de chargement
+    if (!sessionValid || !sessionId) {
+      if (sessionValid === false && !isLoading) {
+        // Session invalide confirmée
+        setStep('name');
+      }
+      return;
     }
-  }, []);
+
+    // Si on est déjà dans une étape autre que le chargement initial, ne rien faire
+    if (step !== 'loading_auto_join' && step !== 'name') return;
+
+    const checkAutoRejoin = async () => {
+      console.log('🔄 [Auto-Rejoin] Vérification du LocalStorage...');
+      const savedData = localStorage.load();
+
+      if (savedData && savedData.playerFirebaseKey) {
+        console.log('🔍 [Auto-Rejoin] Données trouvées, vérification Firebase...', savedData);
+
+        try {
+          // Vérifier que le joueur existe toujours dans la session actuelle
+          // En mode Quiz, tous les joueurs sont dans 'team1'
+          const playerPath = `sessions/${sessionId}/players_session/team1/${savedData.playerFirebaseKey}`;
+          const playerRef = ref(database, playerPath);
+          const snapshot = await get(playerRef);
+
+          if (snapshot.exists()) {
+            console.log('✅ [Auto-Rejoin] Joueur confirmé dans Firebase ! Restauration...');
+
+            // Restaurer les états
+            setPlayerName(savedData.playerName || '');
+            if (savedData.selectedPlayer) setSelectedPlayer(savedData.selectedPlayer);
+            setPlayerFirebaseKey(savedData.playerFirebaseKey);
+
+            // Restaurer préférences si dispos
+            if (savedData.playerAge) setPlayerAge(savedData.playerAge);
+            if (savedData.selectedGenres) setSelectedGenres(savedData.selectedGenres);
+            if (savedData.specialPhrase) setSpecialPhrase(savedData.specialPhrase);
+
+            // Aller directement au jeu
+            setStep('quiz');
+          } else {
+            console.warn('⚠️ [Auto-Rejoin] Joueur non trouvé dans Firebase (supprimé ?). Nettoyage LocalStorage.');
+            localStorage.clear();
+            setStep('name');
+          }
+        } catch (err) {
+          console.error('❌ [Auto-Rejoin] Erreur vérification Firebase:', err);
+          // En cas d'erreur, par sécurité on demande de se reconnecter
+          setStep('name');
+        }
+      } else {
+        console.log('ℹ️ [Auto-Rejoin] Aucune donnée valide trouvée.');
+        setStep('name');
+      }
+    };
+
+    checkAutoRejoin();
+  }, [sessionId, sessionValid]); // Exécuter quand la session devient valide
+
+  const handleQuitGame = () => {
+    if (confirm('Voulez-vous vraiment quitter la partie et changer de joueur ?')) {
+      localStorage.clear();
+      setPlayerName('');
+      setSelectedPlayer(null);
+      setPlayerFirebaseKey(null);
+      setStep('name');
+    }
+  };
 
   // Écouter la question Quiz depuis Firebase
   useEffect(() => {
@@ -153,8 +222,58 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
     if (quizQuestion && !quizQuestion.revealed) {
       setHasAnswered(false);
       setSelectedAnswer(null);
+      setPlayerAnswerData(null);
     }
   }, [quizQuestion?.trackNumber, quizQuestion?.revealed]);
+
+  // Écouter les données de réponse du joueur (incluant points calculés)
+  useEffect(() => {
+    if (!sessionValid || !sessionId || !quizQuestion || !selectedPlayer) return;
+
+    const playerId = selectedPlayer?.id || `temp_${playerName}`;
+    const answerRef = ref(database, `sessions/${sessionId}/quiz_answers/${quizQuestion.trackNumber}/${playerId}`);
+
+    const unsubscribe = onValue(answerRef, (snapshot) => {
+      const answerData = snapshot.val();
+      if (answerData) {
+        setPlayerAnswerData(answerData);
+        console.log('📥 Données réponse du joueur:', answerData);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [sessionValid, sessionId, quizQuestion?.trackNumber, selectedPlayer, playerName]);
+
+  // Écouter le classement en temps réel pour le mini-classement
+  useEffect(() => {
+    if (!sessionValid || !sessionId || step !== 'quiz' || !selectedPlayer) return;
+
+    const leaderboardRef = ref(database, `sessions/${sessionId}/quiz_leaderboard`);
+    const unsubscribe = onValue(leaderboardRef, (snapshot) => {
+      const data = snapshot.val();
+      if (!data) {
+        setLiveRank(null);
+        return;
+      }
+
+      const playerId = selectedPlayer?.id || `temp_${playerName}`;
+      const sorted = Object.values(data).sort((a, b) => b.totalPoints - a.totalPoints);
+      const myIndex = sorted.findIndex(p => p.playerId === playerId);
+
+      if (myIndex >= 0) {
+        setLiveRank({
+          rank: myIndex + 1,
+          totalPlayers: sorted.length,
+          totalPoints: sorted[myIndex].totalPoints || 0,
+          correctAnswers: sorted[myIndex].correctAnswers || 0
+        });
+      } else {
+        setLiveRank({ rank: sorted.length + 1, totalPlayers: sorted.length, totalPoints: 0, correctAnswers: 0 });
+      }
+    });
+
+    return () => unsubscribe();
+  }, [sessionValid, sessionId, step, selectedPlayer, playerName]);
 
   // ========== HANDLERS - NAME SCREEN ==========
 
@@ -202,11 +321,14 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
     }
 
     // Mode Quiz : aller directement aux préférences ou au quiz
-    const gameStarted = localStorage.load()?.gameAlreadyStarted === true;
+    // Si la partie a déjà commencé, skip les préférences
+    console.log('🎮 [Quiz] gameStarted:', gameStarted);
     if (gameStarted) {
-      setStep('quiz'); // Skip préférences si partie démarrée
+      console.log('⚡ Partie déjà commencée → skip préférences, aller directement au quiz');
+      setStep('quiz');
     } else {
-      setStep('preferences'); // Mode Quiz : preferences PUIS quiz
+      console.log('🎵 Partie pas encore commencée → demander les préférences');
+      setStep('preferences');
     }
   };
 
@@ -237,10 +359,13 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
       localStorage.save({ playerFirebaseKey: firebaseKey });
     }
 
-    const gameStarted = localStorage.load()?.gameAlreadyStarted === true;
+    // Si la partie a déjà commencé, skip les préférences
+    console.log('🎮 [Quiz] gameStarted:', gameStarted);
     if (gameStarted) {
+      console.log('⚡ Partie déjà commencée → skip préférences, aller directement au quiz');
       setStep('quiz');
     } else {
+      console.log('🎵 Partie pas encore commencée → demander les préférences');
       setStep('preferences');
     }
   };
@@ -273,7 +398,14 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
         localStorage.save({ playerFirebaseKey: firebaseKey });
       }
 
-      setStep('preferences');
+      // Si la partie a déjà commencé, skip les préférences
+      if (gameStarted) {
+        console.log('⚡ Partie déjà commencée → skip préférences, aller directement au quiz');
+        setStep('quiz');
+      } else {
+        console.log('🎵 Partie pas encore commencée → demander les préférences');
+        setStep('preferences');
+      }
     } catch (err) {
       console.error('Erreur création joueur:', err);
       setError('Erreur lors de la sauvegarde. Continuons quand même !');
@@ -291,7 +423,14 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
           localStorage.save({ playerFirebaseKey: firebaseKey });
         }
 
-        setStep('preferences');
+        // Si la partie a déjà commencé, skip les préférences
+        if (gameStarted) {
+          console.log('⚡ Partie déjà commencée → skip préférences, aller directement au quiz');
+          setStep('quiz');
+        } else {
+          console.log('🎵 Partie pas encore commencée → demander les préférences');
+          setStep('preferences');
+        }
       }, 2000);
     } finally {
       setIsSearching(false);
@@ -404,7 +543,7 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
         playerName: selectedPlayer?.name || playerName,
         answer: answer, // 'A', 'B', 'C', 'D'
         time: chrono,
-        timestamp: Date.now(),
+        timestamp: serverTimestamp(), // ✅ Timestamp serveur Firebase pour précision absolue
         isCorrect: null // Sera calculé après révélation
       };
 
@@ -472,7 +611,7 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
 
     const nextSongRequestRef = ref(database, `sessions/${sessionId}/quiz_next_song_request`);
     set(nextSongRequestRef, {
-      timestamp: Date.now(),
+      timestamp: serverTimestamp(), // ✅ Timestamp serveur Firebase pour précision absolue
       playerId: selectedPlayer?.id || `temp_${playerName}`,
       playerName: selectedPlayer?.name || playerName
     }).then(() => {
@@ -627,7 +766,7 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
   );
 
   // Écran de chargement pendant la vérification de la session
-  if (isLoading) {
+  if (isLoading || step === 'loading_auto_join') {
     return (
       <div className="bg-gradient flex-center">
         {debugButton}
@@ -635,6 +774,7 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
         <div className="text-center">
           <h2 className="title">Chargement...</h2>
           <div style={{ fontSize: '3rem', marginTop: '1rem' }}>⏳</div>
+          {step === 'loading_auto_join' && <p style={{marginTop: '1rem', opacity: 0.8}}>Vérification de votre session...</p>}
         </div>
       </div>
     );
@@ -736,12 +876,15 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
           selectedAnswer={selectedAnswer}
           hasAnswered={hasAnswered}
           isPlaying={isPlaying}
+          playerAnswerData={playerAnswerData}
           onAnswerSelect={handleQuizAnswer}
           loadPersonalStats={loadPersonalStats}
           showStats={showStats}
           setShowStats={setShowStats}
           personalStats={personalStats}
           onNextSong={handleNextSong}
+          onQuit={handleQuitGame}
+          liveRank={liveRank}
         />
       </>
     );

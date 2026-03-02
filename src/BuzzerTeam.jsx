@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { database } from './firebase';
-import { ref, set, onValue, remove } from 'firebase/database';
+import { ref, set, onValue, remove, serverTimestamp, get } from 'firebase/database';
 import { airtableService } from './airtableService';
 import { useBuzzerLocalStorage } from './hooks/buzzer/useBuzzerLocalStorage';
 import { useBuzzerCamera } from './hooks/buzzer/useBuzzerCamera';
@@ -9,6 +9,7 @@ import { NameScreen } from './components/buzzer/screens/NameScreen';
 import { SelectScreen } from './components/buzzer/screens/SelectScreen';
 import { PhotoScreen } from './components/buzzer/screens/PhotoScreen';
 import { PreferencesScreen } from './components/buzzer/screens/PreferencesScreen';
+import CooldownText from './components/buzzer/CooldownText';
 
 /**
  * Mode Équipe avec Buzzer
@@ -16,12 +17,12 @@ import { PreferencesScreen } from './components/buzzer/screens/PreferencesScreen
  */
 export default function BuzzerTeam({ sessionIdFromRouter = null }) {
   // Hooks personnalisés
-  const { sessionId, sessionValid, isLoading, isPlaying } = useBuzzerSession(sessionIdFromRouter);
+  const { sessionId, sessionValid, isLoading, isPlaying, gameStarted } = useBuzzerSession(sessionIdFromRouter);
   const localStorage = useBuzzerLocalStorage();
   const camera = useBuzzerCamera();
 
   // États du flux
-  const [step, setStep] = useState('name'); // 'name' | 'select' | 'photo' | 'team' | 'preferences' | 'game'
+  const [step, setStep] = useState('loading_auto_join'); // Nouveau state initial pour attendre la vérification
   const [error, setError] = useState('');
   const [isSearching, setIsSearching] = useState(false);
 
@@ -44,9 +45,82 @@ export default function BuzzerTeam({ sessionIdFromRouter = null }) {
   const [someoneBuzzed, setSomeoneBuzzed] = useState(false);
   const [buzzerEnabled, setBuzzerEnabled] = useState(true);
   const [cooldownEnd, setCooldownEnd] = useState(null);
-  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+
+  // ========== AUTO-REJOIN LOGIC ==========
+
+  useEffect(() => {
+    // Ne rien faire tant que la session n'est pas validée ou si on a déjà passé l'étape de chargement
+    if (!sessionValid || !sessionId) {
+      if (sessionValid === false && !isLoading) {
+        // Session invalide confirmée
+        setStep('name');
+      }
+      return;
+    }
+
+    // Si on est déjà dans une étape autre que le chargement initial, ne rien faire
+    if (step !== 'loading_auto_join' && step !== 'name') return;
+
+    const checkAutoRejoin = async () => {
+      console.log('🔄 [Auto-Rejoin] Vérification du LocalStorage...');
+      const savedData = localStorage.load();
+
+      if (savedData && savedData.playerFirebaseKey && savedData.team) {
+        console.log('🔍 [Auto-Rejoin] Données trouvées, vérification Firebase...', savedData);
+
+        try {
+          // Vérifier que le joueur existe toujours dans la session actuelle
+          const playerPath = `sessions/${sessionId}/players_session/team${savedData.team}/${savedData.playerFirebaseKey}`;
+          const playerRef = ref(database, playerPath);
+          const snapshot = await get(playerRef);
+
+          if (snapshot.exists()) {
+            console.log('✅ [Auto-Rejoin] Joueur confirmé dans Firebase ! Restauration...');
+
+            // Restaurer les états
+            setPlayerName(savedData.playerName || '');
+            if (savedData.selectedPlayer) setSelectedPlayer(savedData.selectedPlayer);
+            setTeam(savedData.team);
+            setPlayerFirebaseKey(savedData.playerFirebaseKey);
+
+            // Restaurer préférences si dispos
+            if (savedData.playerAge) setPlayerAge(savedData.playerAge);
+            if (savedData.selectedGenres) setSelectedGenres(savedData.selectedGenres);
+            if (savedData.specialPhrase) setSpecialPhrase(savedData.specialPhrase);
+
+            // Aller directement au jeu
+            setStep('game');
+          } else {
+            console.warn('⚠️ [Auto-Rejoin] Joueur non trouvé dans Firebase (supprimé ?). Nettoyage LocalStorage.');
+            localStorage.clear();
+            setStep('name');
+          }
+        } catch (err) {
+          console.error('❌ [Auto-Rejoin] Erreur vérification Firebase:', err);
+          // En cas d'erreur, par sécurité on demande de se reconnecter
+          setStep('name');
+        }
+      } else {
+        console.log('ℹ️ [Auto-Rejoin] Aucune donnée valide trouvée.');
+        setStep('name');
+      }
+    };
+
+    checkAutoRejoin();
+  }, [sessionId, sessionValid]); // Exécuter quand la session devient valide
 
   // ========== HANDLERS - NAME SCREEN ==========
+
+  const handleQuitGame = () => {
+    if (confirm('Voulez-vous vraiment quitter la partie et changer de joueur ?')) {
+      localStorage.clear();
+      setPlayerName('');
+      setSelectedPlayer(null);
+      setTeam(null);
+      setPlayerFirebaseKey(null);
+      setStep('name');
+    }
+  };
 
   const handleSearchPlayer = async () => {
     if (!playerName.trim()) {
@@ -84,13 +158,9 @@ export default function BuzzerTeam({ sessionIdFromRouter = null }) {
     setSelectedPlayer(player);
     localStorage.save({ selectedPlayer: player, playerName: player.name });
 
-    // Passer à l'étape suivante selon si la partie a déjà démarré
-    const gameStarted = localStorage.load()?.gameAlreadyStarted === true;
-    if (gameStarted) {
-      setStep('team'); // Skip préférences si partie démarrée
-    } else {
-      setStep('team'); // Mode équipe : choix d'équipe AVANT préférences
-    }
+    // Toujours passer au choix d'équipe en mode Team
+    // La vérification de gameAlreadyStarted se fait après le choix d'équipe
+    setStep('team');
   };
 
   const handleCreateNewPlayer = () => {
@@ -195,10 +265,13 @@ export default function BuzzerTeam({ sessionIdFromRouter = null }) {
       console.log('✅ Joueur enregistré dans', teamKey, 'clé:', playerKey);
 
       // Aller aux préférences ou directement au jeu
-      const gameStarted = localStorage.load()?.gameAlreadyStarted === true;
+      // Si la partie a déjà commencé, skip les préférences
+      console.log('🎮 [Team] gameStarted:', gameStarted);
       if (gameStarted) {
+        console.log('⚡ Partie déjà commencée → skip préférences, aller directement au jeu');
         setStep('game');
       } else {
+        console.log('🎵 Partie pas encore commencée → demander les préférences');
         setStep('preferences');
       }
     } catch (error) {
@@ -287,7 +360,7 @@ export default function BuzzerTeam({ sessionIdFromRouter = null }) {
       playerId: selectedPlayer?.id || `temp_${playerName}`,
       playerPhoto: selectedPlayer?.photo || camera.photoData || null,
       playerFirebaseKey: playerFirebaseKey,
-      timestamp: Date.now()
+      timestamp: serverTimestamp() // ✅ Timestamp serveur Firebase pour précision absolue
     };
 
     await set(buzzRef, buzzPayload);
@@ -343,34 +416,31 @@ export default function BuzzerTeam({ sessionIdFromRouter = null }) {
     return () => unsubscribe();
   }, [team, selectedPlayer, playerName, sessionValid, sessionId]);
 
-  // Compte à rebours du cooldown
+  // Compte à rebours du cooldown optimisé
+  // Déplacé dans le composant CooldownText pour éviter les re-renders fréquents
   useEffect(() => {
-    if (!cooldownEnd) {
-      setCooldownRemaining(0);
-      return;
-    }
+    if (!cooldownEnd) return;
 
-    const interval = setInterval(() => {
-      const remaining = Math.max(0, (cooldownEnd - Date.now()) / 1000);
-      setCooldownRemaining(remaining);
-
-      if (remaining <= 0) {
+    const checkEnd = setInterval(() => {
+      if (Date.now() >= cooldownEnd) {
         setCooldownEnd(null);
+        clearInterval(checkEnd);
       }
-    }, 100);
+    }, 500); // Check moins fréquent, juste pour l'état global
 
-    return () => clearInterval(interval);
+    return () => clearInterval(checkEnd);
   }, [cooldownEnd]);
 
   // ========== RENDU DES ÉCRANS ==========
 
-  // Écran de chargement pendant la vérification de la session
-  if (isLoading) {
+  // Écran de chargement pendant la vérification de la session ou l'auto-rejoin
+  if (isLoading || step === 'loading_auto_join') {
     return (
       <div className="bg-gradient flex-center">
         <div className="text-center">
           <h2 className="title">Chargement...</h2>
           <div style={{ fontSize: '3rem', marginTop: '1rem' }}>⏳</div>
+          {step === 'loading_auto_join' && <p style={{marginTop: '1rem', opacity: 0.8}}>Vérification de votre session...</p>}
         </div>
       </div>
     );
@@ -487,6 +557,26 @@ export default function BuzzerTeam({ sessionIdFromRouter = null }) {
     return (
       <div className={`${bgClass} flex-center`} style={{ minHeight: '100vh' }}>
         <div className="text-center" style={{ padding: '2rem', maxWidth: '600px', width: '100%' }}>
+
+          {/* Bouton Quitter */}
+          <button
+            onClick={handleQuitGame}
+            style={{
+              position: 'absolute',
+              top: '1rem',
+              right: '1rem',
+              background: 'rgba(0,0,0,0.3)',
+              border: '1px solid rgba(255,255,255,0.5)',
+              color: 'white',
+              borderRadius: '20px',
+              padding: '0.5rem 1rem',
+              fontSize: '0.8rem',
+              cursor: 'pointer'
+            }}
+          >
+            Changer de joueur
+          </button>
+
           {/* En-tête */}
           <div style={{ marginBottom: '2rem' }}>
             {selectedPlayer?.photo && (
@@ -519,14 +609,7 @@ export default function BuzzerTeam({ sessionIdFromRouter = null }) {
           )}
 
           {isInCooldown && (
-            <div style={{
-              fontSize: '1.5rem',
-              marginBottom: '2rem',
-              color: '#fbbf24',
-              fontWeight: 'bold'
-            }}>
-              ⏳ Cooldown: {cooldownRemaining.toFixed(1)}s
-            </div>
+            <CooldownText cooldownEnd={cooldownEnd} />
           )}
 
           <button

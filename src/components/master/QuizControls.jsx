@@ -124,11 +124,8 @@ export default function QuizControls({
                 {label}
                 {isRevealed && isCorrect && ' ✅'}
               </div>
-              <div style={{ fontSize: '0.9rem', marginBottom: '0.5rem' }}>
-                {answer.artist}
-              </div>
-              <div style={{ fontSize: '0.8rem', opacity: 0.7 }}>
-                {answer.title}
+              <div style={{ fontSize: '0.9rem' }}>
+                {answer.text}
               </div>
               {playersWhoAnswered > 0 && (
                 <div style={{

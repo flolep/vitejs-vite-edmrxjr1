@@ -47,6 +47,10 @@ export class SpotifyPlayerAdapter {
     this.type = 'spotify';
     this.currentPosition = 0;
     this.lastPlayedTrack = null;
+
+    if (!token) {
+      console.warn('⚠️ SpotifyPlayerAdapter: token manquant');
+    }
   }
 
   async play(track, currentTrackIndex) {
