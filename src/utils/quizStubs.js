@@ -3,6 +3,8 @@
  * Génère des wrongAnswers prédéfinies et des playlists sans appeler OpenAI
  * Économise les crédits API pendant les tests
  */
+import { ref, set, get } from 'firebase/database';
+import { database } from '../firebase';
 
 // Bibliothèque de chansons pour générer des playlists stubs
 const stubSongLibrary = [
@@ -296,9 +298,42 @@ export async function generateStubBatch(songs) {
  * @param {object} params - { playlistId, players }
  * @returns {Promise<object>} - Format compatible avec n8nService
  */
+/**
+ * Persiste une playlist stub dans Firebase pour que la reprise puisse la relire
+ * @param {string} sessionId - ID de la session
+ * @param {Array} tracks - Les tracks au format { uri, title, artist, ... }
+ */
+export async function persistStubPlaylist(sessionId, tracks) {
+  if (!sessionId || !tracks || tracks.length === 0) return;
+
+  const stubRef = ref(database, `sessions/${sessionId}/stub_playlist`);
+  await set(stubRef, tracks);
+  console.log(`[TEST MODE] Playlist stub persistée dans Firebase: ${tracks.length} chansons`);
+}
+
+/**
+ * Relit une playlist stub depuis Firebase (pour la reprise de session)
+ * @param {string} sessionId - ID de la session
+ * @returns {Array|null} Les tracks ou null si pas de stub
+ */
+export async function loadStubPlaylist(sessionId) {
+  if (!sessionId) return null;
+
+  const stubRef = ref(database, `sessions/${sessionId}/stub_playlist`);
+  const snapshot = await get(stubRef);
+  const data = snapshot.val();
+
+  if (data && Array.isArray(data) && data.length > 0) {
+    console.log(`[TEST MODE] Playlist stub relue depuis Firebase: ${data.length} chansons`);
+    return data;
+  }
+
+  return null;
+}
+
 export async function generateStubPlaylist({ playlistId, players }) {
-  console.log(`🎭 [TEST MODE] Generating stub playlist...`);
-  console.log(`   📊 ${players.length} joueur(s)`);
+  console.log(`[TEST MODE] Generating stub playlist...`);
+  console.log(`   ${players.length} joueur(s)`);
 
   // Extraire tous les genres demandés par les joueurs
   const requestedGenres = [...new Set(players.flatMap(p => p.genres || []))];
