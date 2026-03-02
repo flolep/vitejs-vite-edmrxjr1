@@ -119,6 +119,9 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
     recognizedSongs: []
   });
 
+  // Mini-classement temps réel (toujours visible)
+  const [liveRank, setLiveRank] = useState(null); // { rank, totalPlayers, totalPoints, correctAnswers }
+
   // État Debug Panel (uniquement visible en mode Test)
   const [showDebug, setShowDebug] = useState(false);
   const isTestMode = window.localStorage.getItem('quizTestMode') === 'true';
@@ -240,6 +243,37 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
 
     return () => unsubscribe();
   }, [sessionValid, sessionId, quizQuestion?.trackNumber, selectedPlayer, playerName]);
+
+  // Écouter le classement en temps réel pour le mini-classement
+  useEffect(() => {
+    if (!sessionValid || !sessionId || step !== 'quiz' || !selectedPlayer) return;
+
+    const leaderboardRef = ref(database, `sessions/${sessionId}/quiz_leaderboard`);
+    const unsubscribe = onValue(leaderboardRef, (snapshot) => {
+      const data = snapshot.val();
+      if (!data) {
+        setLiveRank(null);
+        return;
+      }
+
+      const playerId = selectedPlayer?.id || `temp_${playerName}`;
+      const sorted = Object.values(data).sort((a, b) => b.totalPoints - a.totalPoints);
+      const myIndex = sorted.findIndex(p => p.playerId === playerId);
+
+      if (myIndex >= 0) {
+        setLiveRank({
+          rank: myIndex + 1,
+          totalPlayers: sorted.length,
+          totalPoints: sorted[myIndex].totalPoints || 0,
+          correctAnswers: sorted[myIndex].correctAnswers || 0
+        });
+      } else {
+        setLiveRank({ rank: sorted.length + 1, totalPlayers: sorted.length, totalPoints: 0, correctAnswers: 0 });
+      }
+    });
+
+    return () => unsubscribe();
+  }, [sessionValid, sessionId, step, selectedPlayer, playerName]);
 
   // ========== HANDLERS - NAME SCREEN ==========
 
@@ -850,6 +884,7 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
           personalStats={personalStats}
           onNextSong={handleNextSong}
           onQuit={handleQuitGame}
+          liveRank={liveRank}
         />
       </>
     );

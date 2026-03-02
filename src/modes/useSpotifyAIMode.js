@@ -71,7 +71,7 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
           spotifyUri: song.uri,
           title: song.title,
           artist: song.artist,
-          imageUrl: 'https://via.placeholder.com/300?text=Test+Mode',
+          imageUrl: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Crect width='300' height='300' fill='%23312e81'/%3E%3Ctext x='150' y='140' text-anchor='middle' fill='%23fbbf24' font-size='80'%3E%F0%9F%8E%B5%3C/text%3E%3Ctext x='150' y='200' text-anchor='middle' fill='white' font-size='24' font-family='sans-serif'%3ETest Mode%3C/text%3E%3C/svg%3E",
           duration: 180,
           durationMs: 180000,
           previewUrl: null

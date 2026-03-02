@@ -418,7 +418,8 @@ export function QuizInterface({
   setShowStats,
   personalStats,
   onNextSong, // Fonction pour passer à la chanson suivante
-  onQuit // Fonction pour quitter/changer de joueur
+  onQuit, // Fonction pour quitter/changer de joueur
+  liveRank // { rank, totalPlayers, totalPoints, correctAnswers } temps réel
 }) {
   // Styles toujours inclus
   const stylesElement = <style>{quizStyles}</style>;
@@ -567,12 +568,67 @@ export function QuizInterface({
         </button>
       )}
 
+      {/* Mini-classement toujours visible */}
+      {liveRank && (
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          gap: '12px',
+          width: '100%',
+          maxWidth: '400px',
+          marginBottom: '10px'
+        }}>
+          <div style={{
+            background: 'rgba(0,0,0,0.25)',
+            backdropFilter: 'blur(10px)',
+            padding: '6px 14px',
+            borderRadius: '12px',
+            fontSize: '13px',
+            fontWeight: '600',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px'
+          }}>
+            <span style={{ opacity: 0.7 }}>Rang</span>
+            <span style={{ color: '#fbbf24' }}>{liveRank.rank}/{liveRank.totalPlayers}</span>
+          </div>
+          <div style={{
+            background: 'rgba(0,0,0,0.25)',
+            backdropFilter: 'blur(10px)',
+            padding: '6px 14px',
+            borderRadius: '12px',
+            fontSize: '13px',
+            fontWeight: '600',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px'
+          }}>
+            <span style={{ opacity: 0.7 }}>Score</span>
+            <span style={{ color: '#60a5fa' }}>{liveRank.totalPoints} pts</span>
+          </div>
+          <div style={{
+            background: 'rgba(0,0,0,0.25)',
+            backdropFilter: 'blur(10px)',
+            padding: '6px 14px',
+            borderRadius: '12px',
+            fontSize: '13px',
+            fontWeight: '600',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px'
+          }}>
+            <span style={{ opacity: 0.7 }}>OK</span>
+            <span style={{ color: '#10b981' }}>{liveRank.correctAnswers}</span>
+          </div>
+        </div>
+      )}
+
       {/* Section Top : Header + Status */}
       <div style={{ marginBottom: '24px', width: '100%', maxWidth: '400px' }}>
         {/* Header avec question et joueur */}
         <div className="buzzer-quiz-header">
           <div className="buzzer-quiz-header-pill">
-            Question {(trackNumber || 0) + 1} / {totalTracks || 10} · Mode Quiz
+            Question {trackNumber || 1} / {totalTracks || '?'} · Mode Quiz
           </div>
           <div className="buzzer-quiz-header-player">
             {selectedPlayer?.photo ? (

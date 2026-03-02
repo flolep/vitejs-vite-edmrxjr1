@@ -1112,8 +1112,8 @@ return (
                     {answer.text?.split(' - ')[1] || 'Titre'}
                   </div>
 
-                  {/* Player Avatars who chose this answer */}
-                  {(allPlayersAnswered || quizRevealed) && (
+                  {/* Player Avatars who chose this answer — only after reveal */}
+                  {quizRevealed && (
                   <div style={{
                     display: 'flex',
                     flexWrap: 'wrap',

@@ -99,6 +99,7 @@ export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef)
     const quizRef = ref(database, `sessions/${sessionId}/quiz`);
     await set(quizRef, {
       trackNumber,
+      totalTracks: playlist?.length || 0,
       answers: allAnswers.map((a, idx) => ({
         label: String.fromCharCode(65 + idx), // A, B, C, D
         text: a.text,
