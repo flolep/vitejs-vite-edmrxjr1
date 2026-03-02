@@ -628,7 +628,7 @@ export function QuizInterface({
         {/* Header avec question et joueur */}
         <div className="buzzer-quiz-header">
           <div className="buzzer-quiz-header-pill">
-            Question {(trackNumber || 0) + 1} / {totalTracks || 10} · Mode Quiz
+            Question {trackNumber || 1} / {totalTracks || '?'} · Mode Quiz
           </div>
           <div className="buzzer-quiz-header-player">
             {selectedPlayer?.photo ? (
