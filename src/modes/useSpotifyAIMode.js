@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { spotifyService } from '../spotifyService';
 import { ref, set, onValue } from 'firebase/database';
 import { database } from '../firebase';
+import { loadStubPlaylist, generateStubPlaylist, persistStubPlaylist } from '../utils/quizStubs';
 
 /**
  * Hook pour gérer le mode Spotify IA
@@ -13,11 +14,23 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
   const [spotifyDeviceId, setSpotifyDeviceId] = useState(null);
   const [songDuration, setSongDuration] = useState(0);
   const [playlist, setPlaylist] = useState([]);
+  const initializingRef = useRef(false);
+
+  // Nettoyage du player à la destruction
+  useEffect(() => {
+    return () => {
+      if (spotifyPlayer) {
+        console.log('🔌 [AIMode] Déconnexion du player Spotify');
+        spotifyPlayer.disconnect();
+      }
+    };
+  }, [spotifyPlayer]);
 
   // Initialiser le player Spotify
-  const initSpotifyPlayer = async () => {
-    if (!spotifyToken || spotifyPlayer) return;
+  const initSpotifyPlayer = useCallback(async () => {
+    if (!spotifyToken || spotifyPlayer || initializingRef.current) return;
 
+    initializingRef.current = true;
     try {
       const player = await spotifyService.initPlayer(
         spotifyToken,
@@ -31,12 +44,55 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
       setSpotifyPlayer(player);
     } catch (error) {
       console.error('Error initializing Spotify player:', error);
+      initializingRef.current = false;
     }
-  };
+  }, [spotifyToken, spotifyPlayer]);
 
-  // Charger automatiquement la playlist en mode IA quand le token Spotify est disponible
-  const loadPlaylistById = async (playlistId, setPlaylist) => {
-    if (!spotifyToken || !playlistId) return;
+  // Charger la playlist — bypass Spotify en mode test, relit depuis Firebase
+  const loadPlaylistById = useCallback(async (playlistId, setPlaylist) => {
+    // En mode test, lire la playlist stub depuis Firebase au lieu d'appeler Spotify
+    const isTestMode = localStorage.getItem('quizTestMode') === 'true';
+
+    if (isTestMode && sessionId) {
+      console.log('[TEST MODE] loadPlaylistById: bypass Spotify, lecture depuis Firebase...');
+      try {
+        // 1. Essayer de relire depuis Firebase (session déjà jouée)
+        const stubTracks = await loadStubPlaylist(sessionId);
+        if (stubTracks && stubTracks.length > 0) {
+          setPlaylist(stubTracks);
+          console.log(`[TEST MODE] Playlist stub relue depuis Firebase: ${stubTracks.length} chansons`);
+          return stubTracks;
+        }
+
+        // 2. Fallback : générer une nouvelle playlist stub et la persister
+        console.log('[TEST MODE] Aucune stub en Firebase, génération...');
+        const result = await generateStubPlaylist({ playlistId, players: [] });
+        const generatedTracks = result.songs.map(song => ({
+          spotifyUri: song.uri,
+          title: song.title,
+          artist: song.artist,
+          imageUrl: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Crect width='300' height='300' fill='%23312e81'/%3E%3Ctext x='150' y='140' text-anchor='middle' fill='%23fbbf24' font-size='80'%3E%F0%9F%8E%B5%3C/text%3E%3Ctext x='150' y='200' text-anchor='middle' fill='white' font-size='24' font-family='sans-serif'%3ETest Mode%3C/text%3E%3C/svg%3E",
+          duration: 180,
+          durationMs: 180000,
+          previewUrl: null
+        }));
+
+        // Persister pour les reprises futures
+        await persistStubPlaylist(sessionId, generatedTracks);
+        setPlaylist(generatedTracks);
+        console.log(`[TEST MODE] Playlist stub générée et persistée: ${generatedTracks.length} chansons`);
+        return generatedTracks;
+      } catch (error) {
+        console.error('[TEST MODE] Erreur stub playlist:', error);
+        return [];
+      }
+    }
+
+    // Mode production : appel Spotify réel
+    if (!spotifyToken || !playlistId) {
+      console.warn('[AIMode] loadPlaylistById: token ou playlistId manquant');
+      return [];
+    }
 
     try {
       const tracks = await spotifyService.getPlaylistTracks(spotifyToken, playlistId);
@@ -55,9 +111,9 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
       return tracks;
     } catch (error) {
       console.error('Error loading playlist by ID:', error);
-      throw error;
+      return [];
     }
-  };
+  }, [spotifyToken, sessionId, initSpotifyPlayer]);
 
   // Écouter les mises à jour de la playlist et rafraîchir automatiquement
   useEffect(() => {
@@ -129,7 +185,7 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
   }, [sessionId, spotifyToken, musicSource]);
 
   // Vérifier le bonus personnel pour un joueur
-  const checkPersonalBonus = async (currentSongUri, buzzData) => {
+  const checkPersonalBonus = useCallback(async (currentSongUri, buzzData) => {
     if (!currentSongUri || !buzzData?.playerId || !sessionId) {
       return { hasBonus: false, playerName: '' };
     }
@@ -155,9 +211,9 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
       console.error('Erreur vérification bonus personnel:', error);
       return { hasBonus: false, playerName: '' };
     }
-  };
+  }, [sessionId]);
 
-  return {
+  return useMemo(() => ({
     playlistUpdates,
     spotifyPlayer,
     spotifyDeviceId,
@@ -166,5 +222,5 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
     loadPlaylistById,
     checkPersonalBonus,
     initSpotifyPlayer
-  };
+  }), [playlistUpdates, spotifyPlayer, spotifyDeviceId, songDuration, playlist, loadPlaylistById, checkPersonalBonus, initSpotifyPlayer]);
 }

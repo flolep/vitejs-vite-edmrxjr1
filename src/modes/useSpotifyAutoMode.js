@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { spotifyService } from '../spotifyService';
 import { ref, set } from 'firebase/database';
 import { database } from '../firebase';
@@ -13,6 +13,7 @@ export function useSpotifyAutoMode(spotifyToken, sessionId) {
   const [spotifyDeviceId, setSpotifyDeviceId] = useState(null);
   const [showPlaylistSelector, setShowPlaylistSelector] = useState(false);
   const [songDuration, setSongDuration] = useState(0);
+  const initializingRef = useRef(false);
 
   // Charger les playlists de l'utilisateur
   useEffect(() => {
@@ -30,10 +31,21 @@ export function useSpotifyAutoMode(spotifyToken, sessionId) {
     loadPlaylists();
   }, [spotifyToken]);
 
-  // Initialiser le player Spotify
-  const initSpotifyPlayer = async () => {
-    if (!spotifyToken || spotifyPlayer) return;
+  // Nettoyage du player à la destruction
+  useEffect(() => {
+    return () => {
+      if (spotifyPlayer) {
+        console.log('🔌 [AutoMode] Déconnexion du player Spotify');
+        spotifyPlayer.disconnect();
+      }
+    };
+  }, [spotifyPlayer]);
 
+  // Initialiser le player Spotify
+  const initSpotifyPlayer = useCallback(async () => {
+    if (!spotifyToken || spotifyPlayer || initializingRef.current) return;
+
+    initializingRef.current = true;
     try {
       const player = await spotifyService.initPlayer(
         spotifyToken,
@@ -47,10 +59,11 @@ export function useSpotifyAutoMode(spotifyToken, sessionId) {
       setSpotifyPlayer(player);
     } catch (error) {
       console.error('Error initializing Spotify player:', error);
+      initializingRef.current = false;
     }
-  };
+  }, [spotifyToken, spotifyPlayer]);
 
-  const handleSelectPlaylist = async (playlistId, setPlaylist, resetScores) => {
+  const handleSelectPlaylist = useCallback(async (playlistId, setPlaylist, resetScores) => {
     try {
       const tracks = await spotifyService.getPlaylistTracks(spotifyToken, playlistId);
 
@@ -83,9 +96,9 @@ export function useSpotifyAutoMode(spotifyToken, sessionId) {
       console.error('Error importing playlist:', error);
       throw error;
     }
-  };
+  }, [spotifyToken, sessionId, initSpotifyPlayer]);
 
-  return {
+  return useMemo(() => ({
     spotifyPlaylists,
     spotifyPlayer,
     spotifyDeviceId,
@@ -94,5 +107,5 @@ export function useSpotifyAutoMode(spotifyToken, sessionId) {
     setShowPlaylistSelector,
     handleSelectPlaylist,
     initSpotifyPlayer
-  };
+  }), [spotifyPlaylists, spotifyPlayer, spotifyDeviceId, showPlaylistSelector, songDuration, handleSelectPlaylist, initSpotifyPlayer]);
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { database } from '../firebase';
-import { ref, set, onValue, update } from 'firebase/database';
+import { ref, set, onValue } from 'firebase/database';
 
 /**
  * Hook pour gérer la session de jeu (scores, chrono, état de lecture)
@@ -10,7 +10,7 @@ export function useGameSession(sessionId) {
   const [scores, setScores] = useState({ team1: 0, team2: 0 });
   const [currentChrono, setCurrentChrono] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTrack, setCurrentTrack] = useState(0);
+  const [currentTrack, setCurrentTrack] = useState(1); // ✅ Commence à 1 au lieu de 0
   const [songDuration, setSongDuration] = useState(0);
 
   const currentChronoRef = useRef(0);
@@ -18,14 +18,18 @@ export function useGameSession(sessionId) {
   // Synchroniser chrono avec Firebase
   useEffect(() => {
     if (!sessionId) return;
-    const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
-    const unsubscribe = onValue(chronoRef, (snapshot) => {
-      const value = snapshot.val();
-      if (value !== null) {
-        setCurrentChrono(value);
-      }
-    });
-    return () => unsubscribe();
+    try {
+      const chronoRef = ref(database, `sessions/${sessionId}/chrono`);
+      const unsubscribe = onValue(chronoRef, (snapshot) => {
+        const value = snapshot.val();
+        if (value !== null) {
+          setCurrentChrono(value);
+        }
+      });
+      return () => unsubscribe();
+    } catch (e) {
+      console.error('Error syncing chrono:', e);
+    }
   }, [sessionId]);
 
   // Synchroniser la ref du chrono avec le state
@@ -33,17 +37,72 @@ export function useGameSession(sessionId) {
     currentChronoRef.current = currentChrono;
   }, [currentChrono]);
 
+  // Synchroniser scores avec Firebase
+  useEffect(() => {
+    if (!sessionId) return;
+    try {
+      const scoresRef = ref(database, `sessions/${sessionId}/scores`);
+      const unsubscribe = onValue(scoresRef, (snapshot) => {
+        const value = snapshot.val();
+        if (value) {
+          setScores(value);
+        }
+      });
+      return () => unsubscribe();
+    } catch (e) {
+      console.error('Error syncing scores:', e);
+    }
+  }, [sessionId]);
+
+  // Synchroniser isPlaying avec Firebase
+  useEffect(() => {
+    if (!sessionId) return;
+    try {
+      const playingRef = ref(database, `sessions/${sessionId}/isPlaying`);
+      const unsubscribe = onValue(playingRef, (snapshot) => {
+        const value = snapshot.val();
+        if (value !== null) {
+          setIsPlaying(value);
+        }
+      });
+      return () => unsubscribe();
+    } catch (e) {
+      console.error('Error syncing isPlaying:', e);
+    }
+  }, [sessionId]);
+
+  // Synchroniser currentTrackNumber avec Firebase
+  useEffect(() => {
+    if (!sessionId) return;
+    try {
+      const trackRef = ref(database, `sessions/${sessionId}/currentTrackNumber`);
+      const unsubscribe = onValue(trackRef, (snapshot) => {
+        const value = snapshot.val();
+        if (value !== null) {
+          setCurrentTrack(value);
+        }
+      });
+      return () => unsubscribe();
+    } catch (e) {
+      console.error('Error syncing currentTrackNumber:', e);
+    }
+  }, [sessionId]);
+
   // Synchroniser songDuration avec Firebase
   useEffect(() => {
     if (!sessionId) return;
-    const durationRef = ref(database, `sessions/${sessionId}/songDuration`);
-    const unsubscribe = onValue(durationRef, (snapshot) => {
-      const duration = snapshot.val();
-      if (duration !== null) {
-        setSongDuration(duration);
-      }
-    });
-    return () => unsubscribe();
+    try {
+      const durationRef = ref(database, `sessions/${sessionId}/songDuration`);
+      const unsubscribe = onValue(durationRef, (snapshot) => {
+        const duration = snapshot.val();
+        if (duration !== null) {
+          setSongDuration(duration);
+        }
+      });
+      return () => unsubscribe();
+    } catch (e) {
+      console.error('Error syncing songDuration:', e);
+    }
   }, [sessionId]);
 
   // Mettre à jour le chrono toutes les 100ms quand la musique joue

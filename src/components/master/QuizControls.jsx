@@ -1,16 +1,61 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 
 /**
  * Composant pour les contrôles du mode Quiz
  * Affiche les 4 réponses proposées et permet de révéler la bonne réponse
+ * Révèle automatiquement quand tous les joueurs ont répondu
  */
 export default function QuizControls({
   quizAnswers,
   correctAnswerIndex,
   playerAnswers,
+  allPlayers,
+  isPlaying,
+  currentTrack,
   onReveal,
+  onPause,
   isRevealed
 }) {
+  const hasAutoRevealed = useRef(false);
+  const lastTrackRef = useRef(null);
+
+  // Reset le flag quand on change de chanson (AVANT le check d'auto-reveal)
+  useEffect(() => {
+    if (currentTrack !== lastTrackRef.current) {
+      console.log(`🔄 Changement de chanson détecté: ${lastTrackRef.current} → ${currentTrack}`);
+      hasAutoRevealed.current = false;
+      lastTrackRef.current = currentTrack;
+    }
+  }, [currentTrack]);
+
+  // Auto-révéler quand tous les joueurs ont répondu
+  useEffect(() => {
+    if (isRevealed || hasAutoRevealed.current) return;
+    if (!allPlayers || allPlayers.length === 0) return;
+    if (!playerAnswers || playerAnswers.length === 0) return;
+
+    const totalPlayers = allPlayers.length;
+    const totalAnswers = playerAnswers.length;
+
+    console.log(`📊 Quiz: ${totalAnswers}/${totalPlayers} joueurs ont répondu`);
+
+    // Tous les joueurs ont répondu !
+    if (totalAnswers >= totalPlayers && totalPlayers > 0) {
+      console.log('✅ Tous les joueurs ont répondu, révélation automatique...');
+      hasAutoRevealed.current = true;
+
+      // Arrêter la musique
+      if (isPlaying && onPause) {
+        onPause();
+      }
+
+      // Révéler la réponse
+      if (onReveal) {
+        onReveal();
+      }
+    }
+  }, [playerAnswers, allPlayers, isRevealed, isPlaying, onReveal, onPause]);
+
   if (!quizAnswers || quizAnswers.length === 0) {
     return (
       <div style={{
@@ -79,11 +124,8 @@ export default function QuizControls({
                 {label}
                 {isRevealed && isCorrect && ' ✅'}
               </div>
-              <div style={{ fontSize: '0.9rem', marginBottom: '0.5rem' }}>
-                {answer.artist}
-              </div>
-              <div style={{ fontSize: '0.8rem', opacity: 0.7 }}>
-                {answer.title}
+              <div style={{ fontSize: '0.9rem' }}>
+                {answer.text}
               </div>
               {playersWhoAnswered > 0 && (
                 <div style={{
@@ -130,7 +172,16 @@ export default function QuizControls({
         fontSize: '0.875rem',
         opacity: 0.8
       }}>
-        {playerAnswers.length} réponse{playerAnswers.length > 1 ? 's' : ''} reçue{playerAnswers.length > 1 ? 's' : ''}
+        {allPlayers && allPlayers.length > 0 ? (
+          <>
+            {playerAnswers.length}/{allPlayers.length} joueur{allPlayers.length > 1 ? 's' : ''} {playerAnswers.length > 1 ? 'ont' : 'a'} répondu
+            {playerAnswers.length >= allPlayers.length && ' 🎉'}
+          </>
+        ) : (
+          <>
+            {playerAnswers.length} réponse{playerAnswers.length > 1 ? 's' : ''} reçue{playerAnswers.length > 1 ? 's' : ''}
+          </>
+        )}
       </div>
     </div>
   );

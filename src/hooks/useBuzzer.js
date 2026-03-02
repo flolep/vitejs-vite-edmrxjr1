@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { database } from '../firebase';
-import { ref, set, remove, onValue } from 'firebase/database';
+import { ref, set, remove, onValue, serverTimestamp } from 'firebase/database';
 
 /**
  * Hook pour gérer le système de buzzer
@@ -9,13 +9,26 @@ import { ref, set, remove, onValue } from 'firebase/database';
 export function useBuzzer(sessionId, isPlaying, currentTrack, playlist, currentChronoRef, updateIsPlaying, playerAdapter) {
   const [buzzedTeam, setBuzzedTeam] = useState(null);
   const [buzzedPlayerKey, setBuzzedPlayerKey] = useState(null);
+  const [buzzedPlayerName, setBuzzedPlayerName] = useState(null);
+  const [buzzedPlayerPhoto, setBuzzedPlayerPhoto] = useState(null);
+  const audioContextRef = useRef(null);
   const buzzerSoundRef = useRef(null);
 
   // Créer le son de buzzer
   useEffect(() => {
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    audioContextRef.current = audioContext;
 
-    const playBuzzerSound = () => {
+    const playBuzzerSound = async () => {
+      // S'assurer que le contexte est actif (contournement autoplay policy)
+      if (audioContext.state === 'suspended') {
+        try {
+          await audioContext.resume();
+        } catch (e) {
+          console.error('Erreur reprise AudioContext:', e);
+        }
+      }
+
       const now = audioContext.currentTime;
       const osc1 = audioContext.createOscillator();
       const gain1 = audioContext.createGain();
@@ -36,7 +49,24 @@ export function useBuzzer(sessionId, isPlaying, currentTrack, playlist, currentC
     };
 
     buzzerSoundRef.current = { play: playBuzzerSound };
+
+    return () => {
+      if (audioContext.state !== 'closed') {
+        audioContext.close();
+      }
+    };
   }, []);
+
+  const unlockAudioContext = async () => {
+    if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+      try {
+        await audioContextRef.current.resume();
+        console.log('🔊 AudioContext Buzzer activé via interaction utilisateur');
+      } catch (e) {
+        console.error('❌ Echec activation AudioContext Buzzer:', e);
+      }
+    }
+  };
 
   // Écouter les buzz
   useEffect(() => {
@@ -46,12 +76,28 @@ export function useBuzzer(sessionId, isPlaying, currentTrack, playlist, currentC
     const unsubscribe = onValue(buzzRef, (snapshot) => {
       const buzzData = snapshot.val();
 
+      console.log('👂 [useBuzzer] Firebase notification:', {
+        hasBuzzData: !!buzzData,
+        isPlaying,
+        buzzData
+      });
+
       if (buzzData && isPlaying) {
         const { team } = buzzData;
         const buzzTime = currentChronoRef.current;
 
+        console.log('🔔 [useBuzzer] Buzz reçu et traité:', {
+          team,
+          playerName: buzzData.playerName,
+          playerPhoto: buzzData.playerPhoto,
+          playerFirebaseKey: buzzData.playerFirebaseKey,
+          fullBuzzData: buzzData
+        });
+
         setBuzzedTeam(team);
         setBuzzedPlayerKey(buzzData.playerFirebaseKey || null);
+        setBuzzedPlayerName(buzzData.playerName || 'Anonyme');
+        setBuzzedPlayerPhoto(buzzData.playerPhoto || null);
 
         // ✅ ARRÊTER LA MUSIQUE ET LE CHRONO
         // 1. Arrêter le lecteur audio/Spotify
@@ -78,10 +124,11 @@ export function useBuzzer(sessionId, isPlaying, currentTrack, playlist, currentC
           teamName: team === 'team1' ? 'ÉQUIPE 1' : 'ÉQUIPE 2',
           time: buzzTime,
           playerName: buzzData.playerName || 'Anonyme',
-          songTitle: playlist[currentTrack]?.title || 'Inconnu',
-          songArtist: playlist[currentTrack]?.artist || 'Inconnu',
-          trackNumber: currentTrack + 1,
-          timestamp: Date.now(),
+          // ✅ currentTrack commence à 1, donc accès tableau avec currentTrack - 1
+          songTitle: playlist[currentTrack - 1]?.title || 'Inconnu',
+          songArtist: playlist[currentTrack - 1]?.artist || 'Inconnu',
+          trackNumber: currentTrack, // ✅ Pas besoin de + 1 car commence déjà à 1
+          timestamp: serverTimestamp(), // ✅ Timestamp serveur Firebase pour précision absolue
           correct: null,
           points: 0
         };
@@ -99,6 +146,8 @@ export function useBuzzer(sessionId, isPlaying, currentTrack, playlist, currentC
   const clearBuzz = () => {
     setBuzzedTeam(null);
     setBuzzedPlayerKey(null);
+    setBuzzedPlayerName(null);
+    setBuzzedPlayerPhoto(null);
     if (sessionId) {
       const buzzRef = ref(database, `sessions/${sessionId}/buzz`);
       remove(buzzRef);
@@ -108,7 +157,10 @@ export function useBuzzer(sessionId, isPlaying, currentTrack, playlist, currentC
   return {
     buzzedTeam,
     buzzedPlayerKey,
+    buzzedPlayerName,
+    buzzedPlayerPhoto,
     setBuzzedTeam,
-    clearBuzz
+    clearBuzz,
+    unlockAudioContext
   };
 }
