@@ -51,7 +51,7 @@ export default function StepReadyToStart({
   );
 
   // Hook pour le mode Quiz (uniquement pour storeQuizData)
-  const quizMode = useQuizMode(sessionId, null, [], null);
+  const quizMode = useQuizMode(sessionId, null, []);
 
   const MAX_POLL_ATTEMPTS = 100; // 5 minutes (3s interval)
 
@@ -76,7 +76,7 @@ export default function StepReadyToStart({
     const unsubscribe1 = onValue(team1Ref, (snapshot) => {
       const team1Data = snapshot.val();
       team1Players = team1Data ? Object.entries(team1Data)
-        .filter(([_, player]) => player.connected)
+        .filter(([, player]) => player.connected)
         .map(([key, player]) => ({
           id: player.id || key,
           name: player.name,
@@ -89,7 +89,7 @@ export default function StepReadyToStart({
     const unsubscribe2 = onValue(team2Ref, (snapshot) => {
       const team2Data = snapshot.val();
       team2Players = team2Data ? Object.entries(team2Data)
-        .filter(([_, player]) => player.connected)
+        .filter(([, player]) => player.connected)
         .map(([key, player]) => ({
           id: player.id || key,
           name: player.name,
@@ -114,25 +114,13 @@ export default function StepReadyToStart({
       console.log('🚀 [StepReadyToStart] Lancement automatique de la génération');
       handleGeneratePlaylist();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [players.length]); // Déclencher quand les joueurs sont chargés
 
-  // ========== TRANSITION AUTOMATIQUE VERS GAME_PLAYING ==========
+  // ========== ÉTAT DE DISPONIBILITÉ ==========
 
-  useEffect(() => {
-    // Une fois que la playlist est prête ET les questions (si Quiz) sont prêtes
-    // Démarrer automatiquement la partie
-    const playMode = sessionData?.playMode || 'team';
-    const isReady = playlistReady && (playMode === 'team' || (playMode === 'quiz' && questionsReady));
-
-    if (isReady && !loading && playlist.length > 0) {
-      console.log('✅ [StepReadyToStart] Playlist et questions prêtes → Démarrage automatique');
-
-      // Attendre 1 seconde pour que l'utilisateur voie le message de succès
-      setTimeout(() => {
-        handleStartGame();
-      }, 1000);
-    }
-  }, [playlistReady, questionsReady, playlist.length, sessionData?.playMode, loading]);
+  const playModeForReady = sessionData?.playMode || 'team';
+  const isReadyToStart = playlistReady && playlist.length > 0 && (playModeForReady === 'team' || (playModeForReady === 'quiz' && questionsReady));
 
   // ========== HANDLERS ==========
 
@@ -208,7 +196,7 @@ export default function StepReadyToStart({
                 console.log(`   🎵 ${result.totalSongs} chansons stub pour ${result.totalPlayers || playersFormatted.length} joueurs`);
 
                 // Convertir les chansons stub au format attendu par setPlaylist
-                const stubTracks = result.songs.map((song, index) => ({
+                const stubTracks = result.songs.map((song) => ({
                   spotifyUri: song.uri,
                   title: song.title,
                   artist: song.artist,
@@ -1007,44 +995,30 @@ export default function StepReadyToStart({
               </div>
             )}
 
-            {/* Étape 3: Démarrage */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '1rem',
-              padding: '1rem',
-              backgroundColor: loading
-                ? 'rgba(251, 191, 36, 0.2)'
-                : 'rgba(255, 255, 255, 0.05)',
-              borderRadius: '0.75rem',
-              border: loading
-                ? '2px solid rgba(251, 191, 36, 0.5)'
-                : '2px solid transparent'
-            }}>
-              <div style={{ fontSize: '2rem' }}>
-                {loading ? '🚀' : '⏹️'}
-              </div>
-              <div style={{ flex: 1, textAlign: 'left' }}>
-                <div style={{ fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>
-                  Démarrage de la partie
-                </div>
-                <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>
-                  {loading
-                    ? 'Initialisation...'
-                    : 'En attente...'}
-                </div>
-              </div>
-              {loading && (
-                <div style={{
-                  width: '32px',
-                  height: '32px',
-                  border: '4px solid rgba(255, 255, 255, 0.3)',
-                  borderTopColor: 'white',
-                  borderRadius: '50%',
-                  animation: 'spin 1s linear infinite'
-                }} />
-              )}
-            </div>
+            {/* Bouton de démarrage */}
+            <button
+              onClick={handleStartGame}
+              disabled={!isReadyToStart || loading}
+              style={{
+                width: '100%',
+                padding: '1.25rem 2rem',
+                fontSize: '1.3rem',
+                fontWeight: 'bold',
+                border: 'none',
+                borderRadius: '0.75rem',
+                cursor: isReadyToStart && !loading ? 'pointer' : 'not-allowed',
+                opacity: isReadyToStart && !loading ? 1 : 0.6,
+                backgroundColor: isReadyToStart && !loading ? '#10b981' : 'rgba(255, 255, 255, 0.15)',
+                color: 'white',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              {loading
+                ? '🚀 Initialisation...'
+                : isReadyToStart
+                ? '🎮 Démarrer la partie'
+                : '⏳ Génération en cours...'}
+            </button>
           </div>
         )}
       </div>
