@@ -3,6 +3,7 @@ import { database } from './firebase';
 import { ref, onValue, set } from 'firebase/database';
 import { QRCodeSVG } from 'qrcode.react';
 import { QuizDisplay } from './components/tv/QuizDisplay';
+import GameEndDashboard from './components/tv/GameEndDashboard';
 import { calculatePoints } from './hooks/useScoring';
 import SessionCodeInput from './components/SessionCodeInput';
 
@@ -642,7 +643,11 @@ export default function TV() {
     );
   }
 
-  // NOUVEAU : Écran de victoire
+  // Écran de fin — Dashboard Quiz ou Victoire Équipe
+  if (gameEnded && playMode === 'quiz') {
+    return <GameEndDashboard sessionId={sessionId} playMode={playMode} />;
+  }
+
   if (gameEnded) {
     const winnerTeam = winner === 'team1' ? 1 : winner === 'team2' ? 2 : null;
     const winnerColor = winner === 'team1' ? '#dc2626' : winner === 'team2' ? '#2563eb' : '#6b7280';
