@@ -26,6 +26,7 @@ import Login from './components/Login';
 import PlaylistSelector from './components/master/PlaylistSelector';
 import BuzzAlert from './components/master/BuzzAlert';
 import GameSettings from './components/master/GameSettings';
+import GameEndScreen from './components/master/GameEndScreen';
 import QuizControls from './components/master/QuizControls';
 import QuizLeaderboard from './components/master/QuizLeaderboard';
 
@@ -66,6 +67,7 @@ export default function Master({
   const [showCooldownSettings, setShowCooldownSettings] = useState(false);
   const [anonymousMode, setAnonymousMode] = useState(playMode === 'quiz');
   const [showDropdown, setShowDropdown] = useState(false);
+  const [gameEnded, setGameEnded] = useState(false);
   const [debugInfo, setDebugInfo] = useState('');
 
   // États de cooldown
@@ -945,8 +947,7 @@ export default function Master({
     await deactivatePreviousSession(sessionId);
 
     setShowEndGameConfirm(false);
-    setDebugInfo('🎉 Partie terminée ! Session désactivée.');
-    onEndGame?.();
+    setGameEnded(true);
   };
 
   const handleLogout = async () => {
@@ -996,6 +997,34 @@ export default function Master({
     ? !!spotifyAIMode.spotifyDeviceId
     : !!spotifyAutoMode.spotifyDeviceId;
   const isPlayerReady = !isSpotifyMode || spotifyDeviceReady;
+
+  // Fin automatique quand la dernière chanson est révélée
+  useEffect(() => {
+    if (
+      currentSong?.revealed &&
+      playlist.length > 0 &&
+      currentTrack === playlist.length &&
+      !gameEnded
+    ) {
+      console.log('🏁 Dernière chanson révélée — fin de partie automatique');
+      endGame();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSong?.revealed, currentTrack, playlist.length, gameEnded]);
+
+  // Écran de fin de partie
+  if (gameEnded) {
+    return (
+      <GameEndScreen
+        scores={scores}
+        playMode={playMode}
+        leaderboard={quizMode.leaderboard}
+        playlistLength={playlist.length}
+        tracksPlayed={currentTrack}
+        onNewGame={() => onEndGame?.()}
+      />
+    );
+  }
 
   return (
     <div style={{

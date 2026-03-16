@@ -25,6 +25,8 @@ export default function BuzzerTeam({ sessionIdFromRouter = null }) {
   const [step, setStep] = useState('loading_auto_join'); // Nouveau state initial pour attendre la vérification
   const [error, setError] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [gameEnded, setGameEnded] = useState(false);
+  const [finalScores, setFinalScores] = useState({});
 
   // États joueur
   const [playerName, setPlayerName] = useState('');
@@ -45,6 +47,20 @@ export default function BuzzerTeam({ sessionIdFromRouter = null }) {
   const [someoneBuzzed, setSomeoneBuzzed] = useState(false);
   const [buzzerEnabled, setBuzzerEnabled] = useState(true);
   const [cooldownEnd, setCooldownEnd] = useState(null);
+
+  // ========== GAME END DETECTION ==========
+  useEffect(() => {
+    if (!sessionValid || !sessionId) return;
+    const gameStatusRef = ref(database, `sessions/${sessionId}/game_status`);
+    const unsubscribe = onValue(gameStatusRef, (snapshot) => {
+      const status = snapshot.val();
+      if (status?.ended === true) {
+        setGameEnded(true);
+        setFinalScores(status.final_scores || {});
+      }
+    });
+    return () => unsubscribe();
+  }, [sessionValid, sessionId]);
 
   // ========== AUTO-REJOIN LOGIC ==========
 
@@ -432,6 +448,36 @@ export default function BuzzerTeam({ sessionIdFromRouter = null }) {
   }, [cooldownEnd]);
 
   // ========== RENDU DES ÉCRANS ==========
+
+  // Écran de fin de partie
+  if (gameEnded) {
+    const myTeam = team === 1 ? 'team1' : 'team2';
+    const opponentTeam = team === 1 ? 'team2' : 'team1';
+    const iWon = finalScores[myTeam] > finalScores[opponentTeam];
+    const isDraw = finalScores[myTeam] === finalScores[opponentTeam];
+
+    return (
+      <div style={{ minHeight: '100vh', background: 'linear-gradient(145deg, #0b1220 0%, #0f2444 50%, #0b1220 100%)', color: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem', textAlign: 'center' }}>
+        <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>
+          {isDraw ? '🤝' : iWon ? '🏆' : '😔'}
+        </div>
+        <h1 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '0.5rem', color: isDraw ? '#fbbf24' : iWon ? '#22c55e' : '#ef4444' }}>
+          {isDraw ? 'Égalité !' : iWon ? 'Victoire !' : 'Défaite...'}
+        </h1>
+        <div style={{ display: 'flex', gap: '2rem', marginTop: '2rem' }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '0.85rem', opacity: 0.6 }}>Équipe {team}</div>
+            <div style={{ fontSize: '2rem', fontWeight: 700 }}>{finalScores[myTeam] || 0}</div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '0.85rem', opacity: 0.6 }}>Équipe {team === 1 ? 2 : 1}</div>
+            <div style={{ fontSize: '2rem', fontWeight: 700 }}>{finalScores[opponentTeam] || 0}</div>
+          </div>
+        </div>
+        <p style={{ marginTop: '2rem', opacity: 0.5, fontSize: '0.9rem' }}>En attente d'une nouvelle partie...</p>
+      </div>
+    );
+  }
 
   // Écran de chargement pendant la vérification de la session ou l'auto-rejoin
   if (isLoading || step === 'loading_auto_join') {

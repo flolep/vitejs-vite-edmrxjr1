@@ -126,6 +126,20 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
   // État Debug Panel (uniquement visible en mode Test)
   const [showDebug, setShowDebug] = useState(false);
   const isTestMode = prefsStorage.getTestMode();
+  const [gameEnded, setGameEnded] = useState(false);
+
+  // ========== GAME END DETECTION ==========
+  useEffect(() => {
+    if (!sessionValid || !sessionId) return;
+    const gameStatusRef = ref(database, `sessions/${sessionId}/game_status`);
+    const unsubscribe = onValue(gameStatusRef, (snapshot) => {
+      const status = snapshot.val();
+      if (status?.ended === true) {
+        setGameEnded(true);
+      }
+    });
+    return () => unsubscribe();
+  }, [sessionValid, sessionId]);
 
   // ========== AUTO-REJOIN LOGIC ==========
 
@@ -765,6 +779,27 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
       </div>
     </div>
   );
+
+  // Écran de fin de partie
+  if (gameEnded) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'linear-gradient(145deg, #0b1220 0%, #0f2444 50%, #0b1220 100%)', color: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem', textAlign: 'center' }}>
+        <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🏁</div>
+        <h1 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '1.5rem', color: '#fbbf24' }}>Partie terminée !</h1>
+        {liveRank && (
+          <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '1rem', padding: '1.5rem', marginBottom: '1.5rem', minWidth: '280px' }}>
+            <div style={{ fontSize: '0.85rem', opacity: 0.5, marginBottom: '0.5rem' }}>Ton résultat</div>
+            <div style={{ fontSize: '2rem', fontWeight: 700, color: '#fbbf24' }}>{liveRank.totalPoints} pts</div>
+            <div style={{ fontSize: '1rem', opacity: 0.7, marginTop: '0.25rem' }}>
+              {liveRank.rank === 1 ? '🥇' : liveRank.rank === 2 ? '🥈' : liveRank.rank === 3 ? '🥉' : `${liveRank.rank}ème`} sur {liveRank.totalPlayers} joueurs
+            </div>
+            <div style={{ fontSize: '0.85rem', opacity: 0.5, marginTop: '0.25rem' }}>{liveRank.correctAnswers} bonne{liveRank.correctAnswers > 1 ? 's' : ''} réponse{liveRank.correctAnswers > 1 ? 's' : ''}</div>
+          </div>
+        )}
+        <p style={{ opacity: 0.5, fontSize: '0.9rem' }}>En attente d'une nouvelle partie...</p>
+      </div>
+    );
+  }
 
   // Écran de chargement pendant la vérification de la session
   if (isLoading || step === 'loading_auto_join') {
