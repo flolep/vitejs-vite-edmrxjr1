@@ -24,7 +24,7 @@ export function useSpotifyTokenRefresh(initialToken, onTokenRefreshed) {
     if (initialToken && initialToken !== token) {
       setToken(initialToken);
     }
-  }, [initialToken]);
+  }, [initialToken, token]);
 
   /**
    * Rafraîchit le token Spotify via le refresh_token
@@ -121,6 +121,7 @@ export function useSpotifyTokenRefresh(initialToken, onTokenRefreshed) {
         refreshToken();
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Surveillance périodique : vérifier toutes les minutes si le token doit être rafraîchi
@@ -138,6 +139,7 @@ export function useSpotifyTokenRefresh(initialToken, onTokenRefreshed) {
         clearInterval(refreshIntervalRef.current);
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   return {

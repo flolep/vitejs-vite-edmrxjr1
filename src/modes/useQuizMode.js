@@ -7,7 +7,7 @@ import { calculatePoints } from '../hooks/useScoring';
  * Hook pour gérer le mode Quiz
  * Logique spécifique au jeu en mode QCM avec classement individuel
  */
-export function useQuizMode(sessionId, currentTrack, playlist, currentChronoRef) {
+export function useQuizMode(sessionId, currentTrack, playlist) {
   const [quizAnswers, setQuizAnswers] = useState([]); // Les 4 réponses [A, B, C, D]
   const [correctAnswerIndex, setCorrectAnswerIndex] = useState(null); // Index de la bonne réponse (0-3)
   const [playerAnswers, setPlayerAnswers] = useState([]); // Liste des réponses des joueurs

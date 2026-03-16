@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { auth, database } from '../../firebase';
-import { ref, get, set, update } from 'firebase/database';
+import { ref, get, update } from 'firebase/database';
 import { onAuthStateChanged } from 'firebase/auth';
 import Login from '../../components/Login';
 import { getValidSpotifyToken, hasRefreshToken, getRefreshToken } from '../../utils/spotifyUtils';
@@ -252,7 +252,7 @@ export default function MasterFlowContainer() {
           const data = snapshot.val();
           if (!data) return [];
           return Object.entries(data)
-            .filter(([_, player]) => player.connected)
+            .filter(([, player]) => player.connected)
             .map(([key, player]) => ({
               id: player.id || key,
               name: player.name,

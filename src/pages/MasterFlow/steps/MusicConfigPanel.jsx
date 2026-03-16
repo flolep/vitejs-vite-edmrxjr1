@@ -7,7 +7,6 @@ import { isSpotifyTokenValid } from '../../../utils/spotifyUtils';
  */
 export default function MusicConfigPanel({
   onMusicConfigured,
-  spotifyToken,
   onSpotifyConnect
 }) {
   const [selectedSource, setSelectedSource] = useState(null); // 'mp3' | 'spotify-auto' | 'spotify-ai'
@@ -27,7 +26,7 @@ export default function MusicConfigPanel({
       // Notifier le parent
       onMusicConfigured('mp3', {
         files,
-        playlist: files.map((file, index) => ({
+        playlist: files.map((file) => ({
           title: file.name,
           uri: URL.createObjectURL(file),
           duration: 30 // Valeur par défaut

@@ -57,7 +57,7 @@ export default function StepPlayerConnection({
     const unsubscribe1 = onValue(team1Ref, (snapshot) => {
       const team1Data = snapshot.val();
       team1Players = team1Data ? Object.entries(team1Data)
-        .filter(([_, player]) => player.connected)
+        .filter(([, player]) => player.connected)
         .map(([key, player]) => ({
           id: player.id || key,
           name: player.name,
@@ -70,7 +70,7 @@ export default function StepPlayerConnection({
     const unsubscribe2 = onValue(team2Ref, (snapshot) => {
       const team2Data = snapshot.val();
       team2Players = team2Data ? Object.entries(team2Data)
-        .filter(([_, player]) => player.connected)
+        .filter(([, player]) => player.connected)
         .map(([key, player]) => ({
           id: player.id || key,
           name: player.name,

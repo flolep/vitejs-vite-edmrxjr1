@@ -309,7 +309,7 @@ export const n8nService = {
       console.log('🎲 [2/2] Génération des mauvaises réponses...');
 
       // Formater les chansons pour le workflow Wrong Answers
-      const songsForWrongAnswers = playlistResponse.songs.map((song, index) => ({
+      const songsForWrongAnswers = playlistResponse.songs.map((song) => ({
         artist: song.artist,
         title: song.title,
         uri: song.uri
