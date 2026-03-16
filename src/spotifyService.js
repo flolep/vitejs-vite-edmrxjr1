@@ -154,19 +154,17 @@ export const spotifyService = {
           console.log('✅ Player ready with device ID:', device_id);
 
           try {
-            // Étape 1 : Transférer la lecture vers ce device pour l'activer
+            // Attendre que Spotify enregistre le device dans son backend
+            await new Promise(resolve => setTimeout(resolve, 1500));
             console.log('🔄 Activation du device via transferPlayback...');
             await this.transferPlayback(accessToken, device_id);
-
-            // Étape 2 : Attendre un peu que Spotify enregistre le device
-            await new Promise(resolve => setTimeout(resolve, 1000));
-
+            await new Promise(resolve => setTimeout(resolve, 500));
             console.log('✅ Device activé et prêt');
             onReady(device_id);
             resolve(player);
           } catch (error) {
             console.error('❌ Erreur activation device:', error);
-            // On continue quand même car le device peut être utilisable
+            // Continuer quand même — le device peut être utilisable malgré l'erreur
             onReady(device_id);
             resolve(player);
           }
