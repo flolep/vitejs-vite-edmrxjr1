@@ -58,6 +58,13 @@ export class SpotifyPlayerAdapter {
       throw new Error('Spotify non initialisé ou track invalide');
     }
 
+    // Réactiver le device avant chaque lecture (évite le 404 après inactivité)
+    try {
+      await spotifyService.transferPlayback(this.token, this.deviceId);
+    } catch (e) {
+      console.warn('⚠️ [SpotifyPlayerAdapter] transferPlayback avant play échoué:', e.message);
+    }
+
     const isNewTrack = this.lastPlayedTrack !== currentTrackIndex;
     const startPosition = isNewTrack ? 0 : this.currentPosition;
 
