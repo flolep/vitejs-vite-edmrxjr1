@@ -302,45 +302,38 @@ export default function MasterFlowContainer() {
       // Générer un sessionId unique (6 caractères alphanumériques en majuscules)
       const newSessionId = Math.random().toString(36).substring(2, 8).toUpperCase();
 
-      console.log('🆕 Création nouvelle session:', newSessionId, 'Mode:', selectedMode);
+      console.log('🆕 Nouvelle session (pré-création):', newSessionId, 'Mode:', selectedMode);
 
       // Réinitialiser la partie active (on crée une nouvelle partie)
       setActiveGame(null);
 
-      // Créer la session dans Firebase
+      // Créer un noeud minimal dans Firebase (active: true pour que les joueurs
+      // puissent écrire dans players_session via QR code — les règles Firebase
+      // exigent active === true). Pas de startedAt ni playlistId, donc
+      // checkForActiveGame() ne la détectera PAS comme partie reprendable.
       const updates = {};
       updates[`sessions/${newSessionId}/sessionId`] = newSessionId;
       updates[`sessions/${newSessionId}/createdBy`] = user.uid;
-      updates[`sessions/${newSessionId}/createdAt`] = Date.now();
       updates[`sessions/${newSessionId}/active`] = true;
       updates[`sessions/${newSessionId}/playMode`] = selectedMode;
-      updates[`sessions/${newSessionId}/scores`] = { team1: 0, team2: 0 };
-      updates[`sessions/${newSessionId}/chrono`] = 0;
-      updates[`sessions/${newSessionId}/isPlaying`] = false;
-      updates[`sessions/${newSessionId}/currentTrackNumber`] = 1;
-      updates[`sessions/${newSessionId}/currentSong`] = null;
-      updates[`sessions/${newSessionId}/game_status`] = { ended: false };
-      updates[`sessions/${newSessionId}/showQRCode`] = false;
 
       await update(ref(database), updates);
 
-      // Sauvegarder dans localStorage
-      localStorage.setItem('lastSessionId', newSessionId);
-
-      // Mettre à jour les données de session
+      // Stocker le mode et sessionId en mémoire — pas de localStorage.lastSessionId
+      // pour éviter qu'une session non démarrée soit détectée comme "partie en cours"
       setSessionData(prev => ({
         ...prev,
         sessionId: newSessionId,
         playMode: selectedMode
       }));
 
-      console.log('✅ Session créée avec succès');
+      console.log('✅ Session pré-créée (active: false)');
 
       // Passer à l'étape suivante
       setFlowState(FLOW_STATES.PLAYER_CONNECTION);
 
     } catch (err) {
-      console.error('❌ Erreur création session:', err);
+      console.error('❌ Erreur pré-création session:', err);
       setError('Erreur lors de la création de la session');
     } finally {
       setIsLoading(false);
@@ -356,17 +349,7 @@ export default function MasterFlowContainer() {
 
     const gameMode = `${musicSource}-${sessionData.playMode}`;
 
-    // Persister musicSource et gameMode dans Firebase immédiatement
-    // pour que la reprise de session fonctionne même si le navigateur est fermé avant handleStartGame
-    try {
-      const sessionRef = ref(database, `sessions/${sessionData.sessionId}`);
-      await update(sessionRef, { musicSource, gameMode });
-      console.log('✅ musicSource et gameMode persistés dans Firebase:', { musicSource, gameMode });
-    } catch (err) {
-      console.error('❌ Erreur persistance musicSource/gameMode:', err);
-    }
-
-    // Mettre à jour les données de session
+    // Stocker en mémoire — sera persisté dans Firebase par handleStartGame()
     setSessionData(prev => ({
       ...prev,
       musicSource,
@@ -385,18 +368,35 @@ export default function MasterFlowContainer() {
   const handleStartGame = async (playlistData = []) => {
     console.log('🎬 [MasterFlowContainer] handleStartGame début, playlist:', playlistData?.length || 0, 'chansons');
     try {
-      // Stocker la playlist dans sessionData pour éviter de la recharger depuis Firebase
+      // Créer la session complète dans Firebase maintenant que tout est configuré
+      const sid = sessionData.sessionId;
+      const updates = {};
+      updates[`sessions/${sid}/sessionId`] = sid;
+      updates[`sessions/${sid}/createdBy`] = user.uid;
+      updates[`sessions/${sid}/createdAt`] = Date.now();
+      updates[`sessions/${sid}/active`] = true;
+      updates[`sessions/${sid}/playMode`] = sessionData.playMode;
+      updates[`sessions/${sid}/musicSource`] = sessionData.musicSource;
+      updates[`sessions/${sid}/gameMode`] = sessionData.gameMode;
+      updates[`sessions/${sid}/scores`] = { team1: 0, team2: 0 };
+      updates[`sessions/${sid}/chrono`] = 0;
+      updates[`sessions/${sid}/isPlaying`] = false;
+      updates[`sessions/${sid}/currentTrackNumber`] = 1;
+      updates[`sessions/${sid}/currentSong`] = null;
+      updates[`sessions/${sid}/game_status`] = { ended: false };
+      updates[`sessions/${sid}/showQRCode`] = false;
+      updates[`sessions/${sid}/startedAt`] = Date.now();
+
+      await update(ref(database), updates);
+      localStorage.setItem('lastSessionId', sid);
+
+      console.log('✅ Session Firebase créée (active: true)');
+
+      // Stocker la playlist dans sessionData
       setSessionData(prev => ({
         ...prev,
         playlist: playlistData
       }));
-
-      // Marquer la partie comme démarrée dans Firebase
-      // Note: musicSource et gameMode sont déjà persistés par handleConnectionComplete()
-      const sessionRef = ref(database, `sessions/${sessionData.sessionId}`);
-      await update(sessionRef, {
-        startedAt: Date.now()
-      });
 
       console.log('🎮 [MasterFlowContainer] Partie démarrée, passage à GAME_PLAYING');
 
