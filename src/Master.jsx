@@ -17,7 +17,7 @@ import { useMP3Mode } from './modes/useMP3Mode';
 import { useSpotifyAutoMode } from './modes/useSpotifyAutoMode';
 import { useSpotifyAIMode } from './modes/useSpotifyAIMode';
 import { useQuizMode } from './modes/useQuizMode';
-import { useSpotifyTokenRefresh } from './hooks/useSpotifyTokenRefresh';
+import { useSpotifyToken } from './contexts/SpotifyTokenContext';
 import { createPlayerAdapter } from './services/playerAdapter';
 
 // Import des composants
@@ -41,7 +41,6 @@ export default function Master({
   initialGameMode = null,
   initialPlaylist = [],
   initialPlaylistId = null,
-  initialSpotifyToken = null,
   onEndGame = null
 }) {
   // États d'authentification et session
@@ -92,19 +91,8 @@ export default function Master({
   const [allQuizPlayers, setAllQuizPlayers] = useState([]); // Joueurs connectés en mode Quiz
   const [testMode] = useState(() => localStorage.getItem('quizTestMode') === 'true');
 
-  // Déterminer le token initial
-  const getInitialToken = () => {
-    if (initialSpotifyToken) return initialSpotifyToken;
-    return localStorage.getItem('spotify_access_token');
-  };
-
-  // Hook de rafraîchissement automatique du token Spotify
-  const { token: spotifyToken, isRefreshing: tokenRefreshing, error: tokenError } = useSpotifyTokenRefresh(
-    getInitialToken(),
-    (newToken) => {
-      console.log('🔄 Token Spotify rafraîchi automatiquement dans Master');
-    }
-  );
+  // Token Spotify centralisé via contexte (géré par SpotifyTokenProvider)
+  const { spotifyToken } = useSpotifyToken();
 
   // Hooks communs (logique partagée)
   const {

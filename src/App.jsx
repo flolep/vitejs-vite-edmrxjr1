@@ -3,6 +3,7 @@ import Buzzer from './Buzzer';
 import TV from './TV';
 import SpotifyCallback from './SpotifyCallback';
 import MasterFlowContainer from './pages/MasterFlow/MasterFlowContainer';
+import { SpotifyTokenProvider } from './contexts/SpotifyTokenContext';
 
 export default function App() {
   // Initialiser la page depuis l'URL uniquement
@@ -53,7 +54,11 @@ export default function App() {
 
   // Flux Master refactorisé
   if (page === 'master-flow') {
-    return <MasterFlowContainer />;
+    return (
+      <SpotifyTokenProvider>
+        <MasterFlowContainer />
+      </SpotifyTokenProvider>
+    );
   }
 
   if (page === 'buzzer') return <Buzzer />;

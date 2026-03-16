@@ -3,8 +3,8 @@ import { auth, database } from '../../firebase';
 import { ref, get, update } from 'firebase/database';
 import { onAuthStateChanged } from 'firebase/auth';
 import Login from '../../components/Login';
-import { getValidSpotifyToken, hasRefreshToken, getRefreshToken } from '../../utils/spotifyUtils';
-import { spotifyService } from '../../spotifyService';
+import { hasRefreshToken } from '../../utils/spotifyUtils';
+import { useSpotifyToken } from '../../contexts/SpotifyTokenContext';
 
 // Import des étapes
 import StepModeSelection from './steps/StepModeSelection';
@@ -30,6 +30,9 @@ const FLOW_STATES = {
  * Gère la state machine et la navigation entre les étapes
  */
 export default function MasterFlowContainer() {
+  // Token Spotify centralisé via contexte
+  const { spotifyToken: contextSpotifyToken, refreshToken: contextRefreshToken } = useSpotifyToken();
+
   // État d'authentification
   const [user, setUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
@@ -100,7 +103,7 @@ export default function MasterFlowContainer() {
                 players: [],
                 playlist: [],
                 playlistId: null,
-                spotifyToken: getValidSpotifyToken()
+                spotifyToken: contextSpotifyToken
               });
 
               // Retour à l'étape de configuration musicale
@@ -184,7 +187,7 @@ export default function MasterFlowContainer() {
         musicSource: derivedMusicSource || null,
         gameMode: existingSession.gameMode || null,
         playlistId: existingSession.playlistId || null,
-        spotifyToken: getValidSpotifyToken(),
+        spotifyToken: contextSpotifyToken,
         canRefresh: hasRefreshToken()
       });
 
@@ -210,35 +213,18 @@ export default function MasterFlowContainer() {
     setIsLoading(true);
 
     try {
-      // 1. Résoudre le token Spotify si nécessaire
-      let spotifyToken = activeGame.spotifyToken;
+      // 1. Résoudre le token Spotify via le contexte
+      let spotifyToken = contextSpotifyToken;
       const isSpotifyMode = activeGame.musicSource === 'spotify-ai' || activeGame.musicSource === 'spotify-auto';
 
       if (isSpotifyMode && !spotifyToken) {
-        // Token expiré — tenter un refresh avec le refresh_token
-        const refreshTokenValue = getRefreshToken();
-
-        if (refreshTokenValue) {
-          console.log('[Resume] Token expiré, refresh silencieux...');
-          try {
-            const tokenData = await spotifyService.refreshAccessToken(refreshTokenValue);
-
-            if (tokenData.access_token) {
-              spotifyToken = tokenData.access_token;
-              localStorage.setItem('spotify_access_token', tokenData.access_token);
-              const expiryTime = Date.now() + ((tokenData.expires_in || 3600) * 1000);
-              localStorage.setItem('spotify_token_expiry', expiryTime.toString());
-              if (tokenData.refresh_token) {
-                localStorage.setItem('spotify_refresh_token', tokenData.refresh_token);
-              }
-              console.log('[Resume] Token rafraîchi avec succès');
-            }
-          } catch (err) {
-            console.error('[Resume] Échec refresh token:', err);
-            // On continue — useSpotifyTokenRefresh dans Master.jsx tentera aussi un bootstrap
-          }
+        console.log('[Resume] Token expiré, refresh via contexte...');
+        const refreshed = await contextRefreshToken();
+        if (refreshed) {
+          spotifyToken = refreshed;
+          console.log('[Resume] Token rafraîchi via contexte');
         } else {
-          console.warn('[Resume] Pas de refresh_token, Spotify ne sera pas disponible');
+          console.warn('[Resume] Refresh échoué, Spotify ne sera pas disponible');
         }
       }
 

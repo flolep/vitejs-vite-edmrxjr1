@@ -43,7 +43,6 @@ export default function ActiveGameContainer({
   const {
     playMode = 'team',
     musicConfigData = {},
-    spotifyToken = null,
     playlist: playlistFromSessionData = []
   } = sessionData || {};
 
@@ -141,7 +140,6 @@ export default function ActiveGameContainer({
       initialGameMode={gameMode}
       initialPlaylist={initialPlaylist}
       initialPlaylistId={playlistId}
-      initialSpotifyToken={spotifyToken || localStorage.getItem('spotify_access_token')}
       onEndGame={onEndGame}
     />
   );
