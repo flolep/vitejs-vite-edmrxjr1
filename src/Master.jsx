@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { database, auth } from './firebase';
-import { ref, onValue, set, update, remove } from 'firebase/database';
+import { ref, onValue, set, remove } from 'firebase/database';
 import { spotifyService } from './spotifyService';
 import { n8nService } from './n8nService';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -29,7 +29,6 @@ import BuzzAlert from './components/master/BuzzAlert';
 import GameSettings from './components/master/GameSettings';
 import QuizControls from './components/master/QuizControls';
 import QuizLeaderboard from './components/master/QuizLeaderboard';
-import FirebaseCleanup from './components/master/FirebaseCleanup';
 
 /**
  * Composant Master refactorisé
@@ -50,7 +49,7 @@ export default function Master({
   const [sessionId, setSessionId] = useState(initialSessionId);
 
   // Initialisation robuste de musicSource (fallback sur gameMode si nécessaire)
-  const [musicSource, setMusicSource] = useState(() => {
+  const [musicSource] = useState(() => {
     if (initialMusicSource) return initialMusicSource;
     if (initialGameMode) {
       if (initialGameMode.startsWith('spotify-auto')) return 'spotify-auto';
@@ -60,17 +59,13 @@ export default function Master({
     return null;
   });
 
-  const [playMode, setPlayMode] = useState(initialPlayMode); // 'team' | 'quiz'
-  const [gameMode, setGameMode] = useState(initialGameMode); // Combinaison
-
+  const [playMode] = useState(initialPlayMode); // 'team' | 'quiz'
   // États UI
   const [showQRCode, setShowQRCode] = useState(false);
   const [showSessionModal, setShowSessionModal] = useState(false);
-  const [showModeSelection, setShowModeSelection] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [showEndGameConfirm, setShowEndGameConfirm] = useState(false);
   const [showCooldownSettings, setShowCooldownSettings] = useState(false);
-  const [showFirebaseCleanup, setShowFirebaseCleanup] = useState(false);
   const [anonymousMode, setAnonymousMode] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [debugInfo, setDebugInfo] = useState('');
@@ -239,127 +234,51 @@ export default function Master({
   // Ref pour empêcher le double chargement de la playlist lors de la reprise
   const hasLoadedPlaylistRef = useRef(false);
 
-  // Charger les données de la session
-  // Gère à la fois l'ancien flux (MasterWizard) et le nouveau flux (MasterFlowContainer) en mode "Resume"
-  // Dépendances réduites : seuls user et spotifyToken sont réactifs (les props initiales ne changent pas)
+  // Charger la playlist lors d'une reprise de session (Resume)
+  // La playlist vient soit des props (initialPlaylist), soit on la recharge depuis Spotify (initialPlaylistId)
   useEffect(() => {
     if (!user || !initialSessionId) return;
 
-    // 1. Cas "Nouveau Flux" avec Playlist déjà chargée
-    if (initialPlaylist && initialPlaylist.length > 0) {
-      console.log('✅ [MASTER] Nouveau flux détecté (MasterFlowContainer) - Playlist fournie');
+    // Playlist déjà fournie par MasterFlowContainer
+    if (initialPlaylist && initialPlaylist.length > 0) return;
+
+    // Reprise sans playlist — recharger depuis Spotify via playlistId
+    if (!initialPlaylistId) return;
+
+    if (!spotifyToken) {
+      setWaitingForSpotifyToken(true);
       return;
     }
 
-    // 2. Cas "Nouveau Flux" en mode Reprise (Resume) sans playlist
-    // On a l'ID de la playlist via les props, mais pas le contenu
-    if (initialPlaylistId) {
-      if (!spotifyToken) {
-        console.log('⏳ [MASTER] Attente du token Spotify pour recharger la playlist...');
-        setWaitingForSpotifyToken(true);
-        return;
-      }
-
-      // Empêcher le double chargement si le token change après le premier chargement réussi
-      if (hasLoadedPlaylistRef.current) {
-        console.log('ℹ️ [MASTER] Playlist déjà chargée, skip');
-        return;
-      }
-
-      hasLoadedPlaylistRef.current = true;
-      setWaitingForSpotifyToken(false);
-      console.log('📥 [MASTER] Rechargement playlist depuis Spotify...', { musicSource, initialPlaylistId });
-
-      // Logique de chargement
-      const attemptLoadSpotify = () => {
-        if (spotifyService && typeof spotifyService.getPlaylistTracks === 'function') {
-          console.log('🔄 [MASTER] Tentative chargement Spotify standard...');
-          spotifyService.getPlaylistTracks(spotifyToken, initialPlaylistId)
-            .then(tracks => {
-              if (Array.isArray(tracks)) {
-                setPlaylist(tracks);
-                console.log('✅ [MASTER] Playlist rechargée:', tracks.length);
-              } else {
-                hasLoadedPlaylistRef.current = false; // Permettre un retry
-              }
-            })
-            .catch(err => {
-              console.error('❌ [MASTER] Erreur rechargement:', err);
-              hasLoadedPlaylistRef.current = false; // Permettre un retry
-            });
-        }
-      };
-
-      if (musicSource === 'spotify-ai') {
-        spotifyAIMode.loadPlaylistById(initialPlaylistId, setPlaylist)
-          .then(tracks => console.log('✅ [MASTER] Playlist Spotify AI rechargée:', tracks?.length))
-          .catch(err => {
-            console.error('❌ [MASTER] Erreur rechargement playlist AI:', err);
-            hasLoadedPlaylistRef.current = false; // Permettre un retry
-          });
-      } else if (musicSource === 'spotify-auto') {
-        attemptLoadSpotify();
-      } else {
-        console.warn(`⚠️ [MASTER] Mode "${musicSource}" détecté avec playlistId. Tentative fallback Spotify...`);
-        attemptLoadSpotify();
-      }
-      return;
-    }
-
-    // 3. Cas "Ancien Flux" (MasterWizard) - Fallback complet sur Firebase
     if (hasLoadedPlaylistRef.current) return;
     hasLoadedPlaylistRef.current = true;
+    setWaitingForSpotifyToken(false);
 
-    console.log('⚠️ [MASTER] Ancien flux détecté (MasterWizard) - Chargement depuis Firebase');
-    const sessionRef = ref(database, `sessions/${initialSessionId}`);
-    onValue(sessionRef, (snapshot) => {
-      const sessionData = snapshot.val();
-      if (sessionData && sessionData.active !== false) {
-        // Charger les modes uniquement si non définis
-        if (!musicSource) setMusicSource(sessionData.musicSource || sessionData.gameMode?.split('-')[0] || 'mp3');
-        if (!playMode) setPlayMode(sessionData.playMode || sessionData.gameMode?.split('-')[1] || 'team');
+    console.log('📥 [MASTER] Rechargement playlist depuis Spotify...', { musicSource, initialPlaylistId });
 
-        // Charger la playlist si Spotify
-        if (sessionData.playlistId && spotifyToken) {
-          if (sessionData.musicSource === 'spotify-ai') {
-            spotifyAIMode.loadPlaylistById(sessionData.playlistId, setPlaylist);
-          } else if (sessionData.musicSource === 'spotify-auto') {
-            console.log('🔄 [MASTER] Rechargement playlist Spotify Auto:', sessionData.playlistId);
-            if (spotifyService && typeof spotifyService.getPlaylistTracks === 'function') {
-              spotifyService.getPlaylistTracks(spotifyToken, sessionData.playlistId)
-                .then(tracks => {
-                  if (Array.isArray(tracks)) {
-                    setPlaylist(tracks);
-                    console.log('✅ [MASTER] Playlist Spotify Auto rechargée:', tracks.length);
-                  }
-                })
-                .catch(err => console.error('❌ [MASTER] Erreur rechargement playlist Auto:', err));
-            }
+    if (musicSource === 'spotify-ai') {
+      spotifyAIMode.loadPlaylistById(initialPlaylistId, setPlaylist)
+        .then(tracks => console.log('✅ [MASTER] Playlist Spotify AI rechargée:', tracks?.length))
+        .catch(err => {
+          console.error('❌ [MASTER] Erreur rechargement playlist AI:', err);
+          hasLoadedPlaylistRef.current = false;
+        });
+    } else {
+      spotifyService.getPlaylistTracks(spotifyToken, initialPlaylistId)
+        .then(tracks => {
+          if (Array.isArray(tracks)) {
+            setPlaylist(tracks);
+            console.log('✅ [MASTER] Playlist rechargée:', tracks.length);
+          } else {
+            hasLoadedPlaylistRef.current = false;
           }
-        }
-      }
-    }, { onlyOnce: true });
+        })
+        .catch(err => {
+          console.error('❌ [MASTER] Erreur rechargement:', err);
+          hasLoadedPlaylistRef.current = false;
+        });
+    }
   }, [initialSessionId, user, spotifyToken]);
-
-  // Synchroniser la playlist du mode Spotify IA avec la playlist globale
-  // ⚠️ UNIQUEMENT pour le flux ANCIEN (MasterWizard)
-  // Le nouveau flux (MasterFlowContainer) passe déjà la playlist complète via initialPlaylist
-  useEffect(() => {
-    // ✅ Si initialPlaylist est fourni, on utilise le NOUVEAU flux (MasterFlowContainer)
-    // → Skip ce hook car la playlist est déjà fournie
-    if (initialPlaylist && initialPlaylist.length > 0) {
-      return;
-    }
-
-    // ❌ Ancien flux (MasterWizard) : synchroniser depuis spotifyAIMode
-    if (musicSource === 'spotify-ai' &&
-        spotifyAIMode.playlist &&
-        spotifyAIMode.playlist.length > 0 &&
-        playlist.length === 0) {
-      console.log('🔄 [MASTER] Synchronisation de la playlist Spotify IA:', spotifyAIMode.playlist.length, 'chansons');
-      setPlaylist(spotifyAIMode.playlist);
-    }
-  }, [musicSource, spotifyAIMode.playlist, playlist.length]);
 
   // ✅ Initialiser songDuration dans Firebase pour le NOUVEAU flux (MasterFlowContainer)
   // Quand initialPlaylist est fourni, écrire la durée de la première chanson
@@ -2120,14 +2039,6 @@ export default function Master({
             </div>
           </div>
         </div>
-      )}
-
-      {/* Modal Nettoyage Firebase */}
-      {showFirebaseCleanup && (
-        <FirebaseCleanup
-          sessionId={sessionId}
-          onClose={() => setShowFirebaseCleanup(false)}
-        />
       )}
 
       {/* Audio caché pour MP3 */}
