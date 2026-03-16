@@ -61,6 +61,8 @@ export class SpotifyPlayerAdapter {
     // Réactiver le device avant chaque lecture (évite le 404 après inactivité)
     try {
       await spotifyService.transferPlayback(this.token, this.deviceId);
+      // Attendre que Spotify active le device avant de lancer la lecture
+      await new Promise(resolve => setTimeout(resolve, 500));
     } catch (e) {
       console.warn('⚠️ [SpotifyPlayerAdapter] transferPlayback avant play échoué:', e.message);
     }
