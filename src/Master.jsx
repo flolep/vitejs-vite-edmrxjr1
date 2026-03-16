@@ -220,6 +220,7 @@ export default function Master({
 
   // Ref pour empêcher le double chargement de la playlist lors de la reprise
   const hasLoadedPlaylistRef = useRef(false);
+  const endGameRef = useRef(null);
 
   // Charger la playlist lors d'une reprise de session (Resume)
   // La playlist vient soit des props (initialPlaylist), soit on la recharge depuis Spotify (initialPlaylistId)
@@ -999,7 +1000,6 @@ export default function Master({
   const isPlayerReady = !isSpotifyMode || spotifyDeviceReady;
 
   // Fin automatique quand la dernière chanson est révélée
-  const endGameRef = useRef(endGame);
   endGameRef.current = endGame;
 
   useEffect(() => {
@@ -1014,7 +1014,6 @@ export default function Master({
     }
   }, [currentSong?.revealed, currentTrack, playlist.length, gameEnded]);
 
-  // Écran de fin de partie
   if (gameEnded) {
     return (
       <GameEndScreen
