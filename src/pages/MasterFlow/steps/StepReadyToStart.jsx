@@ -564,7 +564,7 @@ export default function StepReadyToStart({
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      background: 'linear-gradient(145deg, #0b1220 0%, #0f2444 50%, #0b1220 100%)',
       padding: '2rem',
       color: 'white',
       display: 'flex',
@@ -670,6 +670,7 @@ export default function StepReadyToStart({
         <div style={{
           backgroundColor: 'rgba(255, 255, 255, 0.1)',
           backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
           border: '2px solid rgba(255, 255, 255, 0.2)',
           borderRadius: '1rem',
           padding: '2rem'
@@ -714,6 +715,7 @@ export default function StepReadyToStart({
         <div style={{
           backgroundColor: 'rgba(255, 255, 255, 0.1)',
           backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
           border: '2px solid rgba(255, 255, 255, 0.2)',
           borderRadius: '1rem',
           padding: '2rem'
@@ -800,6 +802,7 @@ export default function StepReadyToStart({
         <div style={{
           backgroundColor: 'rgba(255, 255, 255, 0.1)',
           backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
           border: '2px solid rgba(255, 255, 255, 0.2)',
           borderRadius: '1rem',
           padding: '2rem'
@@ -1008,7 +1011,7 @@ export default function StepReadyToStart({
                 borderRadius: '0.75rem',
                 cursor: isReadyToStart && !loading ? 'pointer' : 'not-allowed',
                 opacity: isReadyToStart && !loading ? 1 : 0.6,
-                backgroundColor: isReadyToStart && !loading ? '#10b981' : 'rgba(255, 255, 255, 0.15)',
+                backgroundColor: isReadyToStart && !loading ? '#22c55e' : 'rgba(255, 255, 255, 0.15)',
                 color: 'white',
                 transition: 'all 0.2s ease'
               }}

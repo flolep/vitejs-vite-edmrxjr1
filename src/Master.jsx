@@ -72,6 +72,7 @@ export default function Master({
   const [showCooldownSettings, setShowCooldownSettings] = useState(false);
   const [showFirebaseCleanup, setShowFirebaseCleanup] = useState(false);
   const [anonymousMode, setAnonymousMode] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
   const [debugInfo, setDebugInfo] = useState('');
 
   // États de cooldown
@@ -1260,15 +1261,30 @@ export default function Master({
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      background: 'linear-gradient(145deg, #0b1220 0%, #0f2444 50%, #0b1220 100%)',
       color: 'white'
     }}>
+      {/* Test mode banner */}
+      {testMode && (
+        <div style={{
+          background: 'rgba(251,191,36,0.12)',
+          borderBottom: '1px solid rgba(251,191,36,0.25)',
+          padding: '0.5rem 2rem',
+          textAlign: 'center',
+          fontSize: '0.85rem',
+          color: '#fbbf24'
+        }}>
+          ⚠️ Mode Test actif — aucun appel Spotify / n8n / OpenAI
+        </div>
+      )}
+
       {/* HEADER */}
       <header style={{
         background: 'rgba(0, 0, 0, 0.3)',
         backdropFilter: 'blur(10px)',
+        WebkitBackdropFilter: 'blur(10px)',
         borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-        padding: '1rem 2rem',
+        padding: '0.75rem 2rem',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -1276,47 +1292,75 @@ export default function Master({
         top: 0,
         zIndex: 100
       }}>
-        <h1 style={{
-          fontSize: '1.75rem',
-          fontWeight: 'bold',
-          margin: 0,
+        {/* Zone left */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div
+            onClick={() => setShowSessionModal(prev => !prev)}
+            style={{
+              background: 'rgba(0,0,0,0.3)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: '2rem',
+              padding: '0.4rem 1rem',
+              cursor: 'pointer',
+              fontFamily: 'monospace',
+              color: '#fbbf24',
+              fontSize: '0.9rem'
+            }}
+          >
+            Session {getSessionCode(sessionId)}
+          </div>
+          {spotifyToken && (
+            <span style={{ color: '#22c55e', fontSize: '0.8rem', opacity: 0.7 }}>
+              ● Spotify
+            </span>
+          )}
+        </div>
+
+        {/* Zone center */}
+        <div style={{
+          background: 'rgba(0,0,0,0.3)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: '0.75rem',
+          padding: '0.3rem',
           display: 'flex',
           alignItems: 'center',
-          gap: '0.5rem'
+          gap: '0.25rem'
         }}>
-          🎵 BLIND TEST {playMode === 'quiz' && '- MODE QUIZ'}
-        </h1>
-
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          {/* Statut Spotify */}
-          {spotifyToken && (
-            <div style={{
-              padding: '0.5rem 1rem',
-              backgroundColor: 'rgba(16, 185, 129, 0.2)',
-              border: '1px solid #10b981',
-              borderRadius: '0.5rem',
+          <button onClick={prevTrack} style={{ background: 'transparent', border: 'none', color: 'white', fontSize: '1.25rem', cursor: 'pointer', padding: '0.5rem 0.75rem', borderRadius: '0.5rem' }}>⏮</button>
+          <button onClick={togglePlay} style={{ background: isPlaying ? 'rgba(239,68,68,0.35)' : 'rgba(59,130,246,0.35)', border: 'none', color: 'white', fontSize: '1.25rem', cursor: 'pointer', padding: '0.5rem 0.75rem', borderRadius: '0.5rem' }}>{isPlaying ? '⏸' : '▶'}</button>
+          <button onClick={nextTrack} style={{ background: 'transparent', border: 'none', color: 'white', fontSize: '1.25rem', cursor: 'pointer', padding: '0.5rem 0.75rem', borderRadius: '0.5rem' }}>⏭</button>
+          <div style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.15)', margin: '0 0.25rem' }} />
+          <button
+            onClick={revealAnswer}
+            disabled={!currentSong || currentSong.revealed}
+            style={{
+              background: currentSong?.revealed ? 'rgba(34,197,94,0.2)' : 'transparent',
+              border: 'none',
+              color: 'white',
               fontSize: '0.9rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem'
-            }}>
-              <span style={{ color: '#10b981' }}>●</span>
-              Spotify connecté
-            </div>
-          )}
+              padding: '0.5rem 0.75rem',
+              borderRadius: '0.5rem',
+              cursor: !currentSong || currentSong.revealed ? 'default' : 'pointer',
+              opacity: !currentSong || currentSong.revealed ? 0.5 : 1
+            }}
+          >
+            👁 Révéler
+          </button>
+        </div>
 
-          {/* Mode Anonyme Toggle (uniquement en mode Quiz) */}
+        {/* Zone right */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           {playMode === 'quiz' && (
             <button
               onClick={() => setAnonymousMode(prev => !prev)}
               style={{
                 padding: '0.5rem 1rem',
                 backgroundColor: anonymousMode
-                  ? 'rgba(168, 85, 247, 0.3)'
-                  : 'rgba(107, 114, 128, 0.2)',
+                  ? 'rgba(239,68,68,0.25)'
+                  : 'rgba(251,191,36,0.15)',
                 border: anonymousMode
-                  ? '1px solid #a855f7'
-                  : '1px solid #6b7280',
+                  ? '1px solid rgba(239,68,68,0.4)'
+                  : '1px solid rgba(251,191,36,0.3)',
                 borderRadius: '0.5rem',
                 fontSize: '0.85rem',
                 color: 'white',
@@ -1335,85 +1379,131 @@ export default function Master({
             </button>
           )}
 
-          {/* Boutons d'actions */}
-          {sessionId && (
+          {/* More dropdown */}
+          <div style={{ position: 'relative' }}>
             <button
-              onClick={() => setShowSessionModal(true)}
-              className="btn"
+              onClick={() => setShowDropdown(prev => !prev)}
               style={{
-                padding: '0.5rem 1rem',
-                backgroundColor: 'rgba(124, 58, 237, 0.3)',
-                border: '1px solid #7c3aed',
-                fontSize: '0.85rem',
+                background: 'rgba(0,0,0,0.3)',
+                border: '1px solid rgba(255,255,255,0.1)',
                 borderRadius: '0.5rem',
+                padding: '0.5rem 0.75rem',
                 color: 'white',
+                fontSize: '1.25rem',
                 cursor: 'pointer'
               }}
             >
-              📱 Session
+              ⋯
             </button>
-          )}
-
-          <button onClick={loadBuzzStats} style={{
-            padding: '0.5rem 1rem',
-            backgroundColor: 'rgba(124, 58, 237, 0.3)',
-            border: '1px solid #7c3aed',
-            fontSize: '0.85rem',
-            borderRadius: '0.5rem',
-            color: 'white',
-            cursor: 'pointer'
-          }}>
-            📊 Statistiques
-          </button>
-
-          <button onClick={() => setShowEndGameConfirm(true)} style={{
-            padding: '0.5rem 1rem',
-            backgroundColor: 'rgba(251, 191, 36, 0.3)',
-            border: '1px solid #fbbf24',
-            fontSize: '0.85rem',
-            borderRadius: '0.5rem',
-            color: 'white',
-            cursor: 'pointer'
-          }}>
-            🏁 Terminer
-          </button>
-
-          <button onClick={() => setShowCooldownSettings(true)} style={{
-            padding: '0.5rem 1rem',
-            backgroundColor: 'rgba(59, 130, 246, 0.3)',
-            border: '1px solid #3b82f6',
-            fontSize: '0.85rem',
-            borderRadius: '0.5rem',
-            color: 'white',
-            cursor: 'pointer'
-          }}>
-            ⚙️ Réglages
-          </button>
-
-          <button onClick={() => setShowFirebaseCleanup(true)} style={{
-            padding: '0.5rem 1rem',
-            backgroundColor: 'rgba(139, 92, 246, 0.3)',
-            border: '1px solid #8b5cf6',
-            fontSize: '0.85rem',
-            borderRadius: '0.5rem',
-            color: 'white',
-            cursor: 'pointer'
-          }}>
-            🧹 Nettoyage
-          </button>
-
-          <button onClick={handleLogout} style={{
-            padding: '0.5rem 1.5rem',
-            backgroundColor: 'rgba(239, 68, 68, 0.2)',
-            border: '1px solid #ef4444',
-            borderRadius: '0.5rem',
-            color: 'white',
-            cursor: 'pointer'
-          }}>
-            🚪 Déconnexion
-          </button>
+            {showDropdown && (
+              <>
+                <div
+                  onClick={() => setShowDropdown(false)}
+                  style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 199 }}
+                />
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  marginTop: '0.5rem',
+                  background: '#0d1f38',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '0.75rem',
+                  padding: '0.5rem',
+                  minWidth: '220px',
+                  zIndex: 200,
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.5)'
+                }}>
+                  <button
+                    onClick={() => { loadBuzzStats(); setShowDropdown(false); }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                    style={{ width: '100%', textAlign: 'left', padding: '0.6rem 0.75rem', background: 'transparent', border: 'none', color: 'white', fontSize: '0.85rem', cursor: 'pointer', borderRadius: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                  >
+                    📊 Statistiques de buzz
+                  </button>
+                  <button
+                    onClick={() => { setShowCooldownSettings(true); setShowDropdown(false); }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                    style={{ width: '100%', textAlign: 'left', padding: '0.6rem 0.75rem', background: 'transparent', border: 'none', color: 'white', fontSize: '0.85rem', cursor: 'pointer', borderRadius: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                  >
+                    ⚙️ Réglages cooldown
+                  </button>
+                  <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)', margin: '0.25rem 0' }} />
+                  <button
+                    onClick={() => { setShowEndGameConfirm(true); setShowDropdown(false); }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                    style={{ width: '100%', textAlign: 'left', padding: '0.6rem 0.75rem', background: 'transparent', border: 'none', color: '#fbbf24', fontSize: '0.85rem', cursor: 'pointer', borderRadius: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                  >
+                    🏁 Terminer la partie
+                  </button>
+                  <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)', margin: '0.25rem 0' }} />
+                  <button
+                    onClick={() => { handleLogout(); setShowDropdown(false); }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                    style={{ width: '100%', textAlign: 'left', padding: '0.6rem 0.75rem', background: 'transparent', border: 'none', color: '#ef4444', fontSize: '0.85rem', cursor: 'pointer', borderRadius: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                  >
+                    🔴 Déconnexion
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </header>
+
+      {/* Session Panel (slide-under) */}
+      {showSessionModal && (
+        <div style={{
+          background: 'rgba(0,0,0,0.3)',
+          borderBottom: '1px solid rgba(255,255,255,0.07)',
+          padding: '1.5rem 2rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '2rem',
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)'
+        }}>
+          <div style={{ background: 'white', borderRadius: '0.75rem', padding: '0.5rem' }}>
+            <QRCodeSVG
+              value={`${window.location.origin}/buzzer?session=${sessionId}`}
+              size={120}
+              level="H"
+              includeMargin={false}
+            />
+          </div>
+          <div style={{ fontFamily: 'monospace', color: '#fbbf24', fontSize: '2rem', fontWeight: 'bold', letterSpacing: '0.3rem' }}>
+            {getSessionCode(sessionId)}
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(getSessionCode(sessionId));
+                setDebugInfo('✅ Code copié !');
+              }}
+              style={{ padding: '0.6rem 0.75rem', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '0.5rem', color: 'white', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            >
+              📋 Copier
+            </button>
+            <button
+              onClick={() => window.open('/tv', '_blank')}
+              style={{ padding: '0.6rem 0.75rem', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '0.5rem', color: 'white', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            >
+              📺 Ouvrir TV
+            </button>
+            <button
+              onClick={toggleQRCodeOnTV}
+              style={{ padding: '0.6rem 0.75rem', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '0.5rem', color: 'white', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            >
+              {showQRCode ? '🔴 QR sur TV' : '📱 QR sur TV'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Message d'erreur Player Spotify */}
       {(musicSource === 'spotify-auto' || musicSource === 'spotify-ai') && !playerAdapter && !isPlayerInitializing && (
@@ -1470,8 +1560,8 @@ export default function Master({
         {/* SIDEBAR */}
         <aside style={{
           width: '320px',
-          backgroundColor: 'rgba(0, 0, 0, 0.2)',
-          borderRight: '1px solid rgba(255, 255, 255, 0.1)',
+          backgroundColor: 'rgba(0, 0, 0, 0.15)',
+          borderRight: '1px solid rgba(255,255,255,0.06)',
           overflowY: 'auto',
           padding: '1.5rem'
         }}>
@@ -1658,21 +1748,22 @@ export default function Master({
                     style={{
                       padding: '0.6rem',
                       marginBottom: '0.4rem',
-                      backgroundColor: trackNumber === currentTrack ? 'rgba(124, 58, 237, 0.4)' : 'rgba(255, 255, 255, 0.05)',
+                      backgroundColor: trackNumber === currentTrack ? 'rgba(251,191,36,0.07)' : 'rgba(255,255,255,0.03)',
+                      border: trackNumber === currentTrack ? '1px solid rgba(251,191,36,0.35)' : '1px solid transparent',
                       borderRadius: '0.5rem',
-                      opacity: track.revealed ? 0.4 : 1,
+                      opacity: track.revealed ? 0.3 : 1,
                       cursor: 'pointer',
                       transition: 'transform 0.15s ease, opacity 0.15s ease'
                     }}
                     onMouseEnter={(e) => {
                       if (trackNumber !== currentTrack) {
-                        e.currentTarget.style.backgroundColor = 'rgba(124, 58, 237, 0.2)';
+                        e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.06)';
                         e.currentTarget.style.transform = 'translateX(4px)';
                       }
                     }}
                     onMouseLeave={(e) => {
                       if (trackNumber !== currentTrack) {
-                        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                        e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)';
                         e.currentTarget.style.transform = 'translateX(0)';
                       }
                     }}
@@ -1862,154 +1953,7 @@ export default function Master({
         onCancelEndGame={() => setShowEndGameConfirm(false)}
       />
 
-      {/* Modale Session/QR Code */}
-      {showSessionModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '2rem'
-          }}
-          onClick={() => setShowSessionModal(false)}
-        >
-          <div
-            style={{
-              backgroundColor: '#1f2937',
-              borderRadius: '1rem',
-              padding: '2rem',
-              maxWidth: '500px',
-              width: '100%'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ fontSize: '1.5rem', marginBottom: '1.5rem', textAlign: 'center' }}>
-              📱 Session de jeu
-            </h2>
-
-            {/* Code de session */}
-            <div style={{
-              backgroundColor: 'rgba(124, 58, 237, 0.2)',
-              border: '1px solid rgba(124, 58, 237, 0.5)',
-              borderRadius: '0.75rem',
-              padding: '1.5rem',
-              marginBottom: '1.5rem',
-              textAlign: 'center'
-            }}>
-              <div style={{
-                fontSize: '0.875rem',
-                opacity: 0.8,
-                marginBottom: '0.5rem',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em'
-              }}>
-                Code de session
-              </div>
-              <div style={{
-                fontSize: '2.5rem',
-                fontWeight: 'bold',
-                letterSpacing: '0.3rem',
-                fontFamily: 'monospace',
-                color: '#fbbf24',
-                textShadow: '0 0 10px rgba(251, 191, 36, 0.3)'
-              }}>
-                {getSessionCode(sessionId)}
-              </div>
-            </div>
-
-            {/* QR Code */}
-            <div style={{
-              display: 'flex',
-              justifyContent: 'center',
-              marginBottom: '1.5rem',
-              padding: '1rem',
-              backgroundColor: 'white',
-              borderRadius: '0.75rem'
-            }}>
-              <QRCodeSVG
-                value={`${window.location.origin}/buzzer?session=${sessionId}`}
-                size={200}
-                level="H"
-                includeMargin={true}
-              />
-            </div>
-
-            {/* Boutons d'actions */}
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.75rem'
-            }}>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(getSessionCode(sessionId));
-                  setDebugInfo('✅ Code copié !');
-                }}
-                style={{
-                  padding: '0.75rem',
-                  backgroundColor: 'rgba(124, 58, 237, 0.3)',
-                  border: '1px solid #7c3aed',
-                  fontSize: '0.9rem',
-                  borderRadius: '0.5rem',
-                  color: 'white',
-                  cursor: 'pointer'
-                }}
-              >
-                📋 Copier le code
-              </button>
-              <button
-                onClick={() => window.open('/tv', '_blank')}
-                style={{
-                  padding: '0.75rem',
-                  backgroundColor: 'rgba(16, 185, 129, 0.3)',
-                  border: '1px solid #10b981',
-                  fontSize: '0.9rem',
-                  borderRadius: '0.5rem',
-                  color: 'white',
-                  cursor: 'pointer'
-                }}
-              >
-                📺 Ouvrir TV
-              </button>
-              <button
-                onClick={toggleQRCodeOnTV}
-                style={{
-                  padding: '0.75rem',
-                  backgroundColor: showQRCode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)',
-                  border: showQRCode ? '1px solid #ef4444' : '1px solid #10b981',
-                  fontSize: '0.9rem',
-                  borderRadius: '0.5rem',
-                  color: 'white',
-                  cursor: 'pointer'
-                }}
-              >
-                {showQRCode ? '🔴 Masquer QR Code sur TV' : '📱 Afficher QR Code sur TV'}
-              </button>
-              <button
-                onClick={() => setShowSessionModal(false)}
-                style={{
-                  padding: '0.75rem',
-                  backgroundColor: 'rgba(156, 163, 175, 0.3)',
-                  border: '1px solid #9ca3af',
-                  fontSize: '0.9rem',
-                  borderRadius: '0.5rem',
-                  color: 'white',
-                  cursor: 'pointer'
-                }}
-              >
-                Fermer
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Session modal removed — replaced by slide-under panel after header */}
 
       {/* Modale Réglages Cooldown */}
       {showCooldownSettings && (
@@ -2031,7 +1975,8 @@ export default function Master({
         >
           <div
             style={{
-              backgroundColor: '#1f2937',
+              backgroundColor: '#0d1f38',
+              border: '1px solid rgba(255,255,255,0.1)',
               borderRadius: '1rem',
               padding: '2rem',
               maxWidth: '500px',

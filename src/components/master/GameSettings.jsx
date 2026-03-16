@@ -29,7 +29,8 @@ export default function GameSettings({
           zIndex: 1000
         }}>
           <div style={{
-            backgroundColor: '#1f2937',
+            backgroundColor: '#0d1f38',
+            border: '1px solid rgba(255,255,255,0.1)',
             borderRadius: '1rem',
             padding: '2rem',
             maxWidth: '500px',
@@ -77,17 +78,15 @@ export default function GameSettings({
             </div>
             
             <div style={{ display: 'flex', gap: '1rem' }}>
-              <button 
+              <button
                 onClick={onCancelEndGame}
-                className="btn btn-gray"
-                style={{ flex: 1 }}
+                style={{ flex: 1, padding: '0.75rem', backgroundColor: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '0.5rem', color: 'white', cursor: 'pointer', fontSize: '1rem' }}
               >
                 Annuler
               </button>
-              <button 
+              <button
                 onClick={onConfirmEndGame}
-                className="btn btn-green"
-                style={{ flex: 1 }}
+                style={{ flex: 1, padding: '0.75rem', backgroundColor: 'rgba(239,68,68,0.2)', border: '1px solid #ef4444', borderRadius: '0.5rem', color: 'white', cursor: 'pointer', fontSize: '1rem' }}
               >
                 Confirmer
               </button>
@@ -114,9 +113,10 @@ export default function GameSettings({
           }}
           onClick={() => onShowStats(false)}
         >
-          <div 
+          <div
             style={{
-              backgroundColor: '#1f2937',
+              backgroundColor: '#0d1f38',
+              border: '1px solid rgba(255,255,255,0.1)',
               borderRadius: '1rem',
               padding: '2rem',
               maxWidth: '600px',

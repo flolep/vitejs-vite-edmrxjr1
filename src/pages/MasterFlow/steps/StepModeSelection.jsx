@@ -41,7 +41,7 @@ export default function StepModeSelection({ onModeSelected, onResumeGame, active
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      background: 'linear-gradient(145deg, #0b1220 0%, #0f2444 50%, #0b1220 100%)',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
@@ -110,7 +110,8 @@ export default function StepModeSelection({ onModeSelected, onResumeGame, active
             backgroundColor: 'rgba(16, 185, 129, 0.2)',
             border: '2px solid rgba(16, 185, 129, 0.5)',
             borderRadius: '1.5rem',
-            backdropFilter: 'blur(10px)'
+            backdropFilter: 'blur(10px)',
+            WebkitBackdropFilter: 'blur(10px)'
           }}>
             <div style={{
               fontSize: '1.1rem',
@@ -189,11 +190,12 @@ export default function StepModeSelection({ onModeSelected, onResumeGame, active
             style={{
               backgroundColor: selectedMode === 'team' && isCreating
                 ? 'rgba(16, 185, 129, 0.4)'
-                : 'rgba(255, 255, 255, 0.1)',
+                : 'rgba(255,255,255,0.05)',
               backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
               border: selectedMode === 'team' && isCreating
                 ? '3px solid #10b981'
-                : '2px solid rgba(255, 255, 255, 0.2)',
+                : '2px solid rgba(255,255,255,0.1)',
               borderRadius: '1.5rem',
               padding: '3rem 2rem',
               color: 'white',
@@ -204,7 +206,7 @@ export default function StepModeSelection({ onModeSelected, onResumeGame, active
             onMouseEnter={(e) => {
               if (!isCreating) {
                 e.currentTarget.style.transform = 'translateY(-5px)';
-                e.currentTarget.style.boxShadow = '0 10px 40px rgba(0, 0, 0, 0.3)';
+                e.currentTarget.style.boxShadow = '0 10px 40px rgba(0,0,0,0.5)';
               }
             }}
             onMouseLeave={(e) => {
@@ -253,11 +255,12 @@ export default function StepModeSelection({ onModeSelected, onResumeGame, active
             style={{
               backgroundColor: selectedMode === 'quiz' && isCreating
                 ? 'rgba(124, 58, 237, 0.4)'
-                : 'rgba(255, 255, 255, 0.1)',
+                : 'rgba(255,255,255,0.05)',
               backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
               border: selectedMode === 'quiz' && isCreating
                 ? '3px solid #7c3aed'
-                : '2px solid rgba(255, 255, 255, 0.2)',
+                : '2px solid rgba(255,255,255,0.1)',
               borderRadius: '1.5rem',
               padding: '3rem 2rem',
               color: 'white',
@@ -268,7 +271,7 @@ export default function StepModeSelection({ onModeSelected, onResumeGame, active
             onMouseEnter={(e) => {
               if (!isCreating) {
                 e.currentTarget.style.transform = 'translateY(-5px)';
-                e.currentTarget.style.boxShadow = '0 10px 40px rgba(0, 0, 0, 0.3)';
+                e.currentTarget.style.boxShadow = '0 10px 40px rgba(0,0,0,0.5)';
               }
             }}
             onMouseLeave={(e) => {
@@ -315,6 +318,7 @@ export default function StepModeSelection({ onModeSelected, onResumeGame, active
         <div style={{
           backgroundColor: 'rgba(0, 0, 0, 0.2)',
           backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
           border: '1px solid rgba(255, 255, 255, 0.1)',
           borderRadius: '1rem',
           padding: '1.5rem',

@@ -100,7 +100,7 @@ export default function ActiveGameContainer({
     return (
       <div style={{
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        background: 'linear-gradient(145deg, #0b1220 0%, #0f2444 50%, #0b1220 100%)',
         color: 'white',
         display: 'flex',
         alignItems: 'center',

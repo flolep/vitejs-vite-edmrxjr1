@@ -119,7 +119,8 @@ export default function FirebaseCleanup({ sessionId, onClose }) {
       padding: '1rem'
     }}>
       <div style={{
-        backgroundColor: '#1f2937',
+        backgroundColor: '#0d1f38',
+        border: '1px solid rgba(255,255,255,0.1)',
         borderRadius: '1rem',
         padding: '2rem',
         maxWidth: '600px',
