@@ -122,9 +122,9 @@ export default function Master({
   // Hooks spécifiques par mode
   const mp3Mode = useMP3Mode(playlist, setPlaylist, sessionId);
 
-  const spotifyAutoMode = useSpotifyAutoMode(spotifyToken, sessionId, true);
+  const spotifyAutoMode = useSpotifyAutoMode(spotifyToken, sessionId, musicSource === 'spotify-auto');
 
-  const spotifyAIMode = useSpotifyAIMode(spotifyToken, sessionId, musicSource, true);
+  const spotifyAIMode = useSpotifyAIMode(spotifyToken, sessionId, musicSource, musicSource === 'spotify-ai');
 
   const quizMode = useQuizMode(sessionId, currentTrack, playlist);
 
@@ -999,6 +999,9 @@ export default function Master({
   const isPlayerReady = !isSpotifyMode || spotifyDeviceReady;
 
   // Fin automatique quand la dernière chanson est révélée
+  const endGameRef = useRef(endGame);
+  endGameRef.current = endGame;
+
   useEffect(() => {
     if (
       currentSong?.revealed &&
@@ -1007,9 +1010,8 @@ export default function Master({
       !gameEnded
     ) {
       console.log('🏁 Dernière chanson révélée — fin de partie automatique');
-      endGame();
+      endGameRef.current();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSong?.revealed, currentTrack, playlist.length, gameEnded]);
 
   // Écran de fin de partie
