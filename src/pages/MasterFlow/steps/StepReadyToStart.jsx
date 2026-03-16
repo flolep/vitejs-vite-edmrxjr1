@@ -433,7 +433,12 @@ export default function StepReadyToStart({
               console.warn(`⚠️ Chanson sans URI ignorée:`, batch[i]);
               continue;
             }
-            const wrongAnswersData = wrongAnswersResponse.wrongAnswers[i];
+            const wrongAnswersMap = wrongAnswersResponse.wrongAnswers;
+            const keys = Object.keys(wrongAnswersMap);
+            const wrongAnswersData = wrongAnswersMap[i]
+              || wrongAnswersMap[String(i)]
+              || wrongAnswersMap[keys[i]]
+              || null;
             allWrongAnswers.push({
               uri: batch[i].uri,
               title: batch[i].title,
