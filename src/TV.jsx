@@ -645,7 +645,14 @@ export default function TV() {
 
   // Écran de fin — Dashboard Quiz ou Victoire Équipe
   if (gameEnded && playMode === 'quiz') {
-    return <GameEndDashboard sessionId={sessionId} playMode={playMode} />;
+    return (
+      <GameEndDashboard
+        leaderboard={quizLeaderboard}
+        tracksPlayed={playingTrackNumber || currentQuestionNumber}
+        totalTracks={totalQuestions}
+        playerCount={totalPlayers || allPlayers.length}
+      />
+    );
   }
 
   if (gameEnded) {
