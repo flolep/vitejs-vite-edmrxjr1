@@ -150,24 +150,10 @@ export const spotifyService = {
           volume: 0.8
         });
 
-        player.addListener('ready', async ({ device_id }) => {
+        player.addListener('ready', ({ device_id }) => {
           console.log('✅ Player ready with device ID:', device_id);
-
-          try {
-            // Attendre que Spotify enregistre le device dans son backend
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            console.log('🔄 Activation du device via transferPlayback...');
-            await this.transferPlayback(accessToken, device_id);
-            await new Promise(resolve => setTimeout(resolve, 500));
-            console.log('✅ Device activé et prêt');
-            onReady(device_id);
-            resolve(player);
-          } catch (error) {
-            console.error('❌ Erreur activation device:', error);
-            // Continuer quand même — le device peut être utilisable malgré l'erreur
-            onReady(device_id);
-            resolve(player);
-          }
+          onReady(device_id);
+          resolve(player);
         });
 
         player.addListener('not_ready', ({ device_id }) => {
@@ -214,7 +200,15 @@ export const spotifyService = {
   },
 
   // Jouer un morceau - CORRIGÉ : ne pas parser JSON
-  async playTrack(accessToken, deviceId, spotifyUri, positionMs = 0) {
+  async playTrack(accessToken, deviceId, spotifyUri, positionMs = 0, retryCount = 0) {
+    // Transférer le device avant de jouer (active le player SDK côté Spotify)
+    try {
+      await this.transferPlayback(accessToken, deviceId);
+      await new Promise(resolve => setTimeout(resolve, 800));
+    } catch (e) {
+      console.warn('⚠️ transferPlayback échoué, tentative play directe:', e.message);
+    }
+
     const response = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
       method: 'PUT',
       headers: {
@@ -226,15 +220,17 @@ export const spotifyService = {
         position_ms: positionMs
       })
     });
-    
-    // IMPORTANT : L'API play ne retourne pas de JSON, juste un status 204
+
     if (!response.ok) {
       const errorText = await response.text();
+      // Retry automatique une fois si 404
+      if (response.status === 404 && retryCount === 0) {
+        console.warn('⚠️ 404 Device not found — retry dans 1500ms...');
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        return this.playTrack(accessToken, deviceId, spotifyUri, positionMs, 1);
+      }
       throw new Error(`Spotify play error: ${response.status} - ${errorText}`);
     }
-    
-    // Ne pas essayer de parser JSON, la réponse est vide
-    return;
   },
 
   // Pause - CORRIGÉ : ne pas parser JSON

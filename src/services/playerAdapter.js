@@ -58,18 +58,10 @@ export class SpotifyPlayerAdapter {
       throw new Error('Spotify non initialisé ou track invalide');
     }
 
-    // Réactiver le device avant chaque lecture (évite le 404 après inactivité)
-    try {
-      await spotifyService.transferPlayback(this.token, this.deviceId);
-      // Attendre que Spotify active le device avant de lancer la lecture
-      await new Promise(resolve => setTimeout(resolve, 500));
-    } catch (e) {
-      console.warn('⚠️ [SpotifyPlayerAdapter] transferPlayback avant play échoué:', e.message);
-    }
-
     const isNewTrack = this.lastPlayedTrack !== currentTrackIndex;
     const startPosition = isNewTrack ? 0 : this.currentPosition;
 
+    // transferPlayback + retry sont gérés dans spotifyService.playTrack()
     await spotifyService.playTrack(
       this.token,
       this.deviceId,
@@ -86,13 +78,17 @@ export class SpotifyPlayerAdapter {
     }
 
     // Sauvegarder la position avant de pauser
-    const stateResponse = await fetch('https://api.spotify.com/v1/me/player', {
-      headers: { 'Authorization': `Bearer ${this.token}` }
-    });
-
-    if (stateResponse.ok) {
-      const playerState = await stateResponse.json();
-      this.currentPosition = playerState.progress_ms;
+    try {
+      const stateResponse = await fetch('https://api.spotify.com/v1/me/player', {
+        headers: { 'Authorization': `Bearer ${this.token}` }
+      });
+      // 204 = no active player — ne pas tenter de parser le body
+      if (stateResponse.ok && stateResponse.status !== 204) {
+        const playerState = await stateResponse.json();
+        this.currentPosition = playerState.progress_ms || 0;
+      }
+    } catch (e) {
+      console.warn('⚠️ Impossible de récupérer la position avant pause:', e.message);
     }
 
     await spotifyService.pausePlayback(this.token);
