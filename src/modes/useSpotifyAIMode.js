@@ -9,7 +9,7 @@ import { prefsStorage } from '../utils/storage';
  * Hook pour gérer le mode Spotify IA
  * Logique spécifique à la génération automatique de playlist par IA
  */
-export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
+export function useSpotifyAIMode(spotifyToken, sessionId, musicSource, initPlayerEnabled = false) {
   const [playlistUpdates, setPlaylistUpdates] = useState([]);
   const [spotifyPlayer, setSpotifyPlayer] = useState(null);
   const [spotifyDeviceId, setSpotifyDeviceId] = useState(null);
@@ -48,6 +48,13 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
       initializingRef.current = false;
     }
   }, [spotifyToken, spotifyPlayer]);
+
+  // Auto-init du player SDK uniquement quand activé (dans Master.jsx)
+  useEffect(() => {
+    if (!initPlayerEnabled) return;
+    if (!spotifyToken || spotifyPlayer || initializingRef.current) return;
+    initSpotifyPlayer();
+  }, [spotifyToken, initPlayerEnabled, spotifyPlayer, initSpotifyPlayer]);
 
   // Charger la playlist — bypass Spotify en mode test, relit depuis Firebase
   const loadPlaylistById = useCallback(async (playlistId, setPlaylist) => {
@@ -105,9 +112,6 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
         const durationRef = ref(database, `sessions/${sessionId}/songDuration`);
         await set(durationRef, firstDuration);
       }
-
-      // Initialiser le player si nécessaire
-      await initSpotifyPlayer();
 
       return tracks;
     } catch (error) {

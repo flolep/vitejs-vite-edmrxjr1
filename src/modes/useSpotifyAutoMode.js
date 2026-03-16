@@ -7,7 +7,7 @@ import { database } from '../firebase';
  * Hook pour gérer le mode Spotify Autonome
  * Logique spécifique à l'import de playlists Spotify existantes
  */
-export function useSpotifyAutoMode(spotifyToken, sessionId) {
+export function useSpotifyAutoMode(spotifyToken, sessionId, initPlayerEnabled = false) {
   const [spotifyPlaylists, setSpotifyPlaylists] = useState([]);
   const [spotifyPlayer, setSpotifyPlayer] = useState(null);
   const [spotifyDeviceId, setSpotifyDeviceId] = useState(null);
@@ -63,6 +63,13 @@ export function useSpotifyAutoMode(spotifyToken, sessionId) {
     }
   }, [spotifyToken, spotifyPlayer]);
 
+  // Auto-init du player SDK uniquement quand activé (dans Master.jsx)
+  useEffect(() => {
+    if (!initPlayerEnabled) return;
+    if (!spotifyToken || spotifyPlayer || initializingRef.current) return;
+    initSpotifyPlayer();
+  }, [spotifyToken, initPlayerEnabled, spotifyPlayer, initSpotifyPlayer]);
+
   const handleSelectPlaylist = useCallback(async (playlistId, setPlaylist, resetScores) => {
     try {
       const tracks = await spotifyService.getPlaylistTracks(spotifyToken, playlistId);
@@ -82,9 +89,6 @@ export function useSpotifyAutoMode(spotifyToken, sessionId) {
           await set(durationRef, firstDuration);
         }
       }
-
-      // Initialiser le player si nécessaire
-      await initSpotifyPlayer();
 
       // Réinitialiser les scores
       if (resetScores) {

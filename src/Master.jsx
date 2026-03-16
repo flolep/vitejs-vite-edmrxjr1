@@ -122,9 +122,9 @@ export default function Master({
   // Hooks spécifiques par mode
   const mp3Mode = useMP3Mode(playlist, setPlaylist, sessionId);
 
-  const spotifyAutoMode = useSpotifyAutoMode(spotifyToken, sessionId);
+  const spotifyAutoMode = useSpotifyAutoMode(spotifyToken, sessionId, true);
 
-  const spotifyAIMode = useSpotifyAIMode(spotifyToken, sessionId, musicSource);
+  const spotifyAIMode = useSpotifyAIMode(spotifyToken, sessionId, musicSource, true);
 
   const quizMode = useQuizMode(sessionId, currentTrack, playlist);
 
@@ -992,6 +992,13 @@ export default function Master({
   const currentSong = playlist[currentTrack - 1];
   const availablePoints = calculatePoints();
 
+  // Player Spotify prêt ?
+  const isSpotifyMode = musicSource === 'spotify-ai' || musicSource === 'spotify-auto';
+  const spotifyDeviceReady = musicSource === 'spotify-ai'
+    ? !!spotifyAIMode.spotifyDeviceId
+    : !!spotifyAutoMode.spotifyDeviceId;
+  const isPlayerReady = !isSpotifyMode || spotifyDeviceReady;
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -1061,7 +1068,7 @@ export default function Master({
           gap: '0.25rem'
         }}>
           <button onClick={prevTrack} style={{ background: 'transparent', border: 'none', color: 'white', fontSize: '1.25rem', cursor: 'pointer', padding: '0.5rem 0.75rem', borderRadius: '0.5rem' }}>⏮</button>
-          <button onClick={togglePlay} style={{ background: isPlaying ? 'rgba(239,68,68,0.35)' : 'rgba(59,130,246,0.35)', border: 'none', color: 'white', fontSize: '1.25rem', cursor: 'pointer', padding: '0.5rem 0.75rem', borderRadius: '0.5rem' }}>{isPlaying ? '⏸' : '▶'}</button>
+          <button onClick={togglePlay} disabled={!isPlayerReady} title={!isPlayerReady ? 'Initialisation Spotify en cours...' : ''} style={{ background: isPlaying ? 'rgba(239,68,68,0.35)' : 'rgba(59,130,246,0.35)', border: 'none', color: 'white', fontSize: '1.25rem', cursor: isPlayerReady ? 'pointer' : 'not-allowed', padding: '0.5rem 0.75rem', borderRadius: '0.5rem', opacity: isPlayerReady ? 1 : 0.5 }}>{isPlaying ? '⏸' : '▶'}</button>
           <button onClick={nextTrack} style={{ background: 'transparent', border: 'none', color: 'white', fontSize: '1.25rem', cursor: 'pointer', padding: '0.5rem 0.75rem', borderRadius: '0.5rem' }}>⏭</button>
           <div style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.15)', margin: '0 0.25rem' }} />
           <button
@@ -1236,6 +1243,13 @@ export default function Master({
               {showQRCode ? '🔴 QR sur TV' : '📱 QR sur TV'}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Indicateur connexion Spotify en cours */}
+      {isSpotifyMode && !isPlayerReady && (
+        <div style={{ fontSize: '0.85rem', opacity: 0.7, textAlign: 'center', padding: '0.5rem', background: 'rgba(59,130,246,0.15)', borderBottom: '1px solid rgba(59,130,246,0.25)' }}>
+          ⏳ Connexion Spotify en cours...
         </div>
       )}
 
