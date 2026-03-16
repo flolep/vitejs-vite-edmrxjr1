@@ -42,7 +42,8 @@ export default function Master({
   initialGameMode = null,
   initialPlaylist = [],
   initialPlaylistId = null,
-  initialSpotifyToken = null
+  initialSpotifyToken = null,
+  onEndGame = null
 }) {
   // États d'authentification et session
   const [user, setUser] = useState(null);
@@ -141,7 +142,7 @@ export default function Master({
 
   const spotifyAIMode = useSpotifyAIMode(spotifyToken, sessionId, musicSource);
 
-  const quizMode = useQuizMode(sessionId, currentTrack, playlist, currentChronoRef);
+  const quizMode = useQuizMode(sessionId, currentTrack, playlist);
 
   // Créer le player adapter avec useMemo pour garantir la synchronisation
   // IMPORTANT: Doit être défini AVANT useBuzzer qui l'utilise comme dépendance
@@ -1220,6 +1221,7 @@ export default function Master({
 
     setShowEndGameConfirm(false);
     setDebugInfo('🎉 Partie terminée ! Session désactivée.');
+    onEndGame?.();
   };
 
   const handleLogout = async () => {

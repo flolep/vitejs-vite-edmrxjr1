@@ -142,6 +142,7 @@ export default function ActiveGameContainer({
       initialPlaylist={initialPlaylist}
       initialPlaylistId={playlistId}
       initialSpotifyToken={spotifyToken || localStorage.getItem('spotify_access_token')}
+      onEndGame={onEndGame}
     />
   );
 }
