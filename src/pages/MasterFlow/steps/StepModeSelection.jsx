@@ -13,6 +13,13 @@ import { getSessionCode } from '../../../utils/sessionUtils';
 export default function StepModeSelection({ onModeSelected, onResumeGame, activeGame, user }) {
   const [selectedMode, setSelectedMode] = useState(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [testMode, setTestMode] = useState(() => localStorage.getItem('quizTestMode') === 'true');
+
+  const toggleTestMode = () => {
+    const newValue = !testMode;
+    setTestMode(newValue);
+    localStorage.setItem('quizTestMode', newValue.toString());
+  };
 
   const handleSelectMode = async (mode) => {
     setSelectedMode(mode);
@@ -316,6 +323,52 @@ export default function StepModeSelection({ onModeSelected, onResumeGame, active
         }}>
           <strong>💡 Astuce :</strong> Les joueurs pourront se connecter via QR Code dès l'étape suivante.
           Vous pourrez configurer la musique en parallèle.
+        </div>
+
+        {/* Toggle Test/Prod */}
+        <div style={{
+          marginTop: '2rem',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '0.75rem'
+        }}>
+          <button
+            onClick={toggleTestMode}
+            style={{
+              padding: '0.5rem 1.25rem',
+              backgroundColor: testMode
+                ? 'rgba(251, 191, 36, 0.25)'
+                : 'rgba(107, 114, 128, 0.2)',
+              border: testMode
+                ? '1px solid #fbbf24'
+                : '1px solid #6b7280',
+              borderRadius: '0.5rem',
+              fontSize: '0.85rem',
+              color: 'white',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              transition: 'all 0.2s'
+            }}
+          >
+            <span>{testMode ? '🎭' : '🔌'}</span>
+            <span>{testMode ? 'Mode Test' : 'Mode Production'}</span>
+          </button>
+
+          {testMode && (
+            <div style={{
+              backgroundColor: 'rgba(251, 191, 36, 0.15)',
+              border: '1px solid rgba(251, 191, 36, 0.4)',
+              borderRadius: '0.5rem',
+              padding: '0.5rem 1rem',
+              fontSize: '0.8rem',
+              color: '#fbbf24'
+            }}>
+              ⚠️ Mode Test actif — aucun appel Spotify/n8n
+            </div>
+          )}
         </div>
       </div>
     </div>

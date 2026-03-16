@@ -94,7 +94,7 @@ export default function Master({
   const [isGeneratingQuizQuestions, setIsGeneratingQuizQuestions] = useState(false);
   const [quizQuestionsReady, setQuizQuestionsReady] = useState(false);
   const [allQuizPlayers, setAllQuizPlayers] = useState([]); // Joueurs connectés en mode Quiz
-  const [testMode, setTestMode] = useState(() => localStorage.getItem('quizTestMode') === 'true');
+  const [testMode] = useState(() => localStorage.getItem('quizTestMode') === 'true');
 
   // Déterminer le token initial
   const getInitialToken = () => {
@@ -1172,17 +1172,6 @@ export default function Master({
     setDebugInfo(`✅ ${result.points} points pour ${teamName}`);
   };
 
-  /**
-   * Toggle le mode Test (stubs au lieu de vrais appels n8n/OpenAI)
-   */
-  const toggleTestMode = () => {
-    const newValue = !testMode;
-    setTestMode(newValue);
-    localStorage.setItem('quizTestMode', newValue.toString());
-    console.log(`🎭 Mode Test ${newValue ? 'ACTIVÉ' : 'DÉSACTIVÉ'}`);
-    setDebugInfo(`🎭 Mode Test ${newValue ? 'activé' : 'désactivé'} - ${newValue ? 'Pas d\'appels OpenAI' : 'Vrais appels n8n'}`);
-  };
-
   const loadBuzzStats = (shouldShow = true) => {
     if (shouldShow === false) {
       setShowStats(false);
@@ -1343,36 +1332,6 @@ export default function Master({
             >
               <span>{anonymousMode ? '🙈' : '👁️'}</span>
               <span>{anonymousMode ? 'Anonyme ON' : 'Anonyme OFF'}</span>
-            </button>
-          )}
-
-          {/* Mode Test Toggle (uniquement en mode Quiz) */}
-          {playMode === 'quiz' && (
-            <button
-              onClick={toggleTestMode}
-              style={{
-                padding: '0.5rem 1rem',
-                backgroundColor: testMode
-                  ? 'rgba(251, 191, 36, 0.3)'
-                  : 'rgba(107, 114, 128, 0.2)',
-                border: testMode
-                  ? '1px solid #fbbf24'
-                  : '1px solid #6b7280',
-                borderRadius: '0.5rem',
-                fontSize: '0.85rem',
-                color: 'white',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                transition: 'all 0.2s'
-              }}
-              title={testMode
-                ? 'Mode Test activé - Stubs au lieu d\'OpenAI'
-                : 'Mode Production - Vrais appels OpenAI'}
-            >
-              <span>{testMode ? '🎭' : '🔌'}</span>
-              <span>{testMode ? 'Mode Test' : 'Mode Prod'}</span>
             </button>
           )}
 
