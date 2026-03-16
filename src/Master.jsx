@@ -24,8 +24,6 @@ import { createPlayerAdapter } from './services/playerAdapter';
 // Import des composants
 import Login from './components/Login';
 import PlaylistSelector from './components/master/PlaylistSelector';
-import PlayerControls from './components/master/PlayerControls';
-import ScoreDisplay from './components/master/ScoreDisplay';
 import BuzzAlert from './components/master/BuzzAlert';
 import GameSettings from './components/master/GameSettings';
 import QuizControls from './components/master/QuizControls';
@@ -1246,13 +1244,6 @@ export default function Master({
         </div>
       )}
 
-      {/* Indicateur connexion Spotify en cours */}
-      {isSpotifyMode && !isPlayerReady && (
-        <div style={{ fontSize: '0.85rem', opacity: 0.7, textAlign: 'center', padding: '0.5rem', background: 'rgba(59,130,246,0.15)', borderBottom: '1px solid rgba(59,130,246,0.25)' }}>
-          ⏳ Connexion Spotify en cours...
-        </div>
-      )}
-
       {/* Message d'erreur Player Spotify */}
       {(musicSource === 'spotify-auto' || musicSource === 'spotify-ai') && !playerAdapter && !isPlayerInitializing && (
         <div style={{
@@ -1299,279 +1290,76 @@ export default function Master({
         </div>
       )}
 
-      {/* MAIN LAYOUT */}
+      {/* ZONE PRINCIPALE 3 COLONNES */}
       <div style={{
-        display: 'flex',
-        height: 'calc(100vh - 73px)',
+        display: 'grid',
+        gridTemplateColumns: '200px 1fr 240px',
+        gap: '12px',
+        padding: '12px',
+        height: 'calc(100vh - 60px)',
         overflow: 'hidden'
       }}>
-        {/* SIDEBAR */}
-        <aside style={{
-          width: '320px',
-          backgroundColor: 'rgba(0, 0, 0, 0.15)',
-          borderRight: '1px solid rgba(255,255,255,0.06)',
-          overflowY: 'auto',
-          padding: '1.5rem'
-        }}>
-          {/* Boutons selon le mode */}
-          {musicSource === 'mp3' && (
-            <button
-              onClick={mp3Mode.handleManualAdd}
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                backgroundColor: 'rgba(124, 58, 237, 0.3)',
-                border: '1px solid #7c3aed',
-                borderRadius: '0.5rem',
-                color: 'white',
-                cursor: 'pointer',
-                marginBottom: '1rem'
-              }}
-            >
-              📁 Charger MP3
-            </button>
-          )}
 
-          {musicSource === 'spotify-auto' && (
-            <button
-              onClick={() => spotifyAutoMode.setShowPlaylistSelector(true)}
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                backgroundColor: 'rgba(16, 185, 129, 0.3)',
-                border: '1px solid #10b981',
-                borderRadius: '0.5rem',
-                color: 'white',
-                cursor: 'pointer',
-                marginBottom: '1rem'
-              }}
-            >
-              🎵 Charger Playlist
-            </button>
-          )}
-
-          {/* Section Préférences des joueurs (Toujours visible en mode Spotify AI) */}
-          {musicSource === 'spotify-ai' && playersPreferences.length > 0 && (
-            <div style={{
-              marginBottom: '1rem',
-              padding: '0.75rem',
-              backgroundColor: 'rgba(0, 0, 0, 0.3)',
-              borderRadius: '0.5rem'
-            }}>
-              <div style={{ fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.5rem' }}>
-                👥 Préférences des joueurs ({playersPreferences.length})
+        {/* COLONNE GAUCHE — Scores */}
+        <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {playMode === 'team' && (
+            <>
+              <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.75rem', padding: '14px', textAlign: 'center' }}>
+                <div style={{ fontSize: '11px', opacity: 0.45, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '4px' }}>Équipe 1</div>
+                <div style={{ fontSize: '28px', fontWeight: 700, color: '#ef4444' }}>{scores.team1}</div>
               </div>
-              <div style={{ maxHeight: '200px', overflowY: 'auto', marginBottom: '0.75rem' }}>
-                {playersPreferences.map((pref, index) => (
-                  <div key={pref.id} style={{
-                    fontSize: '0.8rem',
-                    padding: '0.5rem',
-                    marginBottom: '0.5rem',
-                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                    borderRadius: '0.375rem'
-                  }}>
-                    <div style={{ fontWeight: '500', color: '#ec4899', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      {pref.photo && (
-                        <img
-                          src={pref.photo}
-                          alt={pref.name}
-                          style={{
-                            width: '32px',
-                            height: '32px',
-                            borderRadius: '50%',
-                            objectFit: 'cover',
-                            border: '2px solid #ec4899'
-                          }}
-                        />
-                      )}
-                      <span>{pref.name}</span>
-                    </div>
-                    <div style={{ fontSize: '0.7rem', opacity: 0.7 }}>
-                      {pref.age} ans • {pref.genres.join(', ')}
-                    </div>
-                    {pref.specialPhrase && (
-                      <div style={{ fontSize: '0.7rem', opacity: 0.6, fontStyle: 'italic', marginTop: '0.25rem' }}>
-                        "{pref.specialPhrase}"
-                      </div>
-                    )}
-                  </div>
-                ))}
+              <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.75rem', padding: '14px', textAlign: 'center' }}>
+                <div style={{ fontSize: '11px', opacity: 0.45, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '4px' }}>Équipe 2</div>
+                <div style={{ fontSize: '28px', fontWeight: 700, color: '#3b82f6' }}>{scores.team2}</div>
               </div>
-
-              {/* Bouton Générer Playlist - Visible uniquement si pas de playlist */}
-              {!(initialPlaylist && initialPlaylist.length > 0) && playlist.length === 0 && (
-                <button
-                  onClick={handleGeneratePlaylistWithAllPreferences}
-                  disabled={isGeneratingPlaylist}
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    backgroundColor: isGeneratingPlaylist ? 'rgba(156, 163, 175, 0.3)' : 'rgba(16, 185, 129, 0.3)',
-                    border: isGeneratingPlaylist ? '1px solid #9ca3af' : '1px solid #10b981',
-                    borderRadius: '0.5rem',
-                    color: 'white',
-                    cursor: isGeneratingPlaylist ? 'not-allowed' : 'pointer',
-                    fontWeight: '500'
-                  }}
-                >
-                  {isGeneratingPlaylist
-                    ? `⏳ Génération en cours... ${playlistPollAttempt > 0 ? `(vérification ${playlistPollAttempt}/10)` : ''}`
-                    : '🎵 Générer la playlist'
-                  }
-                </button>
-              )}
-
-            </div>
+            </>
           )}
-
-          {musicSource === 'spotify-ai' && spotifyAIMode.playlistUpdates.length > 0 && (
-            <div style={{
-              marginBottom: '1rem',
-              padding: '0.75rem',
-              backgroundColor: 'rgba(0, 0, 0, 0.3)',
-              borderRadius: '0.5rem',
-              maxHeight: '200px',
-              overflowY: 'auto'
-            }}>
-              <div style={{ fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.5rem' }}>
-                📊 Mises à jour
-              </div>
-              {spotifyAIMode.playlistUpdates.map((update, index) => (
-                <div key={index} style={{ fontSize: '0.8rem', padding: '0.4rem 0' }}>
-                  <div style={{ fontWeight: '500', color: '#ec4899' }}>
-                    {update.playerName}
-                  </div>
-                  <div style={{ fontSize: '0.7rem', opacity: 0.7 }}>
-                    +{update.songsAdded} chanson{update.songsAdded > 1 ? 's' : ''} • {update.time}
-                  </div>
-                </div>
-              ))}
-            </div>
+          {playMode === 'quiz' && (
+            <QuizLeaderboard leaderboard={quizMode.leaderboard} />
           )}
+        </div>
 
-          {/* Playlist */}
-          {playlist.length > 0 && (
-            <div style={{
-              backgroundColor: 'rgba(0, 0, 0, 0.2)',
-              borderRadius: '0.75rem',
-              padding: '1.25rem'
-            }}>
-              <h3 style={{ fontSize: '0.875rem', marginBottom: '0.75rem' }}>
-                📚 Playlist ({playlist.length})
-              </h3>
-              <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                {playlist.map((track, index) => {
-                  const trackNumber = index + 1; // ✅ Convertir index (0-based) en trackNumber (1-based)
-                  return (
-                  <div
-                    key={index}
-                    onClick={() => jumpToTrack(trackNumber)}
-                    style={{
-                      padding: '0.6rem',
-                      marginBottom: '0.4rem',
-                      backgroundColor: trackNumber === currentTrack ? 'rgba(251,191,36,0.07)' : 'rgba(255,255,255,0.03)',
-                      border: trackNumber === currentTrack ? '1px solid rgba(251,191,36,0.35)' : '1px solid transparent',
-                      borderRadius: '0.5rem',
-                      opacity: track.revealed ? 0.3 : 1,
-                      cursor: 'pointer',
-                      transition: 'transform 0.15s ease, opacity 0.15s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (trackNumber !== currentTrack) {
-                        e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.06)';
-                        e.currentTarget.style.transform = 'translateX(4px)';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (trackNumber !== currentTrack) {
-                        e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)';
-                        e.currentTarget.style.transform = 'translateX(0)';
-                      }
-                    }}
-                  >
-                    <div style={{ fontWeight: '500' }}>
-                      {trackNumber}. {track.revealed && '✅ '}
-                      {playMode === 'quiz' && anonymousMode && !track.revealed
-                        ? '🎵 ...'
-                        : track.title}
-                    </div>
-                    {track.artist && (
-                      <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>
-                        {playMode === 'quiz' && anonymousMode && !track.revealed
-                          ? '???'
-                          : track.artist}
-                      </div>
-                    )}
-                  </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </aside>
-
-        {/* ZONE PRINCIPALE */}
-        <main style={{
-          flex: 1,
-          overflowY: 'auto',
-          padding: '2rem'
-        }}>
+        {/* COLONNE CENTRE — Chanson + Contrôles contextuels */}
+        <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {isLoadingPlaylist ? (
-            <div style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexDirection: 'column',
-              gap: '1rem'
-            }}>
-              <div style={{
-                width: '40px',
-                height: '40px',
-                border: '4px solid rgba(255, 255, 255, 0.3)',
-                borderTopColor: 'white',
-                borderRadius: '50%',
-                animation: 'spin 1s linear infinite'
-              }} />
-              <div style={{ opacity: 0.8 }}>
-                {waitingForSpotifyToken
-                  ? 'Reconnexion Spotify en cours...'
-                  : 'Chargement de la playlist...'}
-              </div>
-              <style>{`
-                @keyframes spin {
-                  from { transform: rotate(0deg); }
-                  to { transform: rotate(360deg); }
-                }
-              `}</style>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ width: '40px', height: '40px', border: '4px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+              <div style={{ opacity: 0.8 }}>{waitingForSpotifyToken ? 'Reconnexion Spotify en cours...' : 'Chargement de la playlist...'}</div>
+              <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
             </div>
           ) : playlist.length > 0 ? (
             <>
-              {/* Player Controls - Placé en haut selon demande Admin Screen */}
-              <PlayerControls
-                currentTrack={currentTrack}
-                playlistLength={playlist.length}
-                isPlaying={isPlaying}
-                currentSong={currentSong}
-                currentTrackData={playlist[currentTrack - 1]}
-                currentChrono={currentChrono}
-                availablePoints={availablePoints}
-                songDuration={songDuration}
-                isSpotifyMode={musicSource !== 'mp3'}
-                anonymousMode={playMode === 'quiz' && anonymousMode}
-                onPrev={prevTrack}
-                onTogglePlay={togglePlay}
-                onNext={nextTrack}
-                onReveal={revealAnswer}
-              />
+              {/* Carte chanson */}
+              <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.75rem', padding: '14px', display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <div style={{ width: '60px', height: '60px', background: 'rgba(68,117,168,0.3)', borderRadius: '0.5rem', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', border: '1px solid rgba(68,117,168,0.4)', overflow: 'hidden' }}>
+                  {(playMode === 'quiz' && anonymousMode && !currentSong?.revealed) ? '?' : (
+                    playlist[currentTrack - 1]?.imageUrl
+                      ? <img src={playlist[currentTrack - 1].imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : '🎵'
+                  )}
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', opacity: 0.45, marginBottom: '2px' }}>Piste {currentTrack} / {playlist.length}</div>
+                  <div style={{ fontSize: '17px', fontWeight: 600 }}>
+                    {(playMode === 'quiz' && anonymousMode && !currentSong?.revealed) ? '???' : (currentSong?.title || playlist[currentTrack - 1]?.title || '...')}
+                  </div>
+                  <div style={{ fontSize: '13px', opacity: 0.6, marginTop: '2px' }}>
+                    {(playMode === 'quiz' && anonymousMode && !currentSong?.revealed) ? '???' : (currentSong?.artist || playlist[currentTrack - 1]?.artist || '...')}
+                  </div>
+                </div>
+              </div>
 
-              {/* Scores (Mode Équipe uniquement) */}
-              {playMode === 'team' && <ScoreDisplay scores={scores} />}
-
-              {/* Classement (Mode Quiz) */}
-              {playMode === 'quiz' && (
-                <QuizLeaderboard leaderboard={quizMode.leaderboard} />
-              )}
+              {/* Chrono + Points */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <div style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '0.5rem', padding: '10px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '11px', opacity: 0.45, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '2px' }}>Chrono</div>
+                  <div style={{ fontSize: '20px', fontWeight: 600, fontFamily: 'monospace' }}>{Math.floor(currentChrono)}s</div>
+                </div>
+                <div style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '0.5rem', padding: '10px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '11px', opacity: 0.45, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '2px' }}>Points dispo</div>
+                  <div style={{ fontSize: '20px', fontWeight: 600, fontFamily: 'monospace', color: '#fbbf24' }}>{availablePoints}</div>
+                </div>
+              </div>
 
               {/* Buzz Alert (Mode Équipe) */}
               {playMode === 'team' && buzzedTeam && (
@@ -1598,12 +1386,10 @@ export default function Master({
                   currentTrack={currentTrack}
                   anonymousMode={anonymousMode}
                   onReveal={async () => {
-                    // Arrêter la musique
                     if (playerAdapter) {
                       await playerAdapter.pause();
                       updateIsPlaying(false);
                     }
-                    // Révéler la réponse
                     quizMode.revealQuizAnswer();
                     setDebugInfo('✅ Réponse révélée (Quiz)');
                   }}
@@ -1618,37 +1404,63 @@ export default function Master({
                 />
               )}
 
+              {/* Indicateur Spotify */}
+              {isSpotifyMode && !isPlayerReady && (
+                <div style={{ fontSize: '0.85rem', opacity: 0.7, textAlign: 'center', padding: '0.5rem' }}>
+                  ⏳ Connexion Spotify en cours...
+                </div>
+              )}
+
               {debugInfo && (
-                <div style={{
-                  padding: '1rem',
-                  backgroundColor: 'rgba(0, 0, 0, 0.3)',
-                  borderRadius: '0.5rem',
-                  textAlign: 'center',
-                  marginTop: '1rem'
-                }}>
+                <div style={{ padding: '0.75rem', backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: '0.5rem', textAlign: 'center', fontSize: '0.85rem' }}>
                   {debugInfo}
                 </div>
               )}
             </>
           ) : (
-            <div style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              textAlign: 'center'
-            }}>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
               <div>
-                <h2 style={{ fontSize: '2rem', marginBottom: '1rem' }}>
-                  👋 Bienvenue !
-                </h2>
-                <p style={{ fontSize: '1.1rem', opacity: 0.8 }}>
-                  Chargez une playlist pour commencer
-                </p>
+                <h2 style={{ fontSize: '2rem', marginBottom: '1rem' }}>👋 Bienvenue !</h2>
+                <p style={{ fontSize: '1.1rem', opacity: 0.8 }}>Chargez une playlist pour commencer</p>
               </div>
             </div>
           )}
-        </main>
+        </div>
+
+        {/* COLONNE DROITE — Playlist */}
+        <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          {playlist.length > 0 && playlist.map((track, index) => {
+            const trackNumber = index + 1;
+            return (
+              <div
+                key={index}
+                onClick={() => jumpToTrack(trackNumber)}
+                style={{
+                  padding: '6px 8px',
+                  backgroundColor: trackNumber === currentTrack ? 'rgba(251,191,36,0.07)' : 'rgba(255,255,255,0.03)',
+                  border: trackNumber === currentTrack ? '1px solid rgba(251,191,36,0.35)' : '1px solid transparent',
+                  borderRadius: '0.4rem',
+                  opacity: track.revealed ? 0.3 : 1,
+                  cursor: 'pointer',
+                  transition: 'background 0.15s ease'
+                }}
+                onMouseEnter={(e) => { if (trackNumber !== currentTrack) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.06)'; }}
+                onMouseLeave={(e) => { if (trackNumber !== currentTrack) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)'; }}
+              >
+                <div style={{ fontSize: '12px', fontWeight: 500 }}>
+                  {trackNumber}. {track.revealed && '✅ '}
+                  {playMode === 'quiz' && anonymousMode && !track.revealed ? '🎵 ...' : track.title}
+                </div>
+                {track.artist && (
+                  <div style={{ fontSize: '11px', opacity: 0.5 }}>
+                    {playMode === 'quiz' && anonymousMode && !track.revealed ? '???' : track.artist}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
       </div>
 
       {/* Modales */}
