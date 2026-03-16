@@ -10,11 +10,13 @@ export default function PlayerControls({
   availablePoints,
   songDuration,
   isSpotifyMode,
+  anonymousMode = false,
   onPrev,
   onTogglePlay,
   onNext,
   onReveal
 }) {
+  const isHidden = anonymousMode && !currentSong?.revealed;
   return (
     <div style={{
       backgroundColor: 'rgba(0, 0, 0, 0.2)',
@@ -44,7 +46,9 @@ export default function PlayerControls({
           flexShrink: 0,
           border: '1px solid rgba(255, 255, 255, 0.1)'
         }}>
-          {currentTrackData?.imageUrl ? (
+          {isHidden ? (
+            <div style={{ fontSize: '3rem', opacity: 0.3 }}>🙈</div>
+          ) : currentTrackData?.imageUrl ? (
             <img
               src={currentTrackData.imageUrl}
               alt="Pochette"

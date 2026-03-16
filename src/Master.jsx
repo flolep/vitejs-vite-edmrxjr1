@@ -71,6 +71,7 @@ export default function Master({
   const [showEndGameConfirm, setShowEndGameConfirm] = useState(false);
   const [showCooldownSettings, setShowCooldownSettings] = useState(false);
   const [showFirebaseCleanup, setShowFirebaseCleanup] = useState(false);
+  const [anonymousMode, setAnonymousMode] = useState(false);
   const [debugInfo, setDebugInfo] = useState('');
 
   // États de cooldown
@@ -1315,6 +1316,36 @@ export default function Master({
             </div>
           )}
 
+          {/* Mode Anonyme Toggle (uniquement en mode Quiz) */}
+          {playMode === 'quiz' && (
+            <button
+              onClick={() => setAnonymousMode(prev => !prev)}
+              style={{
+                padding: '0.5rem 1rem',
+                backgroundColor: anonymousMode
+                  ? 'rgba(168, 85, 247, 0.3)'
+                  : 'rgba(107, 114, 128, 0.2)',
+                border: anonymousMode
+                  ? '1px solid #a855f7'
+                  : '1px solid #6b7280',
+                borderRadius: '0.5rem',
+                fontSize: '0.85rem',
+                color: 'white',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                transition: 'all 0.2s'
+              }}
+              title={anonymousMode
+                ? 'Mode anonyme activé — les réponses sont masquées'
+                : 'Activer le mode anonyme pour jouer sans tricher'}
+            >
+              <span>{anonymousMode ? '🙈' : '👁️'}</span>
+              <span>{anonymousMode ? 'Anonyme ON' : 'Anonyme OFF'}</span>
+            </button>
+          )}
+
           {/* Mode Test Toggle (uniquement en mode Quiz) */}
           {playMode === 'quiz' && (
             <button
@@ -1688,11 +1719,16 @@ export default function Master({
                     }}
                   >
                     <div style={{ fontWeight: '500' }}>
-                      {trackNumber}. {track.revealed && '✅ '}{track.title}
+                      {trackNumber}. {track.revealed && '✅ '}
+                      {playMode === 'quiz' && anonymousMode && !track.revealed
+                        ? '🎵 ...'
+                        : track.title}
                     </div>
                     {track.artist && (
                       <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>
-                        {track.artist}
+                        {playMode === 'quiz' && anonymousMode && !track.revealed
+                          ? '???'
+                          : track.artist}
                       </div>
                     )}
                   </div>
@@ -1751,6 +1787,7 @@ export default function Master({
                 availablePoints={availablePoints}
                 songDuration={songDuration}
                 isSpotifyMode={musicSource !== 'mp3'}
+                anonymousMode={playMode === 'quiz' && anonymousMode}
                 onPrev={prevTrack}
                 onTogglePlay={togglePlay}
                 onNext={nextTrack}
@@ -1788,6 +1825,7 @@ export default function Master({
                   allPlayers={allQuizPlayers}
                   isPlaying={isPlaying}
                   currentTrack={currentTrack}
+                  anonymousMode={anonymousMode}
                   onReveal={async () => {
                     // Arrêter la musique
                     if (playerAdapter) {

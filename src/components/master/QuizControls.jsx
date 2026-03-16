@@ -12,6 +12,7 @@ export default function QuizControls({
   allPlayers,
   isPlaying,
   currentTrack,
+  anonymousMode = false,
   onReveal,
   onPause,
   isRevealed
@@ -99,6 +100,7 @@ export default function QuizControls({
           const label = String.fromCharCode(65 + index); // A, B, C, D
           const isCorrect = index === correctAnswerIndex;
           const playersWhoAnswered = playerAnswers.filter(p => p.answer === label).length;
+          const hideAnswer = anonymousMode && !isRevealed;
 
           return (
             <div
@@ -125,7 +127,7 @@ export default function QuizControls({
                 {isRevealed && isCorrect && ' ✅'}
               </div>
               <div style={{ fontSize: '0.9rem' }}>
-                {answer.text}
+                {hideAnswer ? '🎵 ...' : answer.text}
               </div>
               {playersWhoAnswered > 0 && (
                 <div style={{
