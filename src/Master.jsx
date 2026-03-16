@@ -87,8 +87,6 @@ export default function Master({
   const [playersPreferences, setPlayersPreferences] = useState([]);
   const [isGeneratingPlaylist, setIsGeneratingPlaylist] = useState(false);
   const [playlistPollAttempt, setPlaylistPollAttempt] = useState(0);
-  const [isGeneratingQuizQuestions, setIsGeneratingQuizQuestions] = useState(false);
-  const [quizQuestionsReady, setQuizQuestionsReady] = useState(false);
   const [allQuizPlayers, setAllQuizPlayers] = useState([]); // Joueurs connectés en mode Quiz
   const [testMode] = useState(() => prefsStorage.getTestMode());
 
@@ -321,28 +319,6 @@ export default function Master({
     return () => unsubscribe();
   }, [sessionId, musicSource]);
 
-  // Vérifier si les questions Quiz sont déjà générées au chargement
-  useEffect(() => {
-    if (!sessionId || playMode !== 'quiz') return;
-
-    const checkQuizData = async () => {
-      const quizDataRef = ref(database, `sessions/${sessionId}/quiz_data/0`);
-      const snapshot = await new Promise((resolve) => {
-        onValue(quizDataRef, resolve, { onlyOnce: true });
-      });
-
-      if (snapshot.val()) {
-        console.log('✅ Questions Quiz déjà présentes dans Firebase');
-        setQuizQuestionsReady(true);
-      } else {
-        console.log('ℹ️ Pas de questions Quiz trouvées, elles doivent être générées');
-        setQuizQuestionsReady(false);
-      }
-    };
-
-    checkQuizData();
-  }, [sessionId, playMode]);
-
   // Écouter tous les joueurs connectés (pour mode Quiz - auto-reveal)
   useEffect(() => {
     if (!sessionId || playMode !== 'quiz') return;
@@ -471,37 +447,6 @@ export default function Master({
   }, [musicSource, spotifyToken]);
 
   // === ACTIONS ===
-
-  // Écouter le statut de la playlist dans Firebase pour déclencher la suite automatiquement
-  useEffect(() => {
-    if (!initialPlaylistId || testMode) return;
-
-    const playlistRef = ref(database, `playlists/${initialPlaylistId}`);
-    const unsubscribe = onValue(playlistRef, async (snapshot) => {
-      const data = snapshot.val();
-      if (data && data.status === 'playlist_ready') {
-        console.log('🎉 Playlist prête détectée via Firebase !', data);
-
-        // Si nous sommes en mode Quiz et que les questions ne sont pas encore prêtes
-        // ET que nous ne sommes pas déjà en train de les générer
-        if (playMode === 'quiz' && !quizQuestionsReady && !isGeneratingQuizQuestions) {
-          console.log('🚀 Déclenchement automatique de la génération des questions Quiz...');
-
-          // Recharger d'abord la playlist pour être sûr d'avoir les dernières données
-          let tracks = [];
-          if (spotifyAIMode.loadPlaylistById) {
-            tracks = await spotifyAIMode.loadPlaylistById(initialPlaylistId, setPlaylist);
-          }
-
-          // Puis générer les questions
-          // On passe tracks explicitement pour éviter les problèmes de state asynchrone
-          handleGenerateQuizQuestions(tracks);
-        }
-      }
-    });
-
-    return () => unsubscribe();
-  }, [initialPlaylistId, playMode, quizQuestionsReady, isGeneratingQuizQuestions, testMode, spotifyAIMode]);
 
   const handleGeneratePlaylistWithAllPreferences = async () => {
     if (!initialPlaylistId || playersPreferences.length === 0) {
@@ -643,123 +588,6 @@ export default function Master({
         }
       }
     }, pollInterval);
-  };
-
-  /**
-   * 🎲 Génère les questions Quiz (wrongAnswers) manuellement
-   * Bouton affiché uniquement en mode Quiz après que la playlist est prête
-   */
-  const handleGenerateQuizQuestions = async () => {
-    if (!playlist || playlist.length === 0) {
-      setDebugInfo('❌ La playlist est vide. Générez d\'abord la playlist.');
-      return;
-    }
-
-    if (quizQuestionsReady) {
-      setDebugInfo('✅ Les questions sont déjà prêtes !');
-      return;
-    }
-
-    try {
-      setIsGeneratingQuizQuestions(true);
-
-      console.log('🎲 Génération des wrongAnswers pour', playlist.length, 'chansons');
-
-      const songsForWrongAnswers = playlist
-        .map((track, index) => ({
-          artist: track.artist,
-          title: track.title,
-          uri: track.spotifyUri || track.uri // Support both field names
-        }))
-        .filter((song, index) => {
-          if (!song.uri) {
-            console.warn(`⚠️ Chanson ${index} ignorée: pas d'URI`, song);
-            return false;
-          }
-          return true;
-        });
-
-      // 🔄 Découper en batches de 10 chansons pour éviter le timeout Netlify (10-26s max)
-      const BATCH_SIZE = 10;
-      const batches = [];
-      for (let i = 0; i < songsForWrongAnswers.length; i += BATCH_SIZE) {
-        batches.push(songsForWrongAnswers.slice(i, i + BATCH_SIZE));
-      }
-
-      console.log(`📦 ${batches.length} batches de ${BATCH_SIZE} chansons max`);
-
-      const allWrongAnswers = [];
-
-      for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
-        const batch = batches[batchIndex];
-        const batchNum = batchIndex + 1;
-
-        setDebugInfo(`🎲 Génération batch ${batchNum}/${batches.length} (${batch.length} chansons)...`);
-        console.log(`🔄 Batch ${batchNum}/${batches.length}: ${batch.length} chansons`);
-
-        try {
-          const wrongAnswersResponse = await n8nService.generateWrongAnswers(batch);
-
-          // Ajouter les wrongAnswers de ce batch
-          for (let i = 0; i < batch.length; i++) {
-            if (!batch[i].uri) {
-              console.warn(`⚠️ Chanson sans URI ignorée:`, batch[i]);
-              continue;
-            }
-            const wrongAnswersData = wrongAnswersResponse.wrongAnswers[i];
-            allWrongAnswers.push({
-              uri: batch[i].uri,
-              title: batch[i].title,
-              artist: batch[i].artist,
-              wrongAnswers: wrongAnswersData ? wrongAnswersData.wrongAnswers : [
-                `Fallback 1 - Song ${allWrongAnswers.length + 1}A`,
-                `Fallback 2 - Song ${allWrongAnswers.length + 1}B`,
-                `Fallback 3 - Song ${allWrongAnswers.length + 1}C`
-              ]
-            });
-          }
-
-          console.log(`✅ Batch ${batchNum}/${batches.length} terminé`);
-        } catch (error) {
-          console.error(`❌ Erreur batch ${batchNum}:`, error);
-          // Ajouter des fallbacks pour ce batch en cas d'erreur
-          for (let i = 0; i < batch.length; i++) {
-            if (!batch[i].uri) {
-              console.warn(`⚠️ Chanson sans URI ignorée (fallback):`, batch[i]);
-              continue;
-            }
-            allWrongAnswers.push({
-              uri: batch[i].uri,
-              title: batch[i].title,
-              artist: batch[i].artist,
-              wrongAnswers: [
-                `Fallback 1 - Song ${allWrongAnswers.length + 1}A`,
-                `Fallback 2 - Song ${allWrongAnswers.length + 1}B`,
-                `Fallback 3 - Song ${allWrongAnswers.length + 1}C`
-              ]
-            });
-          }
-        }
-      }
-
-      // 🧹 Réinitialiser le classement avant de stocker les nouvelles données
-      console.log('🧹 Réinitialisation du classement...');
-      setDebugInfo('🧹 Réinitialisation du classement...');
-      await quizMode.resetLeaderboard();
-
-      console.log('🎯 Stockage des données Quiz dans Firebase...');
-      setDebugInfo('💾 Stockage dans Firebase...');
-      await quizMode.storeQuizData(allWrongAnswers);
-      console.log('✅ Données Quiz stockées avec succès !');
-
-      setQuizQuestionsReady(true);
-      setDebugInfo('✅ Questions Quiz générées avec succès !');
-    } catch (error) {
-      console.error('❌ Erreur génération questions Quiz:', error);
-      setDebugInfo(`❌ Erreur: ${error.message}`);
-    } finally {
-      setIsGeneratingQuizQuestions(false);
-    }
   };
 
   const togglePlay = async () => {
@@ -1579,33 +1407,6 @@ export default function Master({
                 </button>
               )}
 
-              {/* Bouton Générer les questions Quiz (uniquement en mode Quiz et si pas encore prêtes) */}
-              {playMode === 'quiz' && !isGeneratingPlaylist && playlist.length > 0 && !quizQuestionsReady && (
-                <button
-                  onClick={handleGenerateQuizQuestions}
-                  disabled={isGeneratingQuizQuestions}
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    marginTop: '0.75rem',
-                    backgroundColor: isGeneratingQuizQuestions
-                        ? 'rgba(156, 163, 175, 0.3)'
-                        : 'rgba(251, 191, 36, 0.3)',
-                    border: isGeneratingQuizQuestions
-                        ? '1px solid #9ca3af'
-                        : '1px solid #fbbf24',
-                    borderRadius: '0.5rem',
-                    color: 'white',
-                    cursor: isGeneratingQuizQuestions ? 'not-allowed' : 'pointer',
-                    fontWeight: '500'
-                  }}
-                >
-                  {isGeneratingQuizQuestions
-                      ? '🎲 Génération des questions...'
-                      : '🎲 Générer les questions Quiz'
-                  }
-                </button>
-              )}
             </div>
           )}
 
