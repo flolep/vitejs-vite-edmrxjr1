@@ -66,7 +66,7 @@ export default function Master({
   const [showStats, setShowStats] = useState(false);
   const [showEndGameConfirm, setShowEndGameConfirm] = useState(false);
   const [showCooldownSettings, setShowCooldownSettings] = useState(false);
-  const [anonymousMode, setAnonymousMode] = useState(false);
+  const [anonymousMode, setAnonymousMode] = useState(playMode === 'quiz');
   const [showDropdown, setShowDropdown] = useState(false);
   const [debugInfo, setDebugInfo] = useState('');
 
