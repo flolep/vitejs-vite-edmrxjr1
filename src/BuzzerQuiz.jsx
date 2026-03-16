@@ -3,6 +3,7 @@ import { database } from './firebase';
 import { ref, set, onValue, get, serverTimestamp } from 'firebase/database';
 import { airtableService } from './airtableService';
 import { useBuzzerLocalStorage } from './hooks/buzzer/useBuzzerLocalStorage';
+import { prefsStorage } from './utils/storage';
 import { useBuzzerCamera } from './hooks/buzzer/useBuzzerCamera';
 import { useBuzzerSession } from './hooks/buzzer/useBuzzerSession';
 import { calculatePoints } from './hooks/useScoring';
@@ -124,7 +125,7 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
 
   // État Debug Panel (uniquement visible en mode Test)
   const [showDebug, setShowDebug] = useState(false);
-  const isTestMode = window.localStorage.getItem('quizTestMode') === 'true';
+  const isTestMode = prefsStorage.getTestMode();
 
   // ========== AUTO-REJOIN LOGIC ==========
 

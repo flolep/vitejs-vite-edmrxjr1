@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { spotifyService } from './spotifyService';
+import { spotifyStorage } from './utils/storage';
 
 export default function SpotifyCallback() {
   useEffect(() => {
@@ -28,18 +29,18 @@ export default function SpotifyCallback() {
           console.log('🔐 access_token:', tokenData.access_token ? tokenData.access_token.substring(0, 20) + '...' : 'MANQUANT');
           console.log('🔐 refresh_token:', tokenData.refresh_token ? 'Présent' : 'MANQUANT');
 
-          // Stocker le token (en mémoire pour cette session)
-          console.log('💾 Écriture dans localStorage...');
-          localStorage.setItem('spotify_access_token', tokenData.access_token);
-          localStorage.setItem('spotify_refresh_token', tokenData.refresh_token);
+          // Stocker les tokens
+          console.log('💾 Écriture des tokens...');
+          spotifyStorage.setAccessToken(tokenData.access_token);
+          spotifyStorage.setRefreshToken(tokenData.refresh_token);
 
           // Stocker l'expiration du token (expires_in est en secondes, généralement 3600 = 1h)
           const expiresIn = tokenData.expires_in || 3600; // Par défaut 1h
           const expiryTime = Date.now() + (expiresIn * 1000); // Convertir en millisecondes
-          localStorage.setItem('spotify_token_expiry', expiryTime.toString());
+          spotifyStorage.setTokenExpiry(expiryTime);
 
-          console.log('✅ Tokens stockés dans localStorage');
-          console.log('✅ Vérification: access_token =', localStorage.getItem('spotify_access_token') ? 'PRÉSENT' : 'ABSENT');
+          console.log('✅ Tokens stockés');
+          console.log('✅ Vérification: access_token =', spotifyStorage.getAccessToken() ? 'PRÉSENT' : 'ABSENT');
           console.log('✅ Token expire dans', expiresIn, 'secondes');
 
           // Rediriger vers l'accueil pour relancer le wizard

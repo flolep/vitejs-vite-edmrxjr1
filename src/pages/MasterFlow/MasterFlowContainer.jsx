@@ -5,6 +5,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import Login from '../../components/Login';
 import { hasRefreshToken } from '../../utils/spotifyUtils';
 import { useSpotifyToken } from '../../contexts/SpotifyTokenContext';
+import { sessionStorage_ } from '../../utils/storage';
 
 // Import des étapes
 import StepModeSelection from './steps/StepModeSelection';
@@ -82,7 +83,7 @@ export default function MasterFlowContainer() {
 
       // Une fois authentifié, vérifier si on revient de Spotify OAuth
       if (currentUser) {
-        const pendingSessionId = localStorage.getItem('pendingSessionId');
+        const pendingSessionId = sessionStorage_.getPendingSessionId();
 
         if (pendingSessionId) {
           // Retour de Spotify OAuth, restaurer l'état
@@ -114,7 +115,7 @@ export default function MasterFlowContainer() {
             }
 
             // Nettoyer le flag
-            localStorage.removeItem('pendingSessionId');
+            sessionStorage_.removePendingSessionId();
           });
         } else {
           // Pas de retour Spotify, vérifier si une partie est en cours
@@ -134,7 +135,7 @@ export default function MasterFlowContainer() {
     try {
       setIsLoading(true);
 
-      const lastSessionId = localStorage.getItem('lastSessionId');
+      const lastSessionId = sessionStorage_.getLastSessionId();
 
       if (!lastSessionId) {
         console.log('[Resume] Aucune session précédente trouvée');
@@ -374,7 +375,7 @@ export default function MasterFlowContainer() {
       updates[`sessions/${sid}/startedAt`] = Date.now();
 
       await update(ref(database), updates);
-      localStorage.setItem('lastSessionId', sid);
+      sessionStorage_.setLastSessionId(sid);
 
       console.log('✅ Session Firebase créée (active: true)');
 

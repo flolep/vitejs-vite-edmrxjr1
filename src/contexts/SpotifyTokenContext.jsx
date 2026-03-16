@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { getValidSpotifyToken, getRefreshToken } from '../utils/spotifyUtils';
 import { spotifyService } from '../spotifyService';
+import { spotifyStorage } from '../utils/storage';
 
 const SpotifyTokenContext = createContext(null);
 
@@ -20,13 +21,13 @@ export function SpotifyTokenProvider({ children }) {
       const tokenData = await spotifyService.refreshAccessToken(refreshTokenValue);
 
       if (tokenData.access_token) {
-        localStorage.setItem('spotify_access_token', tokenData.access_token);
+        spotifyStorage.setAccessToken(tokenData.access_token);
         const expiresIn = tokenData.expires_in || 3600;
         const expiryTime = Date.now() + (expiresIn * 1000);
-        localStorage.setItem('spotify_token_expiry', expiryTime.toString());
+        spotifyStorage.setTokenExpiry(expiryTime);
 
         if (tokenData.refresh_token) {
-          localStorage.setItem('spotify_refresh_token', tokenData.refresh_token);
+          spotifyStorage.setRefreshToken(tokenData.refresh_token);
         }
 
         setSpotifyToken(tokenData.access_token);
@@ -36,8 +37,8 @@ export function SpotifyTokenProvider({ children }) {
       return null;
     } catch (err) {
       console.error('[SpotifyContext] Erreur refresh:', err);
-      localStorage.removeItem('spotify_access_token');
-      localStorage.removeItem('spotify_token_expiry');
+      spotifyStorage.removeAccessToken();
+      spotifyStorage.removeTokenExpiry();
       setSpotifyToken(null);
       return null;
     } finally {
@@ -57,7 +58,7 @@ export function SpotifyTokenProvider({ children }) {
     if (!spotifyToken) return;
 
     const checkExpiry = () => {
-      const tokenExpiry = localStorage.getItem('spotify_token_expiry');
+      const tokenExpiry = spotifyStorage.getTokenExpiry();
       if (!tokenExpiry) return;
 
       const timeUntilExpiry = parseInt(tokenExpiry, 10) - Date.now();

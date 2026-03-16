@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { signOut } from 'firebase/auth';
 import { auth } from '../../../firebase';
 import { getSessionCode } from '../../../utils/sessionUtils';
+import { prefsStorage } from '../../../utils/storage';
 
 /**
  * Étape 1: Sélection du mode de jeu
@@ -13,12 +14,12 @@ import { getSessionCode } from '../../../utils/sessionUtils';
 export default function StepModeSelection({ onModeSelected, onResumeGame, activeGame, user }) {
   const [selectedMode, setSelectedMode] = useState(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [testMode, setTestMode] = useState(() => localStorage.getItem('quizTestMode') === 'true');
+  const [testMode, setTestMode] = useState(() => prefsStorage.getTestMode());
 
   const toggleTestMode = () => {
     const newValue = !testMode;
     setTestMode(newValue);
-    localStorage.setItem('quizTestMode', newValue.toString());
+    prefsStorage.setTestMode(newValue);
   };
 
   const handleSelectMode = async (mode) => {

@@ -18,6 +18,7 @@ import { useSpotifyAutoMode } from './modes/useSpotifyAutoMode';
 import { useSpotifyAIMode } from './modes/useSpotifyAIMode';
 import { useQuizMode } from './modes/useQuizMode';
 import { useSpotifyToken } from './contexts/SpotifyTokenContext';
+import { spotifyStorage, prefsStorage, sessionStorage_ } from './utils/storage';
 import { createPlayerAdapter } from './services/playerAdapter';
 
 // Import des composants
@@ -89,7 +90,7 @@ export default function Master({
   const [isGeneratingQuizQuestions, setIsGeneratingQuizQuestions] = useState(false);
   const [quizQuestionsReady, setQuizQuestionsReady] = useState(false);
   const [allQuizPlayers, setAllQuizPlayers] = useState([]); // Joueurs connectés en mode Quiz
-  const [testMode] = useState(() => localStorage.getItem('quizTestMode') === 'true');
+  const [testMode] = useState(() => prefsStorage.getTestMode());
 
   // Token Spotify centralisé via contexte (géré par SpotifyTokenProvider)
   const { spotifyToken } = useSpotifyToken();
@@ -215,7 +216,7 @@ export default function Master({
   // Sauvegarder le sessionId dans localStorage
   useEffect(() => {
     if (sessionId) {
-      localStorage.setItem('lastSessionId', sessionId);
+      sessionStorage_.setLastSessionId(sessionId);
     }
   }, [sessionId]);
 
@@ -1124,9 +1125,7 @@ export default function Master({
 
   const handleLogout = async () => {
     // Nettoyer les tokens Spotify
-    localStorage.removeItem('spotify_access_token');
-    localStorage.removeItem('spotify_refresh_token');
-    localStorage.removeItem('spotify_token_expiry');
+    spotifyStorage.clearAll();
 
     await signOut(auth);
     setSessionId(null);

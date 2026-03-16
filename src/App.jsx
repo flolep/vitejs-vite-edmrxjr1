@@ -4,6 +4,7 @@ import TV from './TV';
 import SpotifyCallback from './SpotifyCallback';
 import MasterFlowContainer from './pages/MasterFlow/MasterFlowContainer';
 import { SpotifyTokenProvider } from './contexts/SpotifyTokenContext';
+import { sessionStorage_ } from './utils/storage';
 
 export default function App() {
   // Initialiser la page depuis l'URL uniquement
@@ -34,10 +35,10 @@ export default function App() {
 
   // Détecter si on revient de Spotify OAuth et rediriger vers le nouveau flux
   useEffect(() => {
-    const wizardInProgress = localStorage.getItem('wizardInProgress');
+    const wizardInProgress = sessionStorage_.getWizardInProgress();
     if (wizardInProgress === 'true' && page === 'home') {
       // Nettoyer le flag
-      localStorage.removeItem('wizardInProgress');
+      sessionStorage_.removeWizardInProgress();
 
       // Rediriger vers le nouveau flux master-flow
       console.log('🔄 Retour de Spotify OAuth → Redirection vers master-flow');

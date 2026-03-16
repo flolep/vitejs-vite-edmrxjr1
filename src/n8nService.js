@@ -1,3 +1,5 @@
+import { prefsStorage } from './utils/storage';
+
 // Configuration n8n
 // On passe par une Netlify Function pour éviter les problèmes CORS
 const N8N_PROXY_URL = '/.netlify/functions/n8n-proxy';
@@ -10,7 +12,7 @@ import { generateStubBatch, generateStubPlaylist } from './utils/quizStubs';
  * @returns {boolean}
  */
 function isTestModeEnabled() {
-  return localStorage.getItem('quizTestMode') === 'true';
+  return prefsStorage.getTestMode();
 }
 
 export const n8nService = {

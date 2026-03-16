@@ -5,6 +5,7 @@ import { n8nService } from '../../../n8nService';
 import { useSpotifyAIMode } from '../../../modes/useSpotifyAIMode';
 import { useSpotifyAutoMode } from '../../../modes/useSpotifyAutoMode';
 import { useQuizMode } from '../../../modes/useQuizMode';
+import { prefsStorage } from '../../../utils/storage';
 
 /**
  * Étape 3: Prêt à démarrer
@@ -37,7 +38,7 @@ export default function StepReadyToStart({
   const [questionsReady, setQuestionsReady] = useState(false);
 
   // Mode Test (stubs au lieu d'appels n8n/Spotify)
-  const [testMode] = useState(() => localStorage.getItem('quizTestMode') === 'true');
+  const [testMode] = useState(() => prefsStorage.getTestMode());
 
   // Hooks pour les modes Spotify
   const spotifyAIMode = useSpotifyAIMode(

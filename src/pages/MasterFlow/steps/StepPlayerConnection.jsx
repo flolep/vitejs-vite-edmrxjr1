@@ -7,6 +7,7 @@ import { getSessionCode } from '../../../utils/sessionUtils';
 import { getValidSpotifyToken } from '../../../utils/spotifyUtils';
 import PlayerConnectionPanel from './PlayerConnectionPanel';
 import MusicConfigPanel from './MusicConfigPanel';
+import { sessionStorage_ } from '../../../utils/storage';
 
 /**
  * Étape 2: Connexion des joueurs + Configuration musicale
@@ -157,8 +158,8 @@ export default function StepPlayerConnection({
     console.log('🔗 Demande de connexion Spotify...');
 
     // Sauvegarder l'état pour revenir après OAuth
-    localStorage.setItem('wizardInProgress', 'true');
-    localStorage.setItem('pendingSessionId', sessionId);
+    sessionStorage_.setWizardInProgress('true');
+    sessionStorage_.setPendingSessionId(sessionId);
 
     // Utiliser le service Spotify existant pour générer l'URL
     const authUrl = spotifyService.getAuthUrl();

@@ -3,6 +3,7 @@ import { spotifyService } from '../spotifyService';
 import { ref, set, onValue } from 'firebase/database';
 import { database } from '../firebase';
 import { loadStubPlaylist, generateStubPlaylist, persistStubPlaylist } from '../utils/quizStubs';
+import { prefsStorage } from '../utils/storage';
 
 /**
  * Hook pour gérer le mode Spotify IA
@@ -51,7 +52,7 @@ export function useSpotifyAIMode(spotifyToken, sessionId, musicSource) {
   // Charger la playlist — bypass Spotify en mode test, relit depuis Firebase
   const loadPlaylistById = useCallback(async (playlistId, setPlaylist) => {
     // En mode test, lire la playlist stub depuis Firebase au lieu d'appeler Spotify
-    const isTestMode = localStorage.getItem('quizTestMode') === 'true';
+    const isTestMode = prefsStorage.getTestMode();
 
     if (isTestMode && sessionId) {
       console.log('[TEST MODE] loadPlaylistById: bypass Spotify, lecture depuis Firebase...');
