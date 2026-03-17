@@ -359,8 +359,11 @@ export default function Master({
           artist: playlist[currentTrack - 1].artist,
           imageUrl: playlist[currentTrack - 1].imageUrl,
           revealed: true,
-          number: currentTrack // ✅ Pas besoin de + 1 car commence déjà à 1
+          number: currentTrack
         });
+        // Marquer la piste comme révélée dans le tableau playlist
+        // (nécessaire pour que le useEffect auto-end détecte la dernière chanson)
+        revealTrack(currentTrack);
       }
     });
 
