@@ -998,6 +998,20 @@ export default function Master({
     : !!spotifyAutoMode.spotifyDeviceId;
   const isPlayerReady = !isSpotifyMode || spotifyDeviceReady;
 
+  // Fin automatique quand la dernière chanson est révélée
+  useEffect(() => {
+    if (
+      currentSong?.revealed &&
+      playlist.length > 0 &&
+      currentTrack === playlist.length &&
+      !gameEnded
+    ) {
+      console.log('🏁 Dernière chanson révélée — fin de partie automatique');
+      endGame();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSong?.revealed, currentTrack, playlist.length, gameEnded]);
+
   if (gameEnded) {
     return (
       <GameEndScreen
