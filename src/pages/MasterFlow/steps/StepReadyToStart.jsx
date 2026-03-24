@@ -177,7 +177,7 @@ export default function StepReadyToStart({
       if (musicSource === 'tresor') {
         console.log('🎵 [Trésor] Génération playlist...');
 
-        const { tresorService } = await import('../../../tresorService');
+        const { default: tresorService } = await import('../../../tresorService');
         const playMode = sessionData?.playMode || 'team';
 
         const result = await tresorService.getPlaylist({
