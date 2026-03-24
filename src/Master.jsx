@@ -1005,7 +1005,7 @@ export default function Master({
   // Modifié pour être moins restrictif : si on a une session ID et qu'on n'est pas en MP3, on attend probablement une playlist
   // Mais si playMode est 'team' et qu'on n'a pas de playlistId explicite (possible bug de persistance), on évite le blocage
   const isLoadingPlaylist = (initialPlaylistId && playlist.length === 0) ||
-                            (sessionId && musicSource !== 'mp3' && playlist.length === 0 && (musicSource === 'spotify-ai' ? playersPreferences.length > 0 : true));
+                            (sessionId && musicSource !== 'mp3' && musicSource !== 'tresor' && playlist.length === 0 && (musicSource === 'spotify-ai' ? playersPreferences.length > 0 : true));
 
   // ✅ currentTrack commence à 1, donc accès tableau avec currentTrack - 1
   const currentSong = playlist[currentTrack - 1];

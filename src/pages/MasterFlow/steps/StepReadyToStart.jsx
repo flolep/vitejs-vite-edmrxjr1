@@ -447,84 +447,100 @@ export default function StepReadyToStart({
 
       console.log('🎲 Génération des wrongAnswers pour', playlistData.length, 'chansons');
 
-      // Formater les chansons pour n8nService
-      const songsForWrongAnswers = playlistData
-        .map((track) => ({
-          artist: track.artist,
-          title: track.title,
-          uri: track.spotifyUri || track.uri
-        }))
-        .filter((song) => {
-          if (!song.uri) {
-            console.warn(`⚠️ Chanson ignorée: pas d'URI`, song);
-            return false;
-          }
-          return true;
-        });
-
-      console.log(`📤 Envoi de ${songsForWrongAnswers.length} chansons à n8n...`);
-
-      // 🔄 Découper en batches de 10 chansons pour éviter le timeout
-      const batchSize = 10;
-      const batches = [];
-      for (let i = 0; i < songsForWrongAnswers.length; i += batchSize) {
-        batches.push(songsForWrongAnswers.slice(i, i + batchSize));
-      }
-
       const allWrongAnswers = [];
 
-      // Traiter chaque batch séquentiellement
-      for (let batchNum = 0; batchNum < batches.length; batchNum++) {
-        const batch = batches[batchNum];
-        console.log(`🔄 Batch ${batchNum + 1}/${batches.length}: ${batch.length} chansons`);
-
-        try {
-          // n8nService.generateWrongAnswers gère le mode Test automatiquement
-          const wrongAnswersResponse = await n8nService.generateWrongAnswers(batch);
-
-          // Ajouter les wrongAnswers de ce batch
-          for (let i = 0; i < batch.length; i++) {
-            if (!batch[i].uri) {
-              console.warn(`⚠️ Chanson sans URI ignorée:`, batch[i]);
-              continue;
+      // Source Trésor : les wrongAnswers sont déjà dans les tracks, pas besoin de n8n
+      const musicSource = sessionData?.musicSource;
+      if (musicSource === 'tresor') {
+        console.log('ℹ️ [Trésor] Utilisation des wrongAnswers intégrées (skip n8n)');
+        for (const track of playlistData) {
+          const uri = track.spotifyUri || track.uri;
+          if (!uri) continue;
+          allWrongAnswers.push({
+            uri,
+            title: track.title,
+            artist: track.artist,
+            wrongAnswers: (track.wrongAnswers || []).map(wa => wa.text || wa)
+          });
+        }
+      } else {
+        // Formater les chansons pour n8nService
+        const songsForWrongAnswers = playlistData
+          .map((track) => ({
+            artist: track.artist,
+            title: track.title,
+            uri: track.spotifyUri || track.uri
+          }))
+          .filter((song) => {
+            if (!song.uri) {
+              console.warn(`⚠️ Chanson ignorée: pas d'URI`, song);
+              return false;
             }
-            const wrongAnswersMap = wrongAnswersResponse.wrongAnswers;
-            const keys = Object.keys(wrongAnswersMap);
-            const wrongAnswersData = wrongAnswersMap[i]
-              || wrongAnswersMap[String(i)]
-              || wrongAnswersMap[keys[i]]
-              || null;
-            allWrongAnswers.push({
-              uri: batch[i].uri,
-              title: batch[i].title,
-              artist: batch[i].artist,
-              wrongAnswers: wrongAnswersData ? wrongAnswersData.wrongAnswers : [
-                `Fallback 1 - Song ${allWrongAnswers.length + 1}A`,
-                `Fallback 2 - Song ${allWrongAnswers.length + 1}B`,
-                `Fallback 3 - Song ${allWrongAnswers.length + 1}C`
-              ]
-            });
-          }
+            return true;
+          });
 
-          console.log(`✅ Batch ${batchNum + 1}/${batches.length} terminé`);
-        } catch (error) {
-          console.error(`❌ Erreur batch ${batchNum + 1}:`, error);
-          // Ajouter des fallbacks pour ce batch en cas d'erreur
-          for (let i = 0; i < batch.length; i++) {
-            if (!batch[i].uri) {
-              console.warn(`⚠️ Chanson sans URI ignorée (fallback):`, batch[i]);
-              continue;
+        console.log(`📤 Envoi de ${songsForWrongAnswers.length} chansons à n8n...`);
+
+        // 🔄 Découper en batches de 10 chansons pour éviter le timeout
+        const batchSize = 10;
+        const batches = [];
+        for (let i = 0; i < songsForWrongAnswers.length; i += batchSize) {
+          batches.push(songsForWrongAnswers.slice(i, i + batchSize));
+        }
+
+        // Traiter chaque batch séquentiellement
+        for (let batchNum = 0; batchNum < batches.length; batchNum++) {
+          const batch = batches[batchNum];
+          console.log(`🔄 Batch ${batchNum + 1}/${batches.length}: ${batch.length} chansons`);
+
+          try {
+            // n8nService.generateWrongAnswers gère le mode Test automatiquement
+            const wrongAnswersResponse = await n8nService.generateWrongAnswers(batch);
+
+            // Ajouter les wrongAnswers de ce batch
+            for (let i = 0; i < batch.length; i++) {
+              if (!batch[i].uri) {
+                console.warn(`⚠️ Chanson sans URI ignorée:`, batch[i]);
+                continue;
+              }
+              const wrongAnswersMap = wrongAnswersResponse.wrongAnswers;
+              const keys = Object.keys(wrongAnswersMap);
+              const wrongAnswersData = wrongAnswersMap[i]
+                || wrongAnswersMap[String(i)]
+                || wrongAnswersMap[keys[i]]
+                || null;
+              allWrongAnswers.push({
+                uri: batch[i].uri,
+                title: batch[i].title,
+                artist: batch[i].artist,
+                wrongAnswers: wrongAnswersData ? wrongAnswersData.wrongAnswers : [
+                  `Fallback 1 - Song ${allWrongAnswers.length + 1}A`,
+                  `Fallback 2 - Song ${allWrongAnswers.length + 1}B`,
+                  `Fallback 3 - Song ${allWrongAnswers.length + 1}C`
+                ]
+              });
             }
-            allWrongAnswers.push({
-              uri: batch[i].uri,
-              title: batch[i].title,
-              artist: batch[i].artist,
-              wrongAnswers: [
-                `Fallback 1 - Song ${allWrongAnswers.length + 1}A`,
-                `Fallback 2 - Song ${allWrongAnswers.length + 1}B`,
-                `Fallback 3 - Song ${allWrongAnswers.length + 1}C`
-              ]
-            });
+
+            console.log(`✅ Batch ${batchNum + 1}/${batches.length} terminé`);
+          } catch (error) {
+            console.error(`❌ Erreur batch ${batchNum + 1}:`, error);
+            // Ajouter des fallbacks pour ce batch en cas d'erreur
+            for (let i = 0; i < batch.length; i++) {
+              if (!batch[i].uri) {
+                console.warn(`⚠️ Chanson sans URI ignorée (fallback):`, batch[i]);
+                continue;
+              }
+              allWrongAnswers.push({
+                uri: batch[i].uri,
+                title: batch[i].title,
+                artist: batch[i].artist,
+                wrongAnswers: [
+                  `Fallback 1 - Song ${allWrongAnswers.length + 1}A`,
+                  `Fallback 2 - Song ${allWrongAnswers.length + 1}B`,
+                  `Fallback 3 - Song ${allWrongAnswers.length + 1}C`
+                ]
+              });
+            }
           }
         }
       }
