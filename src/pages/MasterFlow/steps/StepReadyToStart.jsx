@@ -6,6 +6,7 @@ import { useSpotifyAIMode } from '../../../modes/useSpotifyAIMode';
 import { useSpotifyAutoMode } from '../../../modes/useSpotifyAutoMode';
 import { useQuizMode } from '../../../modes/useQuizMode';
 import { prefsStorage } from '../../../utils/storage';
+import tresorService from '../../../tresorService';
 
 /**
  * Étape 3: Prêt à démarrer
@@ -177,7 +178,6 @@ export default function StepReadyToStart({
       if (musicSource === 'tresor') {
         console.log('🎵 [Trésor] Génération playlist...');
 
-        const { default: tresorService } = await import('../../../tresorService');
         const playMode = sessionData?.playMode || 'team';
 
         const result = await tresorService.getPlaylist({
