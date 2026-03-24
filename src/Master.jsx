@@ -416,15 +416,16 @@ export default function Master({
           // Supprimer la demande immédiatement
           await remove(nextSongRequestRef);
 
-          // Passer à la chanson suivante en utilisant la ref (toujours à jour)
+          // Passer à la chanson suivante (reset state, quiz, chrono)
           if (nextTrackRef.current) {
             nextTrackRef.current();
           }
 
-          // Attendre que l'état se propage
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          // Attendre React state propagation + Firebase quiz cleanup
+          // 600ms = 50ms React batch + 100ms Firebase remove + 450ms marge sécurité
+          await new Promise(resolve => setTimeout(resolve, 600));
 
-          // Démarrer automatiquement la lecture de la nouvelle chanson
+          // Démarrer la lecture (transferPlayback + play + generateQuizAnswers en parallèle)
           if (togglePlayRef.current) {
             await togglePlayRef.current();
           }
@@ -433,7 +434,6 @@ export default function Master({
         } catch (error) {
           console.error('❌ Erreur lors du passage à la chanson suivante:', error);
         } finally {
-          // Reset le flag après un délai pour éviter les double-clics
           setTimeout(() => {
             isProcessing = false;
           }, 500);
