@@ -74,16 +74,24 @@ export function useQuizMode(sessionId, currentTrack, playlist) {
 
     const { correctAnswer, wrongAnswers } = quizData;
 
-    // Formater les réponses avec un champ .text unifié
+    // Formater les réponses avec artist/song explicites (évite le split côté rendu)
     const correctAnswerFormatted = {
       text: `${correctAnswer.artist} - ${correctAnswer.title}`,
+      artist: correctAnswer.artist,
+      song: correctAnswer.title,
       isCorrect: true
     };
 
-    const wrongAnswersFormatted = wrongAnswers.map(wa => ({
-      text: wa,
-      isCorrect: false
-    }));
+    const wrongAnswersFormatted = wrongAnswers.map(wa => {
+      // Séparer artiste/titre en gérant les deux types de tirets (— et -)
+      const parts = wa.split(/ [-–—] /);
+      return {
+        text: wa,
+        artist: parts[0] || wa,
+        song: parts[1] || '',
+        isCorrect: false
+      };
+    });
 
     // Mélanger toutes les réponses
     const allAnswers = [correctAnswerFormatted, ...wrongAnswersFormatted]
@@ -103,6 +111,8 @@ export function useQuizMode(sessionId, currentTrack, playlist) {
       answers: allAnswers.map((a, idx) => ({
         label: String.fromCharCode(65 + idx), // A, B, C, D
         text: a.text,
+        artist: a.artist,
+        song: a.song,
         isCorrect: a.isCorrect
       })),
       correctAnswer: String.fromCharCode(65 + correctIndex),
@@ -132,6 +142,8 @@ export function useQuizMode(sessionId, currentTrack, playlist) {
       if (quizData && quizData.answers) {
         setQuizAnswers(quizData.answers.map(a => ({
           text: a.text,
+          artist: a.artist,
+          song: a.song,
           isCorrect: a.isCorrect
         })));
       }
