@@ -176,6 +176,23 @@ export default function Master({
         });
       }
 
+      if (musicSource === 'tresor') {
+        if (!spotifyToken) {
+          console.log('⏳ [Master] Attente token Spotify (tresor)');
+          return null;
+        }
+        if (!spotifyAIMode || !spotifyAIMode.spotifyDeviceId) {
+          console.log('⏳ [Master] Attente deviceId Spotify (tresor)');
+          return null;
+        }
+        console.log('🎧 [Master] Création PlayerAdapter Trésor', { deviceId: spotifyAIMode.spotifyDeviceId });
+        return createPlayerAdapter('spotify-ai', {
+          token: spotifyToken,
+          deviceId: spotifyAIMode.spotifyDeviceId,
+          player: spotifyAIMode.spotifyPlayer
+        });
+      }
+
       return null;
     } catch (error) {
       console.error("❌ Erreur création player adapter:", error);
@@ -441,7 +458,7 @@ export default function Master({
   // Initialisation forcée du player Spotify dès que possible
   useEffect(() => {
     if (spotifyToken) {
-      if (musicSource === 'spotify-ai') {
+      if (musicSource === 'spotify-ai' || musicSource === 'tresor') {
         spotifyAIMode.initSpotifyPlayer();
       } else if (musicSource === 'spotify-auto') {
         spotifyAutoMode.initSpotifyPlayer();
@@ -600,7 +617,7 @@ export default function Master({
     }
 
     // Vérification spécifique pour Spotify
-    if ((musicSource === 'spotify-auto' || musicSource === 'spotify-ai') && !spotifyToken) {
+    if ((musicSource === 'spotify-auto' || musicSource === 'spotify-ai' || musicSource === 'tresor') && !spotifyToken) {
       setDebugInfo('⚠️ Spotify non connecté - Veuillez vous reconnecter à Spotify pour lire cette playlist');
       console.error('❌ Token Spotify manquant');
       updateIsPlaying(false);
@@ -608,7 +625,7 @@ export default function Master({
     }
 
     // Si en mode Spotify et player/deviceId manquant, tenter réinitialisation
-    if ((musicSource === 'spotify-auto' || musicSource === 'spotify-ai') && !playerAdapter) {
+    if ((musicSource === 'spotify-auto' || musicSource === 'spotify-ai' || musicSource === 'tresor') && !playerAdapter) {
       if (isPlayerInitializing) {
         setDebugInfo('⏳ Initialisation du player en cours...');
         return;
@@ -621,7 +638,7 @@ export default function Master({
         // Réinitialiser le player selon le mode
         if (musicSource === 'spotify-auto') {
           await spotifyAutoMode.initSpotifyPlayer();
-        } else if (musicSource === 'spotify-ai') {
+        } else if (musicSource === 'spotify-ai' || musicSource === 'tresor') {
           await spotifyAIMode.initSpotifyPlayer();
         }
 
@@ -995,8 +1012,8 @@ export default function Master({
   const availablePoints = calculatePoints();
 
   // Player Spotify prêt ?
-  const isSpotifyMode = musicSource === 'spotify-ai' || musicSource === 'spotify-auto';
-  const spotifyDeviceReady = musicSource === 'spotify-ai'
+  const isSpotifyMode = musicSource === 'spotify-ai' || musicSource === 'spotify-auto' || musicSource === 'tresor';
+  const spotifyDeviceReady = (musicSource === 'spotify-ai' || musicSource === 'tresor')
     ? !!spotifyAIMode.spotifyDeviceId
     : !!spotifyAutoMode.spotifyDeviceId;
   const isPlayerReady = !isSpotifyMode || spotifyDeviceReady;
@@ -1276,7 +1293,7 @@ export default function Master({
       )}
 
       {/* Message d'erreur Player Spotify */}
-      {(musicSource === 'spotify-auto' || musicSource === 'spotify-ai') && !playerAdapter && !isPlayerInitializing && (
+      {(musicSource === 'spotify-auto' || musicSource === 'spotify-ai' || musicSource === 'tresor') && !playerAdapter && !isPlayerInitializing && (
         <div style={{
           backgroundColor: 'rgba(239, 68, 68, 0.9)',
           color: 'white',
@@ -1295,7 +1312,7 @@ export default function Master({
               setIsPlayerInitializing(true);
               try {
                 if (musicSource === 'spotify-auto') await spotifyAutoMode.initSpotifyPlayer();
-                else if (musicSource === 'spotify-ai') await spotifyAIMode.initSpotifyPlayer();
+                else if (musicSource === 'spotify-ai' || musicSource === 'tresor') await spotifyAIMode.initSpotifyPlayer();
               } catch (e) {
                 console.error('❌ Erreur lors de la reconnexion manuelle:', e);
                 // On garde l'état initializing false pour réafficher le message d'erreur
