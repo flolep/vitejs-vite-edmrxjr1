@@ -4,6 +4,7 @@ import { ref, onValue, set } from 'firebase/database';
 import { QRCodeSVG } from 'qrcode.react';
 import { QuizDisplay } from './components/tv/QuizDisplay';
 import GameEndDashboard from './components/tv/GameEndDashboard';
+import tresorService from './tresorService';
 import { calculatePoints } from './hooks/useScoring';
 import SessionCodeInput from './components/SessionCodeInput';
 
@@ -175,6 +176,8 @@ export default function TV() {
   const [currentQuestionNumber, setCurrentQuestionNumber] = useState(1);
   const [totalQuestions, setTotalQuestions] = useState(10);
   const [roundStatus, setRoundStatus] = useState('playing'); // 'playing' | 'finished'
+  const [songAnecdote, setSongAnecdote] = useState(null); // Anecdote de la chanson (source Trésor)
+  const [tvPlaylist, setTvPlaylist] = useState([]); // Playlist complète pour accès aux IDs Trésor
 
   // 🔊 Ref pour le son de buzzer en mode Quiz
   const buzzerSoundRef = useRef(null);
@@ -537,10 +540,32 @@ export default function TV() {
       const playlistData = snapshot.val();
       if (playlistData && Array.isArray(playlistData)) {
         setTotalQuestions(playlistData.length);
+        setTvPlaylist(playlistData);
       }
     });
     return () => unsubscribe();
   }, [sessionValid, sessionId]);
+
+  // Récupérer l'anecdote via GET /song/{id} quand la réponse quiz est révélée
+  useEffect(() => {
+    if (!quizRevealed || playMode !== 'quiz' || !playingTrackNumber) {
+      setSongAnecdote(null);
+      return;
+    }
+
+    const track = tvPlaylist[playingTrackNumber - 1];
+    if (!track?.id) return;
+
+    tresorService.getSong(track.id)
+      .then(data => {
+        if (data?.anecdote) {
+          setSongAnecdote(data.anecdote);
+        }
+      })
+      .catch(err => {
+        console.warn('⚠️ Impossible de récupérer l\'anecdote:', err.message);
+      });
+  }, [quizRevealed, playMode, playingTrackNumber, tvPlaylist]);
 
   // Compter le nombre total de joueurs
   useEffect(() => {
@@ -1074,42 +1099,24 @@ return (
                     {answer.label}
                   </div>
 
-                  {/* Album Cover for correct answer */}
+                  {/* Album Cover — positioned right side of the card */}
                   {isCorrect && currentSong?.imageUrl && (
-                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.75rem' }}>
+                    <div style={{
+                      position: 'absolute',
+                      right: '1rem',
+                      bottom: '1rem',
+                      width: '120px',
+                      height: '120px',
+                      borderRadius: '0.75rem',
+                      overflow: 'hidden',
+                      border: '2px solid rgba(34, 197, 94, 0.5)',
+                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.4)'
+                    }}>
                       <img
                         src={currentSong.imageUrl}
                         alt={currentSong.title}
-                        style={{
-                          width: '160px',
-                          height: '160px',
-                          borderRadius: '0.75rem',
-                          objectFit: 'cover',
-                          border: '3px solid #22c55e',
-                          boxShadow: '0 4px 16px rgba(34, 197, 94, 0.4)'
-                        }}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       />
-                    </div>
-                  )}
-
-                  {/* Metadata badges for correct answer */}
-                  {isCorrect && (currentSong?.annee || currentSong?.genre || currentSong?.theme) && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', justifyContent: 'center', marginBottom: '0.5rem' }}>
-                      {currentSong.annee && (
-                        <span style={{ background: 'rgba(251,191,36,0.15)', border: '1px solid rgba(251,191,36,0.3)', borderRadius: '1rem', padding: '0.15rem 0.5rem', fontSize: '0.7rem', color: '#fbbf24' }}>
-                          📅 {currentSong.annee}
-                        </span>
-                      )}
-                      {currentSong.genre && (
-                        <span style={{ background: 'rgba(96,165,250,0.15)', border: '1px solid rgba(96,165,250,0.3)', borderRadius: '1rem', padding: '0.15rem 0.5rem', fontSize: '0.7rem', color: '#60a5fa' }}>
-                          🎸 {currentSong.genre}
-                        </span>
-                      )}
-                      {currentSong.theme && (
-                        <span style={{ background: 'rgba(168,85,247,0.15)', border: '1px solid rgba(168,85,247,0.3)', borderRadius: '1rem', padding: '0.15rem 0.5rem', fontSize: '0.7rem', color: '#a855f7' }}>
-                          ✨ {currentSong.theme}
-                        </span>
-                      )}
                     </div>
                   )}
 
@@ -1196,6 +1203,29 @@ return (
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Anecdote de la chanson (source Trésor) */}
+        {quizRevealed && songAnecdote && (
+          <div style={{
+            backgroundColor: 'rgba(0, 0, 0, 0.3)',
+            borderRadius: '1rem',
+            padding: '1.25rem 1.5rem',
+            marginBottom: '1rem',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '1rem'
+          }}>
+            <div style={{ fontSize: '1.5rem', flexShrink: 0 }}>💡</div>
+            <div style={{
+              fontSize: '1.1rem',
+              lineHeight: '1.5',
+              fontStyle: 'italic',
+              opacity: 0.85
+            }}>
+              {songAnecdote}
+            </div>
           </div>
         )}
 
