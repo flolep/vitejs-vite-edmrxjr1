@@ -3,13 +3,14 @@ import { isSpotifyTokenValid } from '../../../utils/spotifyUtils';
 
 /**
  * Panel droit : Configuration de la source musicale
- * 3 options : MP3 local, Spotify Playlist, Spotify IA
+ * 3 options : MP3 local, Spotify Playlist, Le Trésor
  */
 export default function MusicConfigPanel({
   onMusicConfigured,
-  onSpotifyConnect
+  onSpotifyConnect,
+  playMode
 }) {
-  const [selectedSource, setSelectedSource] = useState(null); // 'mp3' | 'spotify-auto' | 'spotify-ai'
+  const [selectedSource, setSelectedSource] = useState(null); // 'mp3' | 'spotify-auto' | 'tresor'
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -54,22 +55,12 @@ export default function MusicConfigPanel({
     });
   };
 
-  // Handler pour Spotify IA - Vérifie le token avant de configurer
-  const handleSpotifyAI = () => {
-    console.log('🤖 [MusicConfig] Clic sur Spotify IA');
-
-    // Vérifier si le token Spotify est valide
-    if (!isSpotifyTokenValid()) {
-      console.log('🔐 [MusicConfig] Token invalide → Redirection vers connexion Spotify');
-      // Déclencher la connexion Spotify
-      onSpotifyConnect();
-      return;
-    }
-
-    console.log('✅ [MusicConfig] Token valide → Configuration Spotify IA');
-    setSelectedSource('spotify-ai');
-    onMusicConfigured('spotify-ai', {
-      willGenerateFromPreferences: true
+  // Handler pour Le Trésor
+  const handleTresor = () => {
+    console.log('🎵 [MusicConfig] Clic sur Le Trésor');
+    setSelectedSource('tresor');
+    onMusicConfigured('tresor', {
+      source: 'tresor'
     });
   };
 
@@ -202,88 +193,90 @@ export default function MusicConfigPanel({
           </div>
         </div>
 
-        {/* Option 2: Spotify Playlist existante */}
-        <div
-          style={{
-            backgroundColor: selectedSource === 'spotify-auto'
-              ? 'rgba(30, 215, 96, 0.2)'
-              : 'rgba(0, 0, 0, 0.2)',
-            border: selectedSource === 'spotify-auto'
-              ? '2px solid #1ed760'
-              : '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '1rem',
-            padding: '1.5rem',
-            transition: 'all 0.2s'
-          }}
-        >
-          <div style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: '1rem'
-          }}>
-            <div style={{ fontSize: '2rem' }}>🎧</div>
-            <div style={{ flex: 1 }}>
-              <h3 style={{
-                fontSize: '1.1rem',
-                fontWeight: 'bold',
-                marginBottom: '0.25rem'
-              }}>
-                Spotify - Playlist existante
-              </h3>
-              <p style={{
-                fontSize: '0.85rem',
-                opacity: 0.8,
-                marginBottom: '0.75rem'
-              }}>
-                Sélectionnez une playlist Spotify
-              </p>
-
-              <button
-                onClick={handleSpotifyAuto}
-                style={{
-                  padding: '0.75rem 1.25rem',
-                  backgroundColor: 'rgba(30, 215, 96, 0.3)',
-                  border: '1px solid #1ed760',
-                  borderRadius: '0.5rem',
-                  color: 'white',
-                  fontSize: '0.9rem',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgba(30, 215, 96, 0.4)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgba(30, 215, 96, 0.3)';
-                }}
-              >
-                🎧 Utiliser Spotify Playlist
-              </button>
-
-              {selectedSource === 'spotify-auto' && (
-                <div style={{
-                  marginTop: '0.75rem',
-                  fontSize: '0.85rem',
-                  padding: '0.75rem',
-                  backgroundColor: 'rgba(0, 0, 0, 0.2)',
-                  borderRadius: '0.5rem',
-                  color: '#1ed760'
+        {/* Option 2: Spotify Playlist existante (masqué en mode Quiz) */}
+        {playMode !== 'quiz' && (
+          <div
+            style={{
+              backgroundColor: selectedSource === 'spotify-auto'
+                ? 'rgba(30, 215, 96, 0.2)'
+                : 'rgba(0, 0, 0, 0.2)',
+              border: selectedSource === 'spotify-auto'
+                ? '2px solid #1ed760'
+                : '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '1rem',
+              padding: '1.5rem',
+              transition: 'all 0.2s'
+            }}
+          >
+            <div style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '1rem'
+            }}>
+              <div style={{ fontSize: '2rem' }}>🎧</div>
+              <div style={{ flex: 1 }}>
+                <h3 style={{
+                  fontSize: '1.1rem',
+                  fontWeight: 'bold',
+                  marginBottom: '0.25rem'
                 }}>
-                  ✅ Spotify configuré (sélecteur de playlist à implémenter)
-                </div>
-              )}
+                  Spotify - Playlist existante
+                </h3>
+                <p style={{
+                  fontSize: '0.85rem',
+                  opacity: 0.8,
+                  marginBottom: '0.75rem'
+                }}>
+                  Sélectionnez une playlist Spotify
+                </p>
+
+                <button
+                  onClick={handleSpotifyAuto}
+                  style={{
+                    padding: '0.75rem 1.25rem',
+                    backgroundColor: 'rgba(30, 215, 96, 0.3)',
+                    border: '1px solid #1ed760',
+                    borderRadius: '0.5rem',
+                    color: 'white',
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(30, 215, 96, 0.4)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(30, 215, 96, 0.3)';
+                  }}
+                >
+                  🎧 Utiliser Spotify Playlist
+                </button>
+
+                {selectedSource === 'spotify-auto' && (
+                  <div style={{
+                    marginTop: '0.75rem',
+                    fontSize: '0.85rem',
+                    padding: '0.75rem',
+                    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                    borderRadius: '0.5rem',
+                    color: '#1ed760'
+                  }}>
+                    ✅ Spotify configuré (sélecteur de playlist à implémenter)
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Option 3: Spotify IA */}
+        {/* Option 3: Le Trésor — Génération automatique */}
         <div
           style={{
-            backgroundColor: selectedSource === 'spotify-ai'
-              ? 'rgba(124, 58, 237, 0.2)'
+            backgroundColor: selectedSource === 'tresor'
+              ? 'rgba(245, 158, 11, 0.2)'
               : 'rgba(0, 0, 0, 0.2)',
-            border: selectedSource === 'spotify-ai'
-              ? '2px solid #7c3aed'
+            border: selectedSource === 'tresor'
+              ? '2px solid #f59e0b'
               : '1px solid rgba(255, 255, 255, 0.1)',
             borderRadius: '1rem',
             padding: '1.5rem',
@@ -295,29 +288,29 @@ export default function MusicConfigPanel({
             alignItems: 'flex-start',
             gap: '1rem'
           }}>
-            <div style={{ fontSize: '2rem' }}>🤖</div>
+            <div style={{ fontSize: '2rem' }}>🎵</div>
             <div style={{ flex: 1 }}>
               <h3 style={{
                 fontSize: '1.1rem',
                 fontWeight: 'bold',
                 marginBottom: '0.25rem'
               }}>
-                Spotify - Playlist générée par IA
+                Le Trésor — Génération automatique
               </h3>
               <p style={{
                 fontSize: '0.85rem',
                 opacity: 0.8,
                 marginBottom: '0.75rem'
               }}>
-                L'IA génère une playlist basée sur les préférences des joueurs
+                Génération automatique de la playlist via l'API Le Trésor
               </p>
 
               <button
-                onClick={handleSpotifyAI}
+                onClick={handleTresor}
                 style={{
                   padding: '0.75rem 1.25rem',
-                  backgroundColor: 'rgba(124, 58, 237, 0.3)',
-                  border: '1px solid #7c3aed',
+                  backgroundColor: 'rgba(245, 158, 11, 0.3)',
+                  border: '1px solid #f59e0b',
                   borderRadius: '0.5rem',
                   color: 'white',
                   fontSize: '0.9rem',
@@ -325,25 +318,25 @@ export default function MusicConfigPanel({
                   transition: 'all 0.2s'
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgba(124, 58, 237, 0.4)';
+                  e.currentTarget.style.backgroundColor = 'rgba(245, 158, 11, 0.4)';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgba(124, 58, 237, 0.3)';
+                  e.currentTarget.style.backgroundColor = 'rgba(245, 158, 11, 0.3)';
                 }}
               >
-                🤖 Utiliser Spotify IA
+                🎵 Utiliser Le Trésor
               </button>
 
-              {selectedSource === 'spotify-ai' && (
+              {selectedSource === 'tresor' && (
                 <div style={{
                   marginTop: '0.75rem',
                   fontSize: '0.85rem',
                   padding: '0.75rem',
                   backgroundColor: 'rgba(0, 0, 0, 0.2)',
                   borderRadius: '0.5rem',
-                  color: '#7c3aed'
+                  color: '#f59e0b'
                 }}>
-                  ✅ IA activée - La playlist sera générée avec les préférences des joueurs
+                  ✅ Le Trésor activé — La playlist sera générée automatiquement
                 </div>
               )}
             </div>
