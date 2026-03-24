@@ -317,23 +317,51 @@ export function QuizDisplay({
               <div style={{ fontSize: '1.5rem', opacity: 0.8 }}>
                 {currentSong.artist}
               </div>
-              {currentSong.annee && (
-                <div style={{ fontSize: '1.1rem', opacity: 0.5, marginTop: '0.5rem' }}>
-                  📅 {currentSong.annee}
-                </div>
-              )}
-              {currentSong.anecdote && (
+              {/* Métadonnées enrichies (source Trésor) */}
+              {(currentSong.annee || currentSong.genre || currentSong.theme) && (
                 <div style={{
-                  fontSize: '1rem',
-                  opacity: 0.7,
                   marginTop: '0.75rem',
-                  fontStyle: 'italic',
-                  lineHeight: '1.4',
-                  maxWidth: '500px',
-                  borderLeft: '3px solid rgba(251, 191, 36, 0.4)',
-                  paddingLeft: '1rem'
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '0.5rem',
+                  alignItems: 'center'
                 }}>
-                  💡 {currentSong.anecdote}
+                  {currentSong.annee && (
+                    <span style={{
+                      background: 'rgba(251, 191, 36, 0.15)',
+                      border: '1px solid rgba(251, 191, 36, 0.3)',
+                      borderRadius: '2rem',
+                      padding: '0.3rem 0.75rem',
+                      fontSize: '1rem',
+                      color: '#fbbf24'
+                    }}>
+                      📅 {currentSong.annee}
+                    </span>
+                  )}
+                  {currentSong.genre && (
+                    <span style={{
+                      background: 'rgba(96, 165, 250, 0.15)',
+                      border: '1px solid rgba(96, 165, 250, 0.3)',
+                      borderRadius: '2rem',
+                      padding: '0.3rem 0.75rem',
+                      fontSize: '1rem',
+                      color: '#60a5fa'
+                    }}>
+                      🎸 {currentSong.genre}
+                    </span>
+                  )}
+                  {currentSong.theme && (
+                    <span style={{
+                      background: 'rgba(168, 85, 247, 0.15)',
+                      border: '1px solid rgba(168, 85, 247, 0.3)',
+                      borderRadius: '2rem',
+                      padding: '0.3rem 0.75rem',
+                      fontSize: '1rem',
+                      color: '#a855f7'
+                    }}>
+                      ✨ {currentSong.theme}
+                    </span>
+                  )}
                 </div>
               )}
             </div>

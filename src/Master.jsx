@@ -371,12 +371,15 @@ export default function Master({
       // ✅ currentTrack commence à 1, donc accès tableau avec currentTrack - 1
       if (quizData && quizData.revealed && currentTrack !== null && playlist[currentTrack - 1]) {
         const track = playlist[currentTrack - 1];
-        // Mettre à jour currentSong avec revealed: true + metadata
+        // Mettre à jour currentSong avec revealed: true + metadata enrichie
         updateCurrentSong({
           title: track.title,
           artist: track.artist,
           imageUrl: track.imageUrl,
           annee: track.annee || null,
+          genre: track.genre || null,
+          theme: track.theme || null,
+          langue: track.langue || null,
           revealed: true,
           number: currentTrack
         });
@@ -895,6 +898,9 @@ export default function Master({
       artist: revealedTrack.artist,
       imageUrl: revealedTrack.imageUrl,
       annee: revealedTrack.annee || null,
+      genre: revealedTrack.genre || null,
+      theme: revealedTrack.theme || null,
+      langue: revealedTrack.langue || null,
       revealed: true,
       number: currentTrack
     });

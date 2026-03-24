@@ -21,6 +21,9 @@ const mapSong = (song) => ({
   imgCouleur:   song.img_couleur,
   annee:        song.annee,
   difficulte:   song.difficulte,
+  genre:        song.genre || null,
+  theme:        song.theme || null,
+  langue:       song.langue || null,
   wrongAnswers: mapWrongAnswers(song.wrong_answers),
 });
 
