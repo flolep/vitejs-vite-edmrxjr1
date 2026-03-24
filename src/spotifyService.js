@@ -199,20 +199,14 @@ export const spotifyService = {
     });
   },
 
-  // Flag pour savoir si le device a déjà été activé
-  _deviceActivated: false,
-
-  // Jouer un morceau — transferPlayback uniquement au premier appel
+  // Jouer un morceau — transferPlayback + retry si 404
   async playTrack(accessToken, deviceId, spotifyUri, positionMs = 0, retryCount = 0) {
-    // Premier play : activer le device via transferPlayback
-    if (!this._deviceActivated) {
-      try {
-        await this.transferPlayback(accessToken, deviceId);
-        await new Promise(resolve => setTimeout(resolve, 500));
-        this._deviceActivated = true;
-      } catch (e) {
-        console.warn('⚠️ transferPlayback échoué, tentative play directe:', e.message);
-      }
+    // Transférer le device avant de jouer (active le player SDK côté Spotify)
+    try {
+      await this.transferPlayback(accessToken, deviceId);
+      await new Promise(resolve => setTimeout(resolve, 800));
+    } catch (e) {
+      console.warn('⚠️ transferPlayback échoué, tentative play directe:', e.message);
     }
 
     const response = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
@@ -229,17 +223,10 @@ export const spotifyService = {
 
     if (!response.ok) {
       const errorText = await response.text();
-      // Retry une fois si 404 — réactiver le device puis réessayer
+      // Retry automatique une fois si 404
       if (response.status === 404 && retryCount === 0) {
-        console.warn('⚠️ 404 Device not found — transfer + retry...');
-        this._deviceActivated = false;
-        try {
-          await this.transferPlayback(accessToken, deviceId);
-          await new Promise(resolve => setTimeout(resolve, 800));
-          this._deviceActivated = true;
-        } catch (e) {
-          console.warn('⚠️ transferPlayback retry échoué:', e.message);
-        }
+        console.warn('⚠️ 404 Device not found — retry dans 1500ms...');
+        await new Promise(resolve => setTimeout(resolve, 1500));
         return this.playTrack(accessToken, deviceId, spotifyUri, positionMs, 1);
       }
       throw new Error(`Spotify play error: ${response.status} - ${errorText}`);

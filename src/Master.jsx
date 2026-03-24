@@ -413,15 +413,18 @@ export default function Master({
         console.log(`➡️ Demande de passage à la chanson suivante par ${requestData.playerName}`);
 
         try {
-          // Supprimer la demande immédiatement (non-bloquant)
-          remove(nextSongRequestRef);
+          // Supprimer la demande immédiatement
+          await remove(nextSongRequestRef);
 
-          // Passer à la chanson suivante
+          // Passer à la chanson suivante en utilisant la ref (toujours à jour)
           if (nextTrackRef.current) {
             nextTrackRef.current();
           }
 
-          // Démarrer la lecture immédiatement (pas de timeout d'attente)
+          // Attendre que l'état se propage
+          await new Promise(resolve => setTimeout(resolve, 1000));
+
+          // Démarrer automatiquement la lecture de la nouvelle chanson
           if (togglePlayRef.current) {
             await togglePlayRef.current();
           }
@@ -430,10 +433,10 @@ export default function Master({
         } catch (error) {
           console.error('❌ Erreur lors du passage à la chanson suivante:', error);
         } finally {
-          // Reset le flag après un court délai anti-double-clic
+          // Reset le flag après un délai pour éviter les double-clics
           setTimeout(() => {
             isProcessing = false;
-          }, 300);
+          }, 500);
         }
       }
     });
