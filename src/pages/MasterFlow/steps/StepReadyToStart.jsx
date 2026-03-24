@@ -138,6 +138,25 @@ export default function StepReadyToStart({
     console.log('🎵 Génération playlist - Source:', musicSource, 'Mode:', playMode);
 
     try {
+      // Reprise de session : si playlist déjà dans Firebase, ne pas re-appeler Le Trésor
+      if (musicSource === 'tresor') {
+        const existingPlaylistRef = ref(database, `sessions/${sessionId}/playlist`);
+        const existingSnapshot = await get(existingPlaylistRef);
+        if (existingSnapshot.exists() && existingSnapshot.val()?.length > 0) {
+          console.log('♻️ [Trésor] Playlist existante chargée depuis Firebase (reprise)');
+          const existingTracks = existingSnapshot.val();
+          setPlaylist(existingTracks);
+          setPlaylistReady(true);
+          setIsGeneratingPlaylist(false);
+          // Ne pas regénérer les questions quiz si elles existent déjà
+          // (la vérification dans handleGenerateQuizQuestions s'en charge)
+          if (sessionData?.playMode === 'quiz') {
+            await handleGenerateQuizQuestions(existingTracks);
+          }
+          return;
+        }
+      }
+
       // === CAS 1: MP3 Local ===
       if (musicSource === 'mp3') {
         console.log('📂 Utilisation des fichiers MP3 locaux');
@@ -154,12 +173,48 @@ export default function StepReadyToStart({
         return;
       }
 
+      // === CAS 4 : Le Trésor ===
+      if (musicSource === 'tresor') {
+        console.log('🎵 [Trésor] Génération playlist...');
+
+        const { tresorService } = await import('../../../tresorService');
+        const playMode = sessionData?.playMode || 'team';
+
+        const result = await tresorService.getPlaylist({
+          n: 50,
+          quiz: playMode === 'quiz',
+          profils: [{ poids: 1 }]
+        });
+
+        const tracks = result.songs;
+
+        if (!tracks || tracks.length === 0) {
+          throw new Error('Le Trésor n\'a retourné aucune chanson');
+        }
+
+        // Stocker la playlist dans Firebase pour la reprise de session
+        const playlistRef = ref(database, `sessions/${sessionId}/playlist`);
+        await set(playlistRef, tracks);
+        console.log(`✅ [Trésor] ${tracks.length} chansons stockées dans Firebase`);
+
+        setPlaylist(tracks);
+        setPlaylistReady(true);
+        setIsGeneratingPlaylist(false);
+
+        // Mode Quiz : stocker les quiz_data dans Firebase
+        if (playMode === 'quiz') {
+          await handleGenerateQuizQuestions(tracks);
+        }
+
+        return;
+      }
+
       // === CAS 2 & 3: Spotify (Auto ou IA) ===
       if (musicSource === 'spotify-auto' || musicSource === 'spotify-ai') {
         // Récupérer ou générer l'ID de playlist
         let playlistId = sessionData?.playlistId;
 
-        if (!playlistId) {
+        if (!playlistId && musicSource !== 'tresor') {
           // Générer un ID de playlist basé sur le sessionId
           // Le format attendu est l'ID réel d'une playlist Spotify
           // Pour l'instant, on ne peut pas procéder sans playlist ID
@@ -547,6 +602,8 @@ export default function StepReadyToStart({
         return '🎵 Playlist Spotify';
       case 'spotify-ai':
         return '🤖 Playlist générée par IA';
+      case 'tresor':
+        return '🎵 Le Trésor — Génération automatique';
       default:
         return '🎵 Musique';
     }
@@ -561,6 +618,9 @@ export default function StepReadyToStart({
     }
     if (musicSource === 'spotify-ai' && musicConfig.preferences) {
       return `Préférences: ${musicConfig.preferences}`;
+    }
+    if (musicSource === 'tresor') {
+      return 'Playlist générée par Le Trésor';
     }
     return 'Configurée';
   };

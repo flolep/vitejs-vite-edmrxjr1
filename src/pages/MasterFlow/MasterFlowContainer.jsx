@@ -156,10 +156,19 @@ export default function MasterFlowContainer() {
       }
 
       // Critères stricts : active, non terminée, démarrée, avec playlist
+      // Pour la source tresor et mp3, la playlist est dans Firebase sessions/{id}/playlist
+      // et non dans playlistId — le critère playlistId != null ne s'applique pas
+      const musicSource = existingSession.musicSource ||
+        (existingSession.gameMode?.split('-')[0]);
+
       const isResumable = existingSession.active === true
         && existingSession.game_status?.ended !== true
         && existingSession.startedAt != null
-        && existingSession.playlistId != null;
+        && (
+          existingSession.playlistId != null
+          || musicSource === 'tresor'
+          || musicSource === 'mp3'
+        );
 
       if (!isResumable) {
         console.log('[Resume] Session trouvée mais non reprendable:', {
@@ -180,6 +189,7 @@ export default function MasterFlowContainer() {
         if (existingSession.gameMode.startsWith('spotify-auto')) derivedMusicSource = 'spotify-auto';
         else if (existingSession.gameMode.startsWith('spotify-ai')) derivedMusicSource = 'spotify-ai';
         else if (existingSession.gameMode.startsWith('mp3')) derivedMusicSource = 'mp3';
+        else if (existingSession.gameMode.startsWith('tresor')) derivedMusicSource = 'tresor';
       }
 
       setActiveGame({
@@ -216,7 +226,10 @@ export default function MasterFlowContainer() {
     try {
       // 1. Résoudre le token Spotify via le contexte
       let spotifyToken = contextSpotifyToken;
-      const isSpotifyMode = activeGame.musicSource === 'spotify-ai' || activeGame.musicSource === 'spotify-auto';
+      // tresor utilise aussi le Spotify Web Playback SDK pour jouer les pistes
+      const isSpotifyMode = activeGame.musicSource === 'spotify-ai'
+        || activeGame.musicSource === 'spotify-auto'
+        || activeGame.musicSource === 'tresor';
 
       if (isSpotifyMode && !spotifyToken) {
         console.log('[Resume] Token expiré, refresh via contexte...');
@@ -257,14 +270,30 @@ export default function MasterFlowContainer() {
         console.error('[Resume] Erreur rechargement joueurs:', err);
       }
 
-      // 3. Restaurer les données de session et lancer la partie
+      // 3. Charger la playlist depuis Firebase si source tresor
+      let resumePlaylist = [];
+      if (activeGame.musicSource === 'tresor') {
+        try {
+          const playlistSnap = await get(
+            ref(database, `sessions/${activeGame.sessionId}/playlist`)
+          );
+          if (playlistSnap.exists()) {
+            resumePlaylist = playlistSnap.val() || [];
+            console.log('[Resume] Playlist Trésor rechargée:', resumePlaylist.length, 'chansons');
+          }
+        } catch (err) {
+          console.error('[Resume] Erreur rechargement playlist Trésor:', err);
+        }
+      }
+
+      // 4. Restaurer les données de session et lancer la partie
       setSessionData({
         sessionId: activeGame.sessionId,
         playMode: activeGame.playMode,
         musicSource: activeGame.musicSource,
         gameMode: activeGame.gameMode,
         players,
-        playlist: [],
+        playlist: activeGame.musicSource === 'tresor' ? resumePlaylist : [],
         playlistId: activeGame.playlistId,
         spotifyToken
       });
