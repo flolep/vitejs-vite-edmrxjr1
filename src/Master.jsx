@@ -995,30 +995,9 @@ export default function Master({
     }, { onlyOnce: true });
   };
 
-  // === RENDU ===
-
-  if (!user) {
-    return <Login onLoginSuccess={() => {}} />;
-  }
-
-  // Si on a un ID de playlist mais pas encore de tracks, on affiche un chargement
-  // Modifié pour être moins restrictif : si on a une session ID et qu'on n'est pas en MP3, on attend probablement une playlist
-  // Mais si playMode est 'team' et qu'on n'a pas de playlistId explicite (possible bug de persistance), on évite le blocage
-  const isLoadingPlaylist = (initialPlaylistId && playlist.length === 0) ||
-                            (sessionId && musicSource !== 'mp3' && musicSource !== 'tresor' && playlist.length === 0 && (musicSource === 'spotify-ai' ? playersPreferences.length > 0 : true));
-
-  // ✅ currentTrack commence à 1, donc accès tableau avec currentTrack - 1
-  const currentSong = playlist[currentTrack - 1];
-  const availablePoints = calculatePoints();
-
-  // Player Spotify prêt ?
-  const isSpotifyMode = musicSource === 'spotify-ai' || musicSource === 'spotify-auto' || musicSource === 'tresor';
-  const spotifyDeviceReady = (musicSource === 'spotify-ai' || musicSource === 'tresor')
-    ? !!spotifyAIMode.spotifyDeviceId
-    : !!spotifyAutoMode.spotifyDeviceId;
-  const isPlayerReady = !isSpotifyMode || spotifyDeviceReady;
-
   // Fin automatique quand la dernière chanson est révélée
+  // IMPORTANT: Ce useEffect doit être AVANT les early returns pour respecter les Rules of Hooks
+  const currentSong = playlist[currentTrack - 1];
   useEffect(() => {
     if (
       currentSong?.revealed &&
@@ -1031,6 +1010,25 @@ export default function Master({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSong?.revealed, currentTrack, playlist.length, gameEnded]);
+
+  // === RENDU ===
+
+  if (!user) {
+    return <Login onLoginSuccess={() => {}} />;
+  }
+
+  // Si on a un ID de playlist mais pas encore de tracks, on affiche un chargement
+  const isLoadingPlaylist = (initialPlaylistId && playlist.length === 0) ||
+                            (sessionId && musicSource !== 'mp3' && musicSource !== 'tresor' && playlist.length === 0 && (musicSource === 'spotify-ai' ? playersPreferences.length > 0 : true));
+
+  const availablePoints = calculatePoints();
+
+  // Player Spotify prêt ?
+  const isSpotifyMode = musicSource === 'spotify-ai' || musicSource === 'spotify-auto' || musicSource === 'tresor';
+  const spotifyDeviceReady = (musicSource === 'spotify-ai' || musicSource === 'tresor')
+    ? !!spotifyAIMode.spotifyDeviceId
+    : !!spotifyAutoMode.spotifyDeviceId;
+  const isPlayerReady = !isSpotifyMode || spotifyDeviceReady;
 
   if (gameEnded) {
     return (
