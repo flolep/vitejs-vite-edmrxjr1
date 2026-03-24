@@ -1,7 +1,7 @@
 const PROXY_URL = '/.netlify/functions/tresor-proxy';
 
 const mapWrongAnswers = (raw = []) => {
-  const mapped = raw.map(wa => ({ text: `${wa.artiste} — ${wa.titre}` }));
+  const mapped = raw.map(wa => ({ text: `${wa.artiste} - ${wa.titre}` }));
   while (mapped.length < 3) {
     mapped.push({ text: '?' });
   }
