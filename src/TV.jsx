@@ -1052,9 +1052,10 @@ return (
                       ? '2px solid #22c55e'
                       : '1px solid rgba(255, 255, 255, 0.1)',
                     position: 'relative',
-                    minHeight: '140px',
+                    height: '280px',
                     display: 'flex',
-                    flexDirection: 'column'
+                    flexDirection: 'column',
+                    overflow: 'hidden'
                   }}
                 >
                   {/* Letter Badge */}
@@ -1075,19 +1076,40 @@ return (
 
                   {/* Album Cover for correct answer */}
                   {isCorrect && currentSong?.imageUrl && (
-                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.75rem' }}>
                       <img
                         src={currentSong.imageUrl}
                         alt={currentSong.title}
                         style={{
-                          width: '120px',
-                          height: '120px',
+                          width: '160px',
+                          height: '160px',
                           borderRadius: '0.75rem',
                           objectFit: 'cover',
-                          border: '3px solid #10b981',
-                          boxShadow: '0 4px 12px rgba(16, 185, 129, 0.4)'
+                          border: '3px solid #22c55e',
+                          boxShadow: '0 4px 16px rgba(34, 197, 94, 0.4)'
                         }}
                       />
+                    </div>
+                  )}
+
+                  {/* Metadata badges for correct answer */}
+                  {isCorrect && (currentSong?.annee || currentSong?.genre || currentSong?.theme) && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', justifyContent: 'center', marginBottom: '0.5rem' }}>
+                      {currentSong.annee && (
+                        <span style={{ background: 'rgba(251,191,36,0.15)', border: '1px solid rgba(251,191,36,0.3)', borderRadius: '1rem', padding: '0.15rem 0.5rem', fontSize: '0.7rem', color: '#fbbf24' }}>
+                          📅 {currentSong.annee}
+                        </span>
+                      )}
+                      {currentSong.genre && (
+                        <span style={{ background: 'rgba(96,165,250,0.15)', border: '1px solid rgba(96,165,250,0.3)', borderRadius: '1rem', padding: '0.15rem 0.5rem', fontSize: '0.7rem', color: '#60a5fa' }}>
+                          🎸 {currentSong.genre}
+                        </span>
+                      )}
+                      {currentSong.theme && (
+                        <span style={{ background: 'rgba(168,85,247,0.15)', border: '1px solid rgba(168,85,247,0.3)', borderRadius: '1rem', padding: '0.15rem 0.5rem', fontSize: '0.7rem', color: '#a855f7' }}>
+                          ✨ {currentSong.theme}
+                        </span>
+                      )}
                     </div>
                   )}
 
