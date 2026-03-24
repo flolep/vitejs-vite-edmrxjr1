@@ -370,11 +370,13 @@ export default function Master({
       const quizData = snapshot.val();
       // ✅ currentTrack commence à 1, donc accès tableau avec currentTrack - 1
       if (quizData && quizData.revealed && currentTrack !== null && playlist[currentTrack - 1]) {
-        // Mettre à jour currentSong avec revealed: true
+        const track = playlist[currentTrack - 1];
+        // Mettre à jour currentSong avec revealed: true + metadata
         updateCurrentSong({
-          title: playlist[currentTrack - 1].title,
-          artist: playlist[currentTrack - 1].artist,
-          imageUrl: playlist[currentTrack - 1].imageUrl,
+          title: track.title,
+          artist: track.artist,
+          imageUrl: track.imageUrl,
+          annee: track.annee || null,
           revealed: true,
           number: currentTrack
         });
@@ -884,12 +886,14 @@ export default function Master({
     clearBuzz();
 
     // ✅ currentTrack commence à 1, donc accès tableau avec currentTrack - 1
+    const revealedTrack = playlist[currentTrack - 1];
     updateCurrentSong({
-      title: playlist[currentTrack - 1].title,
-      artist: playlist[currentTrack - 1].artist,
-      imageUrl: playlist[currentTrack - 1].imageUrl,
+      title: revealedTrack.title,
+      artist: revealedTrack.artist,
+      imageUrl: revealedTrack.imageUrl,
+      annee: revealedTrack.annee || null,
       revealed: true,
-      number: currentTrack // ✅ Pas besoin de + 1 car commence déjà à 1
+      number: currentTrack
     });
 
     setDebugInfo(`✅ Réponse révélée - Chrono figé à ${currentChrono.toFixed(1)}s`);

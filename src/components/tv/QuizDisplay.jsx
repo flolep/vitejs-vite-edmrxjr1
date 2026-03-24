@@ -223,13 +223,17 @@ export function QuizDisplay({
                   textAlign: 'center',
                   transition: 'all 0.3s',
                   boxShadow: showCorrect ? '0 0 30px rgba(16, 185, 129, 0.6)' : 'none',
-                  position: 'relative'
+                  position: 'relative',
+                  minHeight: '160px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center'
                 }}
               >
                 <div style={{
                   fontSize: '3rem',
                   fontWeight: 'bold',
-                  marginBottom: '1rem',
+                  marginBottom: '0.75rem',
                   color: showCorrect ? '#10b981' : '#fbbf24'
                 }}>
                   {showCorrect && '✅ '}
@@ -237,8 +241,7 @@ export function QuizDisplay({
                 </div>
                 <div style={{
                   fontSize: '1.25rem',
-                  lineHeight: '1.4',
-                  marginBottom: '1rem'
+                  lineHeight: '1.4'
                 }}>
                   {answer.text}
                 </div>
@@ -249,7 +252,7 @@ export function QuizDisplay({
                     display: 'flex',
                     justifyContent: 'center',
                     gap: '0.5rem',
-                    marginTop: '1rem',
+                    marginTop: '0.75rem',
                     flexWrap: 'wrap'
                   }}>
                     {playersWithPhotos.map((player, idx) => (
@@ -266,7 +269,6 @@ export function QuizDisplay({
                             objectFit: 'cover',
                             border: '3px solid white',
                             boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
-                            transition: 'transform 0.2s',
                             animation: 'fadeIn 0.3s ease-in'
                           }}
                         />
@@ -284,7 +286,7 @@ export function QuizDisplay({
           <div style={{
             backgroundColor: 'rgba(0, 0, 0, 0.3)',
             borderRadius: '1.5rem',
-            padding: '1.5rem',
+            padding: '2rem',
             maxWidth: '1000px',
             margin: '0 auto 2rem',
             display: 'flex',
@@ -292,28 +294,48 @@ export function QuizDisplay({
             justifyContent: 'center',
             gap: '2rem'
           }}>
-            {/* Pochette */}
+            {/* Pochette — grande */}
             {currentSong.imageUrl && (
               <img
                 src={currentSong.imageUrl}
                 alt={currentSong.title}
                 style={{
-                  width: '100px',
-                  height: '100px',
+                  width: '180px',
+                  height: '180px',
                   borderRadius: '1rem',
                   objectFit: 'cover',
-                  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)'
+                  boxShadow: '0 8px 30px rgba(0, 0, 0, 0.5)',
+                  flexShrink: 0
                 }}
               />
             )}
-            {/* Titre et artiste */}
+            {/* Titre, artiste et année */}
             <div style={{ textAlign: 'left' }}>
-              <div style={{ fontSize: '1.75rem', fontWeight: 'bold', marginBottom: '0.25rem', color: '#fbbf24' }}>
+              <div style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.25rem', color: '#fbbf24' }}>
                 {currentSong.title}
               </div>
-              <div style={{ fontSize: '1.25rem', opacity: 0.8 }}>
+              <div style={{ fontSize: '1.5rem', opacity: 0.8 }}>
                 {currentSong.artist}
               </div>
+              {currentSong.annee && (
+                <div style={{ fontSize: '1.1rem', opacity: 0.5, marginTop: '0.5rem' }}>
+                  📅 {currentSong.annee}
+                </div>
+              )}
+              {currentSong.anecdote && (
+                <div style={{
+                  fontSize: '1rem',
+                  opacity: 0.7,
+                  marginTop: '0.75rem',
+                  fontStyle: 'italic',
+                  lineHeight: '1.4',
+                  maxWidth: '500px',
+                  borderLeft: '3px solid rgba(251, 191, 36, 0.4)',
+                  paddingLeft: '1rem'
+                }}>
+                  💡 {currentSong.anecdote}
+                </div>
+              )}
             </div>
           </div>
         )}
