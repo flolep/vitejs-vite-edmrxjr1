@@ -7,6 +7,7 @@ import { useSpotifyAutoMode } from '../../../modes/useSpotifyAutoMode';
 import { useQuizMode } from '../../../modes/useQuizMode';
 import { prefsStorage } from '../../../utils/storage';
 import tresorService from '../../../tresorService';
+import { attribuerDedicaces } from '../../../utils/dedicaceAttribution';
 
 /**
  * Étape 3: Prêt à démarrer
@@ -186,10 +187,31 @@ export default function StepReadyToStart({
           profils: [{ poids: 1 }]
         });
 
-        const tracks = result.songs;
+        let tracks = result.songs;
 
         if (!tracks || tracks.length === 0) {
           throw new Error('Le Trésor n\'a retourné aucune chanson');
+        }
+
+        // 🎁 Dédicaces (v1) : attribuer chaque titre à un joueur selon ses genres.
+        // On lit players_preferences (genres/photo/phrase), et on annote chaque
+        // chanson d'un champ `dedicace`. Non bloquant si la lecture échoue.
+        try {
+          const prefsSnap = await get(ref(database, `sessions/${sessionId}/players_preferences`));
+          const prefsPlayers = Object.values(prefsSnap.val() || {})
+            .filter(p => p && p.ready !== false)
+            .map(p => ({
+              id: p.id,
+              name: p.name,
+              photo: p.photo || null,
+              genres: p.genres || [],
+              specialPhrase: p.specialPhrase || ''
+            }));
+          tracks = attribuerDedicaces(tracks, prefsPlayers);
+          const nbDedicaces = tracks.filter(t => t.dedicace?.type === 'joueur').length;
+          console.log(`🎁 [Dédicaces] ${nbDedicaces}/${tracks.length} titres attribués (${prefsPlayers.length} joueur(s))`);
+        } catch (err) {
+          console.warn('⚠️ [Dédicaces] Attribution ignorée:', err.message);
         }
 
         // Stocker la playlist dans Firebase pour la reprise de session

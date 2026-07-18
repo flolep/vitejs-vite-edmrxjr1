@@ -1229,6 +1229,78 @@ return (
           </div>
         )}
 
+        {/* 🎁 Dédicace du titre (source: attribution v1 par genre) */}
+        {(() => {
+          const ded =
+            currentSong?.dedicace ||
+            (playingTrackNumber ? tvPlaylist[playingTrackNumber - 1]?.dedicace : null);
+          const isRevealed = quizRevealed || currentSong?.revealed;
+          if (!isRevealed || !ded) return null;
+
+          if (ded.type === 'decouverte') {
+            return (
+              <div style={{
+                fontSize: '1rem',
+                opacity: 0.6,
+                marginBottom: '1rem',
+                textAlign: 'center',
+                fontStyle: 'italic'
+              }}>
+                🌍 Découverte — pour toute la table
+              </div>
+            );
+          }
+
+          if (ded.type !== 'joueur') return null;
+
+          return (
+            <div style={{
+              backgroundColor: 'rgba(16, 185, 129, 0.12)',
+              border: '1px solid rgba(16, 185, 129, 0.35)',
+              borderRadius: '1rem',
+              padding: '1.25rem 1.5rem',
+              marginBottom: '1rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '1rem'
+            }}>
+              {ded.playerPhoto && (
+                <img
+                  src={ded.playerPhoto}
+                  alt={ded.playerName}
+                  style={{
+                    width: '56px',
+                    height: '56px',
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                    border: '3px solid #10b981',
+                    flexShrink: 0
+                  }}
+                />
+              )}
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontSize: '1.2rem' }}>
+                  🎁 Dédicace à{' '}
+                  <strong style={{ color: '#10b981' }}>{ded.playerName}</strong>
+                  {ded.genre && (
+                    <> — a demandé du <strong>{ded.genre}</strong></>
+                  )}
+                </div>
+                {ded.specialPhrase && (
+                  <div style={{
+                    fontSize: '1.05rem',
+                    fontStyle: 'italic',
+                    opacity: 0.85,
+                    marginTop: '0.35rem'
+                  }}>
+                    💬 « {ded.specialPhrase} »
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Fallback for team mode - show current song info when no quiz question */}
         {!quizQuestion?.answers?.length && currentSong && (
           <div style={{
