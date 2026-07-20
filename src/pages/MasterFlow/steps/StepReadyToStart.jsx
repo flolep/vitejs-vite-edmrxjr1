@@ -9,6 +9,7 @@ import { prefsStorage } from '../../../utils/storage';
 import tresorService from '../../../tresorService';
 import { attribuerDedicaces } from '../../../utils/dedicaceAttribution';
 import { buildProfils } from '../../../utils/genreProfils';
+import { allPlayersHavePrefs, readyPrefsCount } from '../../../utils/generationGate';
 
 // Feature flag : câblage des préférences de genre vers les profils Trésor.
 // false → comportement d'origine (profils [{ poids: 1 }] + auto-trigger players.length > 0).
@@ -135,15 +136,10 @@ export default function StepReadyToStart({
   // ========== GÉNÉRATION AUTOMATIQUE — GATE DE TIMING (Option A) ==========
 
   // Rapprochement présent↔pref : par id (players_session.id === players_preferences.id),
-  // fallback sur le prénom. Voir NOTE dans la PR : deux prénoms identiques peuvent
-  // se mélanger (hors périmètre de cette feature).
-  const allPresentPlayersReady =
-    players.length > 0 &&
-    players.every((p) =>
-      Object.values(readyPrefs).some(
-        (pr) => pr && pr.ready === true && (pr.id === p.id || pr.name === p.name)
-      )
-    );
+  // fallback sur le prénom (voir generationGate.js + NOTE dans la PR :
+  // deux prénoms identiques peuvent se mélanger — risque résiduel documenté,
+  // hors périmètre de cette feature).
+  const allPresentPlayersReady = allPlayersHavePrefs(players, readyPrefs);
 
   useEffect(() => {
     // Reprise de session, génération en cours/terminée, ou erreur → on ne relance pas.
@@ -172,6 +168,13 @@ export default function StepReadyToStart({
     if (generationError) generationStartedRef.current = false;
   }, [generationError]);
 
+  // 🔎 DEBUG gate (visible en preview) : trace l'état à chaque changement.
+  useEffect(() => {
+    const { ready, total } = readyPrefsCount(players, readyPrefs);
+    console.log(`[GATE] allPresentPlayersReady=${allPresentPlayersReady} (${ready}/${total} joueurs avec prefs)`);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allPresentPlayersReady]);
+
   // ========== ÉTAT DE DISPONIBILITÉ ==========
 
   const playModeForReady = sessionData?.playMode || 'team';
@@ -185,7 +188,10 @@ export default function StepReadyToStart({
   const handleGeneratePlaylist = async () => {
     // Verrou : une seule génération par partie (cooldown Trésor). Empêche le
     // double-appel gate auto + bouton manuel « Générer maintenant ».
-    if (generationStartedRef.current) return;
+    if (generationStartedRef.current) {
+      console.log('[GATE] génération déjà lancée → appel ignoré (verrou generationStartedRef)');
+      return;
+    }
     generationStartedRef.current = true;
     setIsGeneratingPlaylist(true);
     setGenerationError('');
@@ -1145,7 +1151,10 @@ export default function StepReadyToStart({
                     : '⏳ En attente des préférences de tous les joueurs…'}
                 </div>
                 <button
-                  onClick={() => handleGeneratePlaylist()}
+                  onClick={() => {
+                    console.log('[GATE] bypass manuel — bouton hôte « Générer maintenant »');
+                    handleGeneratePlaylist();
+                  }}
                   style={{
                     padding: '0.6rem 1.25rem',
                     backgroundColor: 'rgba(251, 191, 36, 0.9)',
