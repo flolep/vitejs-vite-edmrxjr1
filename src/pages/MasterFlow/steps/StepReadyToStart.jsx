@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { database } from '../../../firebase';
 import { ref, onValue, set, get } from 'firebase/database';
 import { n8nService } from '../../../n8nService';
@@ -8,6 +8,12 @@ import { useQuizMode } from '../../../modes/useQuizMode';
 import { prefsStorage } from '../../../utils/storage';
 import tresorService from '../../../tresorService';
 import { attribuerDedicaces } from '../../../utils/dedicaceAttribution';
+import { buildProfils } from '../../../utils/genreProfils';
+
+// Feature flag : câblage des préférences de genre vers les profils Trésor.
+// false → comportement d'origine (profils [{ poids: 1 }] + auto-trigger players.length > 0).
+// Défaut true (activé en preview) ; désactivable via VITE_GENRE_PROFILS_ENABLED=false.
+const GENRE_PROFILS_ENABLED = import.meta.env.VITE_GENRE_PROFILS_ENABLED !== 'false';
 
 /**
  * Étape 3: Prêt à démarrer
@@ -27,6 +33,13 @@ export default function StepReadyToStart({
   // État des joueurs (pour afficher le nombre en temps réel)
   const [players, setPlayers] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  // Préférences prêtes (players_preferences) — sert la gate de timing genre
+  const [readyPrefs, setReadyPrefs] = useState({});
+
+  // Verrou anti double-génération (gate auto + bouton manuel peuvent coïncider).
+  // Une seule génération par partie (cooldown Trésor).
+  const generationStartedRef = useRef(false);
 
   // États pour la génération de playlist
   const [playlist, setPlaylist] = useState([]);
@@ -108,17 +121,56 @@ export default function StepReadyToStart({
     };
   }, [sessionId]);
 
-  // ========== GÉNÉRATION AUTOMATIQUE AU MONTAGE ==========
+  // ========== SYNCHRONISATION PRÉFÉRENCES (gate de timing) ==========
 
   useEffect(() => {
-    // Lancer automatiquement la génération de playlist au montage du composant
-    // SEULEMENT si on n'a pas déjà une playlist prête
-    if (players.length > 0 && !playlistReady && !isGeneratingPlaylist && !generationError) {
-      console.log('🚀 [StepReadyToStart] Lancement automatique de la génération');
+    if (!sessionId) return;
+    const prefsRef = ref(database, `sessions/${sessionId}/players_preferences`);
+    const unsubscribe = onValue(prefsRef, (snapshot) => {
+      setReadyPrefs(snapshot.val() || {});
+    });
+    return () => unsubscribe();
+  }, [sessionId]);
+
+  // ========== GÉNÉRATION AUTOMATIQUE — GATE DE TIMING (Option A) ==========
+
+  // Rapprochement présent↔pref : par id (players_session.id === players_preferences.id),
+  // fallback sur le prénom. Voir NOTE dans la PR : deux prénoms identiques peuvent
+  // se mélanger (hors périmètre de cette feature).
+  const allPresentPlayersReady =
+    players.length > 0 &&
+    players.every((p) =>
+      Object.values(readyPrefs).some(
+        (pr) => pr && pr.ready === true && (pr.id === p.id || pr.name === p.name)
+      )
+    );
+
+  useEffect(() => {
+    // Reprise de session, génération en cours/terminée, ou erreur → on ne relance pas.
+    if (
+      generationStartedRef.current ||
+      playlistReady ||
+      isGeneratingPlaylist ||
+      generationError
+    ) {
+      return;
+    }
+    // Flag ON : on attend que TOUS les joueurs présents aient une pref ready.
+    // Flag OFF : comportement d'origine (dès qu'un joueur est là).
+    const shouldGenerate = GENRE_PROFILS_ENABLED
+      ? allPresentPlayersReady
+      : players.length > 0;
+    if (shouldGenerate) {
+      console.log('🚀 [StepReadyToStart] Génération auto (gate satisfaite)');
       handleGeneratePlaylist();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [players.length]); // Déclencher quand les joueurs sont chargés
+  }, [players, readyPrefs, playlistReady, isGeneratingPlaylist, generationError]);
+
+  // Toute erreur ré-autorise une nouvelle tentative (soupape + bouton Réessayer).
+  useEffect(() => {
+    if (generationError) generationStartedRef.current = false;
+  }, [generationError]);
 
   // ========== ÉTAT DE DISPONIBILITÉ ==========
 
@@ -131,6 +183,10 @@ export default function StepReadyToStart({
    * Génère la playlist selon la source musicale configurée
    */
   const handleGeneratePlaylist = async () => {
+    // Verrou : une seule génération par partie (cooldown Trésor). Empêche le
+    // double-appel gate auto + bouton manuel « Générer maintenant ».
+    if (generationStartedRef.current) return;
+    generationStartedRef.current = true;
     setIsGeneratingPlaylist(true);
     setGenerationError('');
 
@@ -181,10 +237,34 @@ export default function StepReadyToStart({
 
         const playMode = sessionData?.playMode || 'team';
 
+        // 🎚️ Profils de scoring genre : construits depuis players_preferences.
+        // Un profil/joueur (poids 1). Fallback neutre [{ poids: 1 }] si aucune
+        // pref valide (ne jamais envoyer profils vide/indéfini).
+        // NB : le Trésor IGNORE encore la dimension genre (chantier #1 non déployé) ;
+        // on valide ici la FORME du payload, pas l'orientation réelle.
+        let profils = [{ poids: 1 }];
+        if (GENRE_PROFILS_ENABLED) {
+          try {
+            const prefsSnap = await get(ref(database, `sessions/${sessionId}/players_preferences`));
+            const validPrefs = Object.values(prefsSnap.val() || {}).filter(
+              (p) => p && p.ready !== false && Array.isArray(p.genres) && p.genres.length > 0
+            );
+            const built = buildProfils(validPrefs);
+            if (built.length > 0) {
+              profils = built;
+              console.log(`🎚️ [Profils genre] ${built.length} profil(s) envoyé(s) :`, JSON.stringify(profils));
+            } else {
+              console.log('🎚️ [Profils genre] Aucune pref valide → fallback [{ poids: 1 }]');
+            }
+          } catch (err) {
+            console.warn('⚠️ [Profils genre] Construction ignorée, fallback [{poids:1}]:', err.message);
+          }
+        }
+
         const result = await tresorService.getPlaylist({
           n: 50,
           quiz: playMode === 'quiz',
-          profils: [{ poids: 1 }]
+          profils
         });
 
         let tracks = result.songs;
@@ -431,6 +511,7 @@ export default function StepReadyToStart({
 
     } catch (error) {
       console.error('❌ Erreur génération playlist:', error);
+      generationStartedRef.current = false; // ré-autorise une nouvelle tentative
       setGenerationError(error.message || 'Erreur lors de la génération');
       setIsGeneratingPlaylist(false);
     }
@@ -1053,6 +1134,33 @@ export default function StepReadyToStart({
                 }} />
               )}
             </div>
+
+            {/* Soupape animateur : forcer la génération sans attendre toutes les prefs.
+                Bypass la gate de timing si un joueur ne valide jamais ses préférences. */}
+            {GENRE_PROFILS_ENABLED && !isGeneratingPlaylist && !playlistReady && (
+              <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.85rem', opacity: 0.7, marginBottom: '0.5rem' }}>
+                  {allPresentPlayersReady
+                    ? '✅ Préférences de tous les joueurs reçues.'
+                    : '⏳ En attente des préférences de tous les joueurs…'}
+                </div>
+                <button
+                  onClick={() => handleGeneratePlaylist()}
+                  style={{
+                    padding: '0.6rem 1.25rem',
+                    backgroundColor: 'rgba(251, 191, 36, 0.9)',
+                    border: 'none',
+                    borderRadius: '0.5rem',
+                    color: '#1a1a2e',
+                    fontSize: '0.95rem',
+                    fontWeight: 'bold',
+                    cursor: 'pointer'
+                  }}
+                >
+                  ⚡ Générer maintenant
+                </button>
+              </div>
+            )}
 
             {/* Étape 2: Génération questions (Quiz uniquement) */}
             {sessionData?.playMode === 'quiz' && playlistReady && (
