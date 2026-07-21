@@ -10,12 +10,20 @@ import tresorService from '../../../tresorService';
 import { attribuerDedicaces } from '../../../utils/dedicaceAttribution';
 import { buildProfils } from '../../../utils/genreProfils';
 import { resolveDedicacesServeur } from '../../../utils/dedicaceServer';
+import { loadTaxonomy, sanitizeProfils } from '../../../utils/taxonomy';
 import { allPlayersHavePrefs, readyPrefsCount } from '../../../utils/generationGate';
 
 // Feature flag : câblage des préférences de genre vers les profils Trésor.
 // false → comportement d'origine (profils [{ poids: 1 }] + auto-trigger players.length > 0).
 // Défaut true (activé en preview) ; désactivable via VITE_GENRE_PROFILS_ENABLED=false.
 const GENRE_PROFILS_ENABLED = import.meta.env.VITE_GENRE_PROFILS_ENABLED !== 'false';
+
+// Panachage : 30 % du quota de chaque joueur hors de son époque formatrice.
+// Réglable sans redéploiement via VITE_TRESOR_PANACHAGE (0..1).
+const PANACHAGE = (() => {
+  const raw = Number(import.meta.env.VITE_TRESOR_PANACHAGE);
+  return Number.isFinite(raw) && raw >= 0 && raw <= 1 ? raw : 0.3;
+})();
 
 /**
  * Étape 3: Prêt à démarrer
@@ -266,10 +274,28 @@ export default function StepReadyToStart({
           }
         }
 
+        // 📚 Confrontation au vocabulaire serveur : une valeur que le Trésor ne
+        // connaît plus (ex. renommage de famille) est écartée AVEC un log, au
+        // lieu de partir en silence et de faire tomber le joueur au plancher.
+        // Repli sur le vocabulaire local si /taxonomy est injoignable.
+        try {
+          const vocab = await loadTaxonomy();
+          const { profils: clean, dropped } = sanitizeProfils(profils, vocab);
+          if (dropped.length > 0) {
+            console.warn(`⚠️ [Taxonomy] ${dropped.length} valeur(s) inconnue(s) du serveur, écartée(s) :`, dropped);
+          }
+          profils = clean;
+        } catch (err) {
+          console.warn('⚠️ [Taxonomy] Filtrage ignoré:', err.message);
+        }
+
         const result = await tresorService.getPlaylist({
           n: 50,
           quiz: playMode === 'quiz',
-          profils
+          profils,
+          // Part du quota de chaque joueur servie HORS de son époque formatrice
+          // (variété ancien + récent). 0 = tout dans l'époque, 1 = tout dehors.
+          panachage: PANACHAGE
         });
 
         let tracks = result.songs;
