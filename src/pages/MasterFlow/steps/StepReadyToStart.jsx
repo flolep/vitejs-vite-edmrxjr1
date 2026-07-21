@@ -9,6 +9,7 @@ import { prefsStorage } from '../../../utils/storage';
 import tresorService from '../../../tresorService';
 import { attribuerDedicaces } from '../../../utils/dedicaceAttribution';
 import { buildProfils } from '../../../utils/genreProfils';
+import { resolveDedicacesServeur } from '../../../utils/dedicaceServer';
 import { allPlayersHavePrefs, readyPrefsCount } from '../../../utils/generationGate';
 
 // Feature flag : câblage des préférences de genre vers les profils Trésor.
@@ -243,27 +244,25 @@ export default function StepReadyToStart({
 
         const playMode = sessionData?.playMode || 'team';
 
-        // 🎚️ Profils de scoring genre : construits depuis players_preferences.
-        // Un profil/joueur (poids 1). Fallback neutre [{ poids: 1 }] si aucune
-        // pref valide (ne jamais envoyer profils vide/indéfini).
-        // NB : le Trésor IGNORE encore la dimension genre (chantier #1 non déployé) ;
-        // on valide ici la FORME du payload, pas l'orientation réelle.
+        // Préférences joueurs — lues UNE fois. L'ordre de ce tableau EST l'ordre
+        // des `profils` envoyés → l'index serveur `dedicace` (0-based) y pointe.
+        let sentPrefs = [];
+        try {
+          const prefsSnap = await get(ref(database, `sessions/${sessionId}/players_preferences`));
+          sentPrefs = Object.values(prefsSnap.val() || {}).filter(
+            (p) => p && p.ready !== false && Array.isArray(p.genres) && p.genres.length > 0
+          );
+        } catch (err) {
+          console.warn('⚠️ [Trésor] Lecture prefs échouée:', err.message);
+        }
+
+        // 🎚️ Profils de scoring genre (un par joueur), sinon fallback neutre.
         let profils = [{ poids: 1 }];
-        if (GENRE_PROFILS_ENABLED) {
-          try {
-            const prefsSnap = await get(ref(database, `sessions/${sessionId}/players_preferences`));
-            const validPrefs = Object.values(prefsSnap.val() || {}).filter(
-              (p) => p && p.ready !== false && Array.isArray(p.genres) && p.genres.length > 0
-            );
-            const built = buildProfils(validPrefs);
-            if (built.length > 0) {
-              profils = built;
-              console.log(`🎚️ [Profils genre] ${built.length} profil(s) envoyé(s) :`, JSON.stringify(profils));
-            } else {
-              console.log('🎚️ [Profils genre] Aucune pref valide → fallback [{ poids: 1 }]');
-            }
-          } catch (err) {
-            console.warn('⚠️ [Profils genre] Construction ignorée, fallback [{poids:1}]:', err.message);
+        if (GENRE_PROFILS_ENABLED && sentPrefs.length > 0) {
+          const built = buildProfils(sentPrefs);
+          if (built.length > 0) {
+            profils = built;
+            console.log(`🎚️ [Profils genre] ${built.length} profil(s) envoyé(s) :`, JSON.stringify(profils));
           }
         }
 
@@ -279,23 +278,22 @@ export default function StepReadyToStart({
           throw new Error('Le Trésor n\'a retourné aucune chanson');
         }
 
-        // 🎁 Dédicaces (v1) : attribuer chaque titre à un joueur selon ses genres.
-        // On lit players_preferences (genres/photo/phrase), et on annote chaque
-        // chanson d'un champ `dedicace`. Non bloquant si la lecture échoue.
+        // 🎁 Dédicaces : AUTORITATIVES via l'index serveur `dedicace` quand la
+        // réponse le fournit ET que les profils envoyés = un par joueur (index
+        // aligné) ; sinon FALLBACK sur l'attribution client (comportement d'origine).
+        // Même objet `dedicace` produit dans les deux cas (forme attendue par TV).
         try {
-          const prefsSnap = await get(ref(database, `sessions/${sessionId}/players_preferences`));
-          const prefsPlayers = Object.values(prefsSnap.val() || {})
-            .filter(p => p && p.ready !== false)
-            .map(p => ({
-              id: p.id,
-              name: p.name,
-              photo: p.photo || null,
-              genres: p.genres || [],
-              specialPhrase: p.specialPhrase || ''
-            }));
-          tracks = attribuerDedicaces(tracks, prefsPlayers);
-          const nbDedicaces = tracks.filter(t => t.dedicace?.type === 'joueur').length;
-          console.log(`🎁 [Dédicaces] ${nbDedicaces}/${tracks.length} titres attribués (${prefsPlayers.length} joueur(s))`);
+          const serverProvided = tracks.some((t) => typeof t.dedicaceServerIndex === 'number');
+          const indexAligned = sentPrefs.length > 0 && profils.length === sentPrefs.length;
+          if (serverProvided && indexAligned) {
+            tracks = resolveDedicacesServeur(tracks, sentPrefs);
+            const n = tracks.filter((t) => t.dedicace?.type === 'joueur').length;
+            console.log(`🎁 [Dédicaces] source SERVEUR — ${n}/${tracks.length} attribués`);
+          } else {
+            tracks = attribuerDedicaces(tracks, sentPrefs);
+            const n = tracks.filter((t) => t.dedicace?.type === 'joueur').length;
+            console.log(`🎁 [Dédicaces] source CLIENT (fallback) — ${n}/${tracks.length} attribués`);
+          }
         } catch (err) {
           console.warn('⚠️ [Dédicaces] Attribution ignorée:', err.message);
         }
