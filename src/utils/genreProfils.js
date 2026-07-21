@@ -85,4 +85,27 @@ export function buildProfils(preferences) {
   return preferences.map(playerToProfil);
 }
 
+/**
+ * Reverse-lookup (option B) : parmi les genres DEMANDÉS par un joueur, lequel
+ * correspond à la classification serveur d'un titre (famille_son OU sous_genre_son) ?
+ * Sert à afficher « a demandé du {genre} » avec le libellé joueur, pas celui du titre.
+ * @param {string[]} genres  libellés cochés par le joueur (les 15 boutons)
+ * @param {{ famille_son?: string, sous_genre_son?: string }} track
+ * @returns {string|null} le libellé joueur qui matche, sinon null (titre « filler »)
+ */
+export function requestedGenreForTrack(genres, track) {
+  if (!Array.isArray(genres) || !track) return null;
+  return (
+    genres.find((label) => {
+      const targets = GENRE_MAP[label];
+      if (!targets) return false;
+      return targets.some(
+        (t) =>
+          (t.field === 'famille_son' && t.value === track.famille_son) ||
+          (t.field === 'sous_genre_son' && t.value === track.sous_genre_son)
+      );
+    }) || null
+  );
+}
+
 export default buildProfils;
