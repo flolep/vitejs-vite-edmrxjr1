@@ -24,6 +24,12 @@ const mapSong = (song) => ({
   genre:        song.genre || null,
   theme:        song.theme || null,
   langue:       song.langue || null,
+  // Champs de classification serveur (§2/§7 contrat) — additifs, non débranchés.
+  famille_son:    song.famille_son || null,
+  sous_genre_son: song.sous_genre_son || null,
+  // Index 0-based du joueur dédié dans le tableau `profils` envoyé (§7).
+  // Renommé pour ne pas collisionner avec l'objet `dedicace` client (TV).
+  dedicaceServerIndex: (typeof song.dedicace === 'number' ? song.dedicace : null),
   wrongAnswers: mapWrongAnswers(song.wrong_answers),
 });
 
