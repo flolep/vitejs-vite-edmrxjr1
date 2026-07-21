@@ -1,9 +1,10 @@
 import React from 'react';
 
 const AVAILABLE_GENRES = [
-  'Pop', 'Rock', 'Hip-Hop', 'Jazz', 'Électro',
-  'Rap français', 'R&B', 'Reggae', 'Métal', 'Indie',
-  'Soul', 'Funk', 'Disco', 'Blues', 'Country'
+  'Pop', 'Variété française', 'Rock', 'Hip-Hop',
+  'Jazz', 'Électro', 'Rap français', 'R&B',
+  'Reggae', 'Métal', 'Indie', 'Soul',
+  'Funk', 'Disco', 'Blues', 'Country'
 ];
 
 /**

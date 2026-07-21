@@ -10,15 +10,16 @@
  *  - Chaînes EXACTES (casse + accents). On ne normalise rien.
  *
  * ⚠️ Aucune dépendance Firebase/React : fonction pure, testable en isolation.
- * ⚠️ La dimension de scoring genre n'est pas encore déployée côté Trésor ; ce
- *    module produit la FORME correcte du payload (validation de forme, pas
- *    d'orientation réelle tant que le chantier #1 Trésor n'est pas livré).
+ * ⚠️ Vocabulaire aligné sur la scission de l'ancienne famille pop/variété en
+ *    deux familles distinctes, `Pop` et `Variété FR` (HANDOFF §2) : l'ancienne
+ *    valeur unique n'existe plus en base et ne matcherait plus aucun titre.
  */
 
 // Libellé joueur → une ou plusieurs cibles { field, value } (valeurs EXACTES).
 const GENRE_MAP = {
   // → famille_son
-  Pop: [{ field: 'famille_son', value: 'Pop / Variété' }],
+  Pop: [{ field: 'famille_son', value: 'Pop' }],
+  'Variété française': [{ field: 'famille_son', value: 'Variété FR' }],
   Rock: [{ field: 'famille_son', value: 'Rock' }],
   Électro: [{ field: 'famille_son', value: 'Électronique' }],
   Reggae: [{ field: 'famille_son', value: 'Reggae / Ska' }],
@@ -89,7 +90,7 @@ export function buildProfils(preferences) {
  * Reverse-lookup (option B) : parmi les genres DEMANDÉS par un joueur, lequel
  * correspond à la classification serveur d'un titre (famille_son OU sous_genre_son) ?
  * Sert à afficher « a demandé du {genre} » avec le libellé joueur, pas celui du titre.
- * @param {string[]} genres  libellés cochés par le joueur (les 15 boutons)
+ * @param {string[]} genres  libellés cochés par le joueur (les 16 boutons)
  * @param {{ famille_son?: string, sous_genre_son?: string }} track
  * @returns {string|null} le libellé joueur qui matche, sinon null (titre « filler »)
  */
