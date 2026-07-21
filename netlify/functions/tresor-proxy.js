@@ -6,7 +6,7 @@
 const TRESOR_URL = process.env.TRESOR_URL;
 const TRESOR_API_KEY = process.env.TRESOR_API_KEY;
 
-const ALLOWED_ROUTES = ['POST /playlist', 'GET /playlist', 'GET /song/:id'];
+const ALLOWED_ROUTES = ['POST /playlist', 'GET /playlist', 'GET /song/:id', 'GET /taxonomy'];
 
 exports.handler = async (event) => {
   const headers = {
@@ -88,6 +88,11 @@ exports.handler = async (event) => {
         };
       }
       url = `${TRESOR_URL}/song/${id}`;
+      fetchOptions.method = 'GET';
+
+    } else if (route === 'GET /taxonomy') {
+      // Non consommateur : ne brûle pas le cooldown 30j du catalogue.
+      url = `${TRESOR_URL}/taxonomy`;
       fetchOptions.method = 'GET';
 
     } else {

@@ -34,13 +34,17 @@ const mapSong = (song) => ({
 });
 
 const tresorService = {
-  async getPlaylist({ n = 50, quiz = false, profils = [{ poids: 1 }] } = {}) {
+  // `panachage` (0..1) est un champ RACINE du body, pas une clé de profil (§7).
+  async getPlaylist({ n = 50, quiz = false, profils = [{ poids: 1 }], panachage } = {}) {
     const start = performance.now();
+
+    const payload = { n, quiz, profils };
+    if (typeof panachage === 'number') payload.panachage = panachage;
 
     const response = await fetch(PROXY_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ route: 'POST /playlist', payload: { n, quiz, profils } }),
+      body: JSON.stringify({ route: 'POST /playlist', payload }),
     });
 
     if (!response.ok) {

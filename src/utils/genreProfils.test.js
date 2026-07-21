@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { playerToProfil, buildProfils, requestedGenreForTrack } from './genreProfils.js';
+import { playerToProfil, buildProfils, requestedGenreForTrack, formativeWindow } from './genreProfils.js';
 
 describe('playerToProfil', () => {
   it('mono-genre au niveau famille', () => {
@@ -153,5 +153,62 @@ describe('requestedGenreForTrack (libellé de dédicace, option B)', () => {
   it('titre sans classification (famille_son NULL) → null, pas de crash', () => {
     expect(requestedGenreForTrack(['Pop'], { famille_son: null })).toBeNull();
     expect(requestedGenreForTrack(['Pop'], {})).toBeNull();
+  });
+});
+
+describe('époque formatrice (âge → annee_min/annee_max)', () => {
+  const Y = 2026; // millésime figé pour des tests déterministes
+
+  it('âge 40 → fenêtre [naissance+13, naissance+27]', () => {
+    expect(formativeWindow(40, Y)).toEqual({ annee_min: 1999, annee_max: 2013 });
+  });
+
+  it('le profil porte la fenêtre à côté des genres', () => {
+    expect(playerToProfil({ genres: ['Funk'], age: 40 }, { currentYear: Y })).toEqual({
+      poids: 1,
+      sous_genre_son: ['funk'],
+      annee_min: 1999,
+      annee_max: 2013,
+    });
+  });
+
+  it('âge absent → aucune clé annee (match genre simple)', () => {
+    const p = playerToProfil({ genres: ['Pop'] }, { currentYear: Y });
+    expect(p).not.toHaveProperty('annee_min');
+    expect(p).not.toHaveProperty('annee_max');
+  });
+
+  it('âges aberrants → pas de fenêtre', () => {
+    for (const bad of [null, undefined, 0, -5, 12, 121, 999, NaN, 'quarante', 40.5]) {
+      expect(formativeWindow(bad, Y)).toBeNull();
+    }
+  });
+
+  it("âge en chaîne (saisie <input>) accepté s'il est entier", () => {
+    expect(formativeWindow('40', Y)).toEqual({ annee_min: 1999, annee_max: 2013 });
+  });
+
+  it('jamais de borne dans le futur (annee_max bornée au millésime courant)', () => {
+    const w = formativeWindow(20, Y); // naissance 2006 → 2019..2033
+    expect(w).toEqual({ annee_min: 2019, annee_max: Y });
+  });
+
+  it('buildProfils fige le même millésime pour tout le tableau', () => {
+    const profils = buildProfils(
+      [{ genres: ['Pop'], age: 40 }, { genres: ['Jazz'], age: 40 }],
+      { currentYear: Y }
+    );
+    expect(profils[0].annee_min).toBe(profils[1].annee_min);
+    expect(profils[0].annee_max).toBe(profils[1].annee_max);
+  });
+
+  it('buildProfils : un joueur sans âge ne pénalise pas les autres', () => {
+    const profils = buildProfils(
+      [{ genres: ['Pop'], age: 40 }, { genres: ['Jazz'] }],
+      { currentYear: Y }
+    );
+    expect(profils[0]).toHaveProperty('annee_min');
+    expect(profils[1]).not.toHaveProperty('annee_min');
+    expect(profils).toHaveLength(2); // alignement des index dédicace préservé
   });
 });

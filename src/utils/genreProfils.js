@@ -46,11 +46,57 @@ const GENRE_MAP = {
 const FIELDS = ['famille_son', 'sous_genre_son', 'themes'];
 
 /**
- * Traduit les préférences d'UN joueur en profil de scoring.
- * @param {{ genres?: string[] }} preference
- * @returns {{ poids: number, famille_son?: string[], sous_genre_son?: string[], themes?: string[] }}
+ * Vocabulaire effectivement utilisé par la table de mapping, par champ.
+ * Sert de FALLBACK quand GET /taxonomy est injoignable : on se replie sur nos
+ * propres valeurs, ce qui revient à ne rien filtrer (comportement d'avant).
+ * @returns {{ famille_son: Set<string>, sous_genre_son: Set<string>, themes: Set<string> }}
  */
-export function playerToProfil(preference) {
+export function genreMapVocabulary() {
+  const vocab = { famille_son: new Set(), sous_genre_son: new Set(), themes: new Set() };
+  for (const targets of Object.values(GENRE_MAP)) {
+    for (const { field, value } of targets) vocab[field].add(value);
+  }
+  return vocab;
+}
+
+// Fenêtre « formatrice » : les goûts se fixent grosso modo entre 13 et 27 ans
+// (HANDOFF §7). Le serveur scinde ensuite le quota du joueur via `panachage`.
+const FORMATIVE_FROM = 13;
+const FORMATIVE_TO = 27;
+
+// Bornes de plausibilité. Le bas est à FORMATIVE_FROM : en dessous, la fenêtre
+// serait entièrement dans le futur donc vide de sens. Le haut reprend la
+// validation de saisie (save-player-preferences.js : 1..120).
+const AGE_MIN = FORMATIVE_FROM;
+const AGE_MAX = 120;
+
+/**
+ * Époque formatrice d'un joueur, dérivée de son âge.
+ * @returns {{ annee_min: number, annee_max: number } | null} null si l'âge est
+ *   absent/aberrant → le joueur est alors servi par simple match de genre.
+ */
+export function formativeWindow(age, currentYear) {
+  const a = typeof age === 'number' ? age : Number(age);
+  if (!Number.isFinite(a) || !Number.isInteger(a) || a < AGE_MIN || a > AGE_MAX) {
+    return null;
+  }
+  const naissance = currentYear - a;
+  const annee_min = naissance + FORMATIVE_FROM;
+  // Pas de titre dans le futur : on borne au millésime courant.
+  const annee_max = Math.min(naissance + FORMATIVE_TO, currentYear);
+  if (annee_min > annee_max) return null; // fenêtre dégénérée
+  return { annee_min, annee_max };
+}
+
+/**
+ * Traduit les préférences d'UN joueur en profil de scoring.
+ * @param {{ genres?: string[], age?: number }} preference
+ * @param {{ currentYear?: number }} [opts] injectable pour des tests déterministes
+ * @returns {{ poids: number, famille_son?: string[], sous_genre_son?: string[],
+ *            themes?: string[], annee_min?: number, annee_max?: number }}
+ */
+export function playerToProfil(preference, opts = {}) {
+  const currentYear = opts.currentYear ?? new Date().getFullYear();
   const genres = Array.isArray(preference?.genres) ? preference.genres : [];
   const buckets = { famille_son: [], sous_genre_son: [], themes: [] };
 
@@ -73,17 +119,30 @@ export function playerToProfil(preference) {
       profil[field] = buckets[field]; // clé présente uniquement si non vide
     }
   }
+
+  // Époque formatrice : clés ajoutées SEULEMENT si l'âge est exploitable
+  // (sans fenêtre, le serveur sert le joueur par simple match de genre).
+  const window = formativeWindow(preference?.age, currentYear);
+  if (window) {
+    profil.annee_min = window.annee_min;
+    profil.annee_max = window.annee_max;
+  }
+
   return profil;
 }
 
 /**
  * Construit le tableau de profils (un par joueur) à envoyer au Trésor.
- * @param {Array<{ genres?: string[] }>} preferences
+ * @param {Array<{ genres?: string[], age?: number }>} preferences
+ * @param {{ currentYear?: number }} [opts]
  * @returns {Array<object>} un profil par entrée (au minimum { poids: 1 })
  */
-export function buildProfils(preferences) {
+export function buildProfils(preferences, opts = {}) {
   if (!Array.isArray(preferences)) return [];
-  return preferences.map(playerToProfil);
+  // Millésime figé pour TOUT le tableau : deux joueurs du même âge doivent
+  // obtenir la même fenêtre, même si l'appel chevauche un 31 décembre.
+  const currentYear = opts.currentYear ?? new Date().getFullYear();
+  return preferences.map((p) => playerToProfil(p, { currentYear }));
 }
 
 /**
