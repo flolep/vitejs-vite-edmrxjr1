@@ -10,11 +10,9 @@ export default function QuizControls({
   correctAnswerIndex,
   playerAnswers,
   allPlayers,
-  isPlaying,
   currentTrack,
   anonymousMode = false,
   onReveal,
-  onPause,
   isRevealed
 }) {
   const hasAutoRevealed = useRef(false);
@@ -45,17 +43,18 @@ export default function QuizControls({
       console.log('✅ Tous les joueurs ont répondu, révélation automatique...');
       hasAutoRevealed.current = true;
 
-      // Arrêter la musique
-      if (isPlaying && onPause) {
-        onPause();
-      }
+      // ⚠️ On ne coupe PLUS la musique ici. C'est precisement le moment ou on
+      // veut l'entendre : on decouvre le titre et le classement en musique.
+      // Le chrono de scoring, lui, est fige a la revelation (cf. le parametre
+      // `chronoFrozen` de useGameSession) — lecture audio et chrono sont deux
+      // choses distinctes.
 
       // Révéler la réponse
       if (onReveal) {
         onReveal();
       }
     }
-  }, [playerAnswers, allPlayers, isRevealed, isPlaying, onReveal, onPause]);
+  }, [playerAnswers, allPlayers, isRevealed, onReveal]);
 
   if (!quizAnswers || quizAnswers.length === 0) {
     return (
