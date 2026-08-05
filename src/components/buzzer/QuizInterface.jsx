@@ -418,6 +418,8 @@ export function QuizInterface({
   setShowStats,
   personalStats,
   onNextSong, // Fonction pour passer à la chanson suivante
+  onTogglePlayback, // (action: 'play'|'pause') — contrôle audio par le vainqueur
+  isPlaybackRequesting = false,
   onQuit, // Fonction pour quitter/changer de joueur
   liveRank // { rank, totalPlayers, totalPoints, correctAnswers } temps réel
 }) {
@@ -656,10 +658,51 @@ export function QuizInterface({
         </div>
       </div>
 
-      {/* Badge de notification pour passer à la suite */}
+      {/* Contrôles du vainqueur de la question : écouter la chanson, puis
+          continuer. La musique tourne encore — c'est le moment de l'écouter. */}
       {canTriggerNextSong && (
-        <div className="buzzer-quiz-next-badge" onClick={onNextSong}>
-          👇 Cliquez pour continuer
+        <div style={{
+          display: 'flex',
+          gap: '0.75rem',
+          width: '100%',
+          maxWidth: '400px',
+          marginBottom: '1rem'
+        }}>
+          <button
+            onClick={() => onTogglePlayback?.(isPlaying ? 'pause' : 'play')}
+            disabled={isPlaybackRequesting}
+            style={{
+              flex: 1,
+              padding: '0.9rem',
+              fontSize: '1rem',
+              fontWeight: 'bold',
+              color: 'white',
+              background: 'rgba(255, 255, 255, 0.15)',
+              border: '2px solid rgba(255, 255, 255, 0.4)',
+              borderRadius: '0.75rem',
+              cursor: isPlaybackRequesting ? 'default' : 'pointer',
+              opacity: isPlaybackRequesting ? 0.6 : 1
+            }}
+          >
+            {isPlaying ? '⏸️' : '▶️'} Écouter
+          </button>
+
+          <button
+            onClick={onNextSong}
+            style={{
+              flex: 1,
+              padding: '0.9rem',
+              fontSize: '1rem',
+              fontWeight: 'bold',
+              color: '#1e1b4b',
+              background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
+              border: 'none',
+              borderRadius: '0.75rem',
+              cursor: 'pointer'
+            }}
+          >
+            ➡️ Continuer
+          </button>
         </div>
       )}
 

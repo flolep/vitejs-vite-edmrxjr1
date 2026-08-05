@@ -79,6 +79,10 @@
         "final_reveal_request": {
           ".read": "root.child('sessions').child($sessionId).child('active').val() === true",
           ".write": "auth != null && root.child('sessions').child($sessionId).child('active').val() === true"
+        },
+        "quiz_playback_request": {
+          ".read": "root.child('sessions').child($sessionId).child('active').val() === true",
+          ".write": "auth != null && root.child('sessions').child($sessionId).child('active').val() === true"
         }
       }
     }

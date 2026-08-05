@@ -10,6 +10,7 @@ import { useLastResponderAlert, useAlertVibration } from './hooks/buzzer/useLast
 import LastResponderAlert from './components/buzzer/LastResponderAlert';
 import { isGameEnded } from './utils/gamePhase';
 import { useFinalReveal } from './hooks/buzzer/useFinalReveal';
+import { useQuizPlayback } from './hooks/buzzer/useQuizPlayback';
 import FinalRevealButton from './components/buzzer/FinalRevealButton';
 import { calculatePoints } from './hooks/useScoring';
 import { NameScreen } from './components/buzzer/screens/NameScreen';
@@ -137,6 +138,12 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
     isPlaying
   );
   useAlertVibration(alertLevel);
+
+  // ▶️ Contrôle de la lecture par le vainqueur de la question.
+  const quizPlayback = useQuizPlayback(
+    sessionId,
+    selectedPlayer?.id || `temp_${playerName}`
+  );
 
   // 🏆 Declenchement du classement final par le vainqueur.
   // En mode quiz le vainqueur est la tete de quiz_leaderboard, soit rank 1 du
@@ -952,6 +959,8 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
           setShowStats={setShowStats}
           personalStats={personalStats}
           onNextSong={handleNextSong}
+          onTogglePlayback={quizPlayback.requestPlayback}
+          isPlaybackRequesting={quizPlayback.isRequesting}
           onQuit={handleQuitGame}
           liveRank={liveRank}
         />
