@@ -1,1 +1,44 @@
 @import './styles.css';
+
+/* ==========================================================================
+   Mode TV — design 10-foot
+   --------------------------------------------------------------------------
+   Scope : la classe `tv-mode` est posee par TV.jsx sur <html> au montage et
+   retiree au demontage. AUCUNE regle ci-dessous ne doit s'appliquer sans ce
+   scope, sinon Master et Buzzer sont impactes (index.css est importe
+   globalement par src/main.jsx).
+
+   Cible : Samsung The Frame 2023 (Tizen 7.0), viewport 1920x1080, dPR 1,
+   regarde a ~3 m. Moteur Chromium ancien : pas de dvh, pas de :has(), pas de
+   container queries.
+   ========================================================================== */
+
+/* Fallback sur : applique meme si @supports/clamp() ne sont pas reconnus. */
+html.tv-mode {
+  font-size: 26px;
+}
+
+@supports (font-size: clamp(1px, 1vw, 2px)) {
+  html.tv-mode {
+    font-size: clamp(24px, 1.35vw, 42px);
+  }
+}
+
+/* Chaine de hauteur : le navigateur Samsung conserve sa barre d'URL, la
+   hauteur utile est d'environ 980 px et non 1080. On borne la page a la
+   hauteur reelle du viewport et on interdit le scroll : les ecrans TV
+   s'ajustent a l'interieur (wrappers en height: 100%). */
+html.tv-mode {
+  height: 100%;
+}
+
+html.tv-mode body {
+  height: 100%;
+  padding: 2.5vh 2.5vw; /* safe area overscan */
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+html.tv-mode #root {
+  height: 100%;
+}

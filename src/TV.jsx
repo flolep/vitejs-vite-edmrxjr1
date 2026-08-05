@@ -46,14 +46,14 @@ const PlayerAvatar = ({ player, buzzedPlayerKey, buzzedPlayerName }) => {
   const getBorderStyle = () => {
     if (isBuzzed) {
       return {
-        border: '6px solid #fbbf24',
-        boxShadow: '0 0 30px rgba(251, 191, 36, 0.8)'
+        border: '0.3rem solid #fbbf24',
+        boxShadow: '0 0 1.5rem rgba(251, 191, 36, 0.8)'
       };
     }
     if (isInCooldown) {
       return {
-        border: '4px solid #ef4444',
-        boxShadow: '0 0 20px rgba(239, 68, 68, 0.6)'
+        border: '0.2rem solid #ef4444',
+        boxShadow: '0 0 1rem rgba(239, 68, 68, 0.6)'
       };
     }
     return {
@@ -74,12 +74,16 @@ const PlayerAvatar = ({ player, buzzedPlayerKey, buzzedPlayerName }) => {
         src={player.photo || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="80" height="80"%3E%3Ccircle cx="40" cy="40" r="40" fill="%23666"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="white" font-size="30"%3E' + (player.name?.[0] || '?') + '%3C/text%3E%3C/svg%3E'}
         alt={player.name}
         style={{
-          width: '80px',
-          height: '80px',
+          width: '4.5rem',
+          height: '4.5rem',
           borderRadius: '50%',
           objectFit: 'cover',
           ...getBorderStyle(),
-          transition: 'all 0.3s ease',
+          // `transition: all` animait aussi box-shadow, border et filter :
+          // trois proprietes qui repeignent a chaque frame, hors compositing.
+          // Le glow du buzz apparait desormais d'un coup — plus net comme
+          // retour immediat, et sans cout GPU sur The Frame.
+          transition: 'transform 0.3s ease, opacity 0.3s ease',
           filter: isInCooldown ? 'grayscale(50%)' : 'none'
         }}
       />
@@ -87,8 +91,8 @@ const PlayerAvatar = ({ player, buzzedPlayerKey, buzzedPlayerName }) => {
       {isBuzzed && (
         <div style={{
           position: 'absolute',
-          top: '-10px',
-          right: '-10px',
+          top: '-0.5rem',
+          right: '-0.5rem',
           fontSize: '2rem'
         }}>
           ⚡
@@ -105,11 +109,11 @@ const PlayerAvatar = ({ player, buzzedPlayerKey, buzzedPlayerName }) => {
           fontSize: '1.5rem',
           fontWeight: 'bold',
           color: '#ef4444',
-          textShadow: '0 0 10px black',
+          textShadow: '0 0 0.5rem black',
           backgroundColor: 'rgba(0,0,0,0.7)',
           borderRadius: '50%',
-          width: '70px',
-          height: '70px',
+          width: '4rem',
+          height: '4rem',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center'
@@ -124,7 +128,7 @@ const PlayerAvatar = ({ player, buzzedPlayerKey, buzzedPlayerName }) => {
         fontWeight: isBuzzed ? 'bold' : 'normal',
         color: isInCooldown ? '#ef4444' : isBuzzed ? '#fbbf24' : 'white',
         textAlign: 'center',
-        maxWidth: '90px',
+        maxWidth: '5rem',
         overflow: 'hidden',
         textOverflow: 'ellipsis',
         whiteSpace: 'nowrap'
@@ -182,6 +186,13 @@ export default function TV() {
   // 🔊 Ref pour le son de buzzer en mode Quiz
   const buzzerSoundRef = useRef(null);
   const previousAnswersCountRef = useRef(0);
+
+  // 📺 Mode TV : bascule la base rem en 10-foot (cf. `html.tv-mode` dans index.css).
+  // Scope strict a la route TV — Master et Buzzer ne doivent jamais porter la classe.
+  useEffect(() => {
+    document.documentElement.classList.add('tv-mode');
+    return () => document.documentElement.classList.remove('tv-mode');
+  }, []);
 
   // 🔊 Créer le son de buzzer (même son qu'en mode Équipe)
   useEffect(() => {
@@ -631,14 +642,17 @@ export default function TV() {
     return (
       <div style={{
         background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
-        minHeight: '100vh',
+        // 100% et non 100vh : le body porte deja le padding safe-area 2.5vh/2.5vw
+        // (cf. `html.tv-mode body` dans index.css). 100vh deborderait de 5vh.
+        height: '100%',
+        overflow: 'hidden',
         color: 'white',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
       }}>
-        <div style={{ textAlign: 'center', maxWidth: '500px', width: '100%', padding: '2rem' }}>
+        <div style={{ textAlign: 'center', maxWidth: '28rem', width: '100%', padding: '2rem' }}>
           <h1 style={{ fontSize: '3rem', marginBottom: '1rem' }}>📺 ÉCRAN TV</h1>
           <SessionCodeInput
             onSubmit={handleJoinSession}
@@ -687,7 +701,14 @@ export default function TV() {
 return (
     <div style={{
       background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
-      minHeight: '100vh',
+      // 100% et non 100vh : cf. padding safe-area du body (index.css).
+      // overflowY auto et non hidden ici : cet ecran empile des titres tres
+      // hauts (5-6rem) et le prix de la rapidite. En 26px de base il peut
+      // depasser les ~980px utiles — mieux vaut du contenu atteignable que
+      // du contenu rogne. Densite a revoir apres validation sur la TV.
+      height: '100%',
+      overflowY: 'auto',
+      overflowX: 'hidden',
       color: 'white',
       padding: '3rem',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -701,14 +722,13 @@ return (
         textAlign: 'center',
         animation: 'fadeInScale 1s ease-out',
         width: '100%',
-        maxWidth: '1200px', // ✅ Largeur max pour tout centrer
+        maxWidth: '70rem', // ✅ Largeur max pour tout centrer
         margin: '0 auto' // ✅ Centrage horizontal
       }}>
         <h1 style={{
           fontSize: '5rem',
           marginBottom: '2rem',
-          color: '#fbbf24',
-          animation: 'pulse 2s infinite'
+          color: '#fbbf24'
         }}>
           🎉 PARTIE TERMINÉE ! 🎉
         </h1>
@@ -723,8 +743,7 @@ return (
               fontSize: '6rem',
               marginBottom: '2rem',
               color: winnerColor,
-              textShadow: `0 0 40px ${winnerColor}`,
-              animation: 'bounce 1s infinite'
+              textShadow: `0 0 2rem ${winnerColor}`
             }}>
               {winner === 'team1' ? '🔴' : '🔵'} ÉQUIPE {winnerTeam} A GAGNÉ !
             </h2>
@@ -732,8 +751,7 @@ return (
             <div style={{
               fontSize: '4rem',
               fontWeight: 'bold',
-              marginBottom: '3rem',
-              animation: 'pulse 1.5s infinite'
+              marginBottom: '3rem'
             }}>
               {winner === 'team1' ? scores.team1 : scores.team2} points
             </div>
@@ -746,14 +764,14 @@ return (
           gridTemplateColumns: '1fr 1fr',
           gap: '2rem',
           marginBottom: '4rem',
-          maxWidth: '800px',
+          maxWidth: '46rem',
           margin: '0 auto 4rem' // ✅ Centrer les scores
         }}>
           <div style={{
             backgroundColor: winner === 'team1' ? 'rgba(220, 38, 38, 0.3)' : 'rgba(220, 38, 38, 0.1)',
             borderRadius: '1rem',
             padding: '2rem',
-            border: winner === 'team1' ? '4px solid #fbbf24' : 'none'
+            border: winner === 'team1' ? '0.2rem solid #fbbf24' : 'none'
           }}>
             <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>🔴 ÉQUIPE 1</div>
             <div style={{ fontSize: '3rem', fontWeight: 'bold' }}>{scores.team1}</div>
@@ -763,7 +781,7 @@ return (
             backgroundColor: winner === 'team2' ? 'rgba(37, 99, 235, 0.3)' : 'rgba(37, 99, 235, 0.1)',
             borderRadius: '1rem',
             padding: '2rem',
-            border: winner === 'team2' ? '4px solid #fbbf24' : 'none'
+            border: winner === 'team2' ? '0.2rem solid #fbbf24' : 'none'
           }}>
             <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>🔵 ÉQUIPE 2</div>
             <div style={{ fontSize: '3rem', fontWeight: 'bold' }}>{scores.team2}</div>
@@ -777,8 +795,8 @@ return (
             backgroundColor: 'rgba(251, 191, 36, 0.2)',
             borderRadius: '2rem',
             padding: '3rem',
-            border: '3px solid #fbbf24',
-            maxWidth: '800px',
+            border: '0.15rem solid #fbbf24',
+            maxWidth: '46rem',
             margin: '0 auto', // ✅ Centrer le prix
             animation: 'fadeInUp 1.5s ease-out'
           }}>
@@ -825,23 +843,17 @@ return (
         )}
       </div>
       
-      {/* Styles d'animation */}
+      {/* Styles d'animation — uniquement des entrees one-shot en
+          opacity/transform. Les `infinite` (bounce, pulse) ont ete retirees :
+          sur The Frame elles tournent en continu pour rien et saccadent. */}
       <style>{`
         @keyframes fadeInScale {
           from { opacity: 0; transform: scale(0.8); }
           to { opacity: 1; transform: scale(1); }
         }
         @keyframes fadeInUp {
-          from { opacity: 0; transform: translateY(30px); }
+          from { opacity: 0; transform: translateY(1.5rem); }
           to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes bounce {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-20px); }
-        }
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.7; }
         }
       `}</style>
     </div>
@@ -868,7 +880,10 @@ return (
   return (
   <div style={{
     background: `linear-gradient(135deg, ${COLORS.gradientStart} 0%, ${COLORS.gradientEnd} 50%, ${COLORS.gradientEnd} 100%)`,
-    minHeight: '100vh',
+    // 100% et non 100vh : le body porte le padding safe-area 2.5vh/2.5vw
+    // (index.css). Le navigateur Tizen garde sa barre d'URL : ~980px utiles.
+    height: '100%',
+    overflow: 'hidden',
     color: 'white',
     padding: '1.5rem 2rem',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -976,7 +991,7 @@ return (
       </div>
 
       {/* Barre de progression gradient */}
-      <div style={{ maxWidth: '500px', margin: '0 auto' }}>
+      <div style={{ maxWidth: '28rem', margin: '0 auto' }}>
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -988,8 +1003,8 @@ return (
           <span>Points</span>
         </div>
         <div style={{
-          height: '8px',
-          borderRadius: '4px',
+          height: '0.5rem',
+          borderRadius: '0.25rem',
           background: 'linear-gradient(90deg, #22c55e 0%, #84cc16 25%, #eab308 50%, #f97316 75%, #ef4444 100%)',
           position: 'relative'
         }}>
@@ -997,14 +1012,17 @@ return (
           <div style={{
             position: 'absolute',
             left: `${progressPercent}%`,
-            top: '-4px',
-            width: '16px',
-            height: '16px',
+            top: '-0.25rem',
+            width: '1rem',
+            height: '1rem',
             backgroundColor: 'white',
             borderRadius: '50%',
-            border: '3px solid #22c55e',
+            border: '0.15rem solid #22c55e',
             transform: 'translateX(-50%)',
-            transition: 'left 0.1s linear'
+            // Pas de transition sur `left` : le chrono repositionne deja le
+            // curseur ~10 fois par seconde, interpoler en plus declenchait un
+            // relayout a chaque frame pour un gain visuel nul a 3 metres.
+            transition: 'none'
           }} />
         </div>
         <div style={{
@@ -1022,12 +1040,15 @@ return (
     {/* ===== MAIN CONTENT AREA ===== */}
     <div style={{
       display: 'grid',
-      gridTemplateColumns: '1fr 380px',
+      gridTemplateColumns: '1fr 22rem',
       gap: '1.5rem',
-      flex: 1
+      flex: 1,
+      // minHeight 0 : sans ca la grille refuse de se compresser sous la taille
+      // de son contenu et fait deborder le wrapper en height 100%.
+      minHeight: 0
     }}>
       {/* ===== LEFT COLUMN: Instructions + Answer Cards ===== */}
-      <div>
+      <div style={{ minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
         {/* Instructions */}
         <div style={{ marginBottom: '1.5rem' }}>
           <h2 style={{
@@ -1077,7 +1098,7 @@ return (
                       ? '2px solid #22c55e'
                       : '1px solid rgba(255, 255, 255, 0.1)',
                     position: 'relative',
-                    height: '280px',
+                    height: '16rem',
                     display: 'flex',
                     flexDirection: 'column',
                     overflow: 'hidden'
@@ -1105,12 +1126,12 @@ return (
                       position: 'absolute',
                       right: '1rem',
                       bottom: '1rem',
-                      width: '120px',
-                      height: '120px',
+                      width: '7rem',
+                      height: '7rem',
                       borderRadius: '0.75rem',
                       overflow: 'hidden',
                       border: '2px solid rgba(34, 197, 94, 0.5)',
-                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.4)'
+                      boxShadow: '0 0.25rem 1rem rgba(0, 0, 0, 0.4)'
                     }}>
                       <img
                         src={currentSong.imageUrl}
@@ -1160,7 +1181,7 @@ return (
                     flexWrap: 'wrap',
                     gap: '0.5rem',
                     marginTop: '0.5rem',
-                    minHeight: '28px'
+                    minHeight: '1.75rem'
                   }}>
                       {playersWithThisAnswer.map((player, pIndex) => (
                         <div
@@ -1179,8 +1200,8 @@ return (
                             src={player.photo || `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20'%3E%3Ccircle cx='10' cy='10' r='10' fill='%23666'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='white' font-size='10'%3E${player.playerName?.[0] || '?'}%3C/text%3E%3C/svg%3E`}
                             alt={player.playerName}
                             style={{
-                              width: '20px',
-                              height: '20px',
+                              width: '1.25rem',
+                              height: '1.25rem',
                               borderRadius: '50%',
                               objectFit: 'cover',
                               border: quizRevealed
@@ -1189,7 +1210,7 @@ return (
                             }}
                           />
                           <span style={{
-                            maxWidth: '60px',
+                            maxWidth: '3.5rem',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap'
@@ -1269,11 +1290,11 @@ return (
                   src={ded.playerPhoto}
                   alt={ded.playerName}
                   style={{
-                    width: '56px',
-                    height: '56px',
+                    width: '3.25rem',
+                    height: '3.25rem',
                     borderRadius: '50%',
                     objectFit: 'cover',
-                    border: '3px solid #10b981',
+                    border: '0.15rem solid #10b981',
                     flexShrink: 0
                   }}
                 />
@@ -1343,13 +1364,16 @@ return (
       </div>
 
       {/* ===== RIGHT COLUMN: Buzzer Order + Leaderboard ===== */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minHeight: 0 }}>
         {/* Buzzer Order Panel */}
         <div style={{
           backgroundColor: COLORS.cardBg,
           borderRadius: '1rem',
           padding: '1.25rem',
-          flex: 1
+          flex: 1,
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column'
         }}>
           <div style={{
             display: 'flex',
@@ -1391,8 +1415,8 @@ return (
             marginBottom: '1rem'
           }}>
             <div style={{
-              width: '8px',
-              height: '8px',
+              width: '0.5rem',
+              height: '0.5rem',
               borderRadius: '50%',
               backgroundColor: buzzOrder.length > 0 ? '#22c55e' : '#6b7280'
             }} />
@@ -1401,9 +1425,9 @@ return (
             </span>
             <div style={{
               flex: 1,
-              height: '4px',
+              height: '0.25rem',
               backgroundColor: 'rgba(255, 255, 255, 0.1)',
-              borderRadius: '2px',
+              borderRadius: '0.125rem',
               overflow: 'hidden'
             }}>
               <div style={{
@@ -1420,7 +1444,11 @@ return (
             display: 'flex',
             flexDirection: 'column',
             gap: '0.5rem',
-            maxHeight: '200px',
+            // Le panneau est desormais une colonne flex : la liste occupe la
+            // hauteur restante au lieu d'un maxHeight fixe (ex-200px) qui
+            // laissait du vide ou debordait selon la base rem.
+            flex: 1,
+            minHeight: 0,
             overflowY: 'auto'
           }}>
             {buzzOrder.map((player, index) => {
@@ -1470,8 +1498,8 @@ return (
                     src={playerPhoto || `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%23666'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='white' font-size='14'%3E${player.playerName?.[0] || '?'}%3C/text%3E%3C/svg%3E`}
                     alt={player.playerName}
                     style={{
-                      width: '32px',
-                      height: '32px',
+                      width: '2rem',
+                      height: '2rem',
                       borderRadius: '50%',
                       objectFit: 'cover',
                       border: player.isCorrect
@@ -1590,10 +1618,12 @@ return (
             display: 'flex',
             flexDirection: 'column',
             gap: '0.5rem',
-            maxHeight: '180px',
+            maxHeight: '10rem',
             overflowY: 'auto'
           }}>
-            {quizLeaderboard.slice(0, 5).map((player, index) => {
+            {/* 4 entrees et non 5 : la hauteur utile tombe a ~980px sur le
+                navigateur Tizen une fois la base rem 10-foot appliquee. */}
+            {quizLeaderboard.slice(0, 4).map((player, index) => {
               const playerAnswer = playerAnswers.find(p => p.playerId === player.playerId);
               const currentSongPoints = playerAnswer?.isCorrect ? `+${playerAnswer?.points || 0} pts` : '+0 pt';
 
@@ -1626,8 +1656,8 @@ return (
                       src={playerPhoto || `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28'%3E%3Ccircle cx='14' cy='14' r='14' fill='%23666'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='white' font-size='12'%3E${player.playerName?.[0] || '?'}%3C/text%3E%3C/svg%3E`}
                       alt={player.playerName}
                       style={{
-                        width: '28px',
-                        height: '28px',
+                        width: '1.75rem',
+                        height: '1.75rem',
                         borderRadius: '50%',
                         objectFit: 'cover'
                       }}
@@ -1709,7 +1739,7 @@ return (
           borderRadius: '2rem',
           padding: '4rem',
           textAlign: 'center',
-          maxWidth: '600px'
+          maxWidth: '34rem'
         }}>
           <h2 style={{
             fontSize: '3rem',
@@ -1729,7 +1759,7 @@ return (
           }}>
             <QRCodeSVG
               value={`${window.location.origin}/buzzer?session=${sessionId}`}
-              size={300}
+              size={420}
               level="H"
               includeMargin={true}
             />

@@ -27,7 +27,6 @@ export function QuizDisplay({
   // Détection des paliers
   const isAt5s = chrono >= 4.5 && chrono <= 5.5;
   const isAt15s = chrono >= 14.5 && chrono <= 15.5;
-  const isNearCritical = availablePoints < 250;
 
   // 🎲 Mélanger les positions visuelles des réponses (stable par chanson)
   // Utilise le trackNumber comme seed pour avoir toujours le même ordre pendant la question
@@ -61,21 +60,24 @@ export function QuizDisplay({
   return (
     <div style={{
       background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
-      minHeight: '100vh',
+      // 100% et non 100vh : le body porte le padding safe-area 2.5vh/2.5vw
+      // (cf. `html.tv-mode body` dans index.css).
+      height: '100%',
+      overflow: 'hidden',
       color: 'white',
       padding: '2rem',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
       display: 'flex'
     }}>
       {/* Zone principale */}
-      <div style={{ flex: 1, marginRight: '2rem' }}>
+      <div style={{ flex: 1, marginRight: '2rem', minWidth: 0, overflowY: 'auto' }}>
         {/* Titre */}
         <h1 style={{
           fontSize: '3rem',
           fontWeight: 'bold',
           textAlign: 'center',
           color: '#fbbf24',
-          textShadow: '0 0 20px rgba(251, 191, 36, 0.5)',
+          textShadow: '0 0 1rem rgba(251, 191, 36, 0.5)',
           marginBottom: '1rem'
         }}>
           🎯 MODE QUIZ
@@ -145,8 +147,7 @@ export function QuizDisplay({
                       fontWeight: 'bold',
                       color: pointsColor,
                       lineHeight: 1,
-                      textShadow: `0 0 30px ${pointsColor}`,
-                      animation: isNearCritical ? 'pulse 0.5s infinite' : 'none'
+                      textShadow: `0 0 1.5rem ${pointsColor}`
                     }}>
                       {availablePoints}
                     </div>
@@ -159,8 +160,7 @@ export function QuizDisplay({
                     marginTop: '0.5rem',
                     fontSize: '1.2rem',
                     color: '#fbbf24',
-                    fontWeight: 'bold',
-                    animation: 'pulse 0.5s infinite'
+                    fontWeight: 'bold'
                   }}>
                     ⚠️ Palier à 5s !
                   </div>
@@ -171,8 +171,7 @@ export function QuizDisplay({
                     marginTop: '0.5rem',
                     fontSize: '1.2rem',
                     color: '#ef4444',
-                    fontWeight: 'bold',
-                    animation: 'pulse 0.5s infinite'
+                    fontWeight: 'bold'
                   }}>
                     ⚠️ Palier à 15s !
                   </div>
@@ -186,7 +185,7 @@ export function QuizDisplay({
               gridTemplateColumns: '1fr 1fr',
               gap: '1.5rem',
               marginBottom: '3rem',
-              maxWidth: '1000px',
+              maxWidth: '56rem',
               margin: '0 auto 3rem'
             }}>
           {shuffledAnswers && shuffledAnswers.map((answer) => {
@@ -217,14 +216,17 @@ export function QuizDisplay({
                 key={answer.label}
                 style={{
                   backgroundColor,
-                  border: `4px solid ${borderColor}`,
+                  border: `0.2rem solid ${borderColor}`,
                   borderRadius: '1.5rem',
                   padding: '2rem',
                   textAlign: 'center',
-                  transition: 'all 0.3s',
-                  boxShadow: showCorrect ? '0 0 30px rgba(16, 185, 129, 0.6)' : 'none',
+                  // Pas de `transition: all` : elle animait le box-shadow et la
+                  // couleur de fond a chaque revelation. La revelation est un
+                  // evenement discret, un basculement net suffit.
+                  transition: 'transform 0.3s ease',
+                  boxShadow: showCorrect ? '0 0 1.5rem rgba(16, 185, 129, 0.6)' : 'none',
                   position: 'relative',
-                  minHeight: '160px',
+                  minHeight: '9rem',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'center'
@@ -263,13 +265,12 @@ export function QuizDisplay({
                           alt={player.playerName}
                           title={player.playerName}
                           style={{
-                            width: '50px',
-                            height: '50px',
+                            width: '3rem',
+                            height: '3rem',
                             borderRadius: '50%',
                             objectFit: 'cover',
-                            border: '3px solid white',
-                            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
-                            animation: 'fadeIn 0.3s ease-in'
+                            border: '0.15rem solid white',
+                            boxShadow: '0 0.125rem 0.5rem rgba(0, 0, 0, 0.3)'
                           }}
                         />
                       )
@@ -287,7 +288,7 @@ export function QuizDisplay({
             backgroundColor: 'rgba(0, 0, 0, 0.3)',
             borderRadius: '1.5rem',
             padding: '2rem',
-            maxWidth: '1000px',
+            maxWidth: '56rem',
             margin: '0 auto 2rem',
             display: 'flex',
             alignItems: 'center',
@@ -300,11 +301,11 @@ export function QuizDisplay({
                 src={currentSong.imageUrl}
                 alt={currentSong.title}
                 style={{
-                  width: '180px',
-                  height: '180px',
+                  width: '10rem',
+                  height: '10rem',
                   borderRadius: '1rem',
                   objectFit: 'cover',
-                  boxShadow: '0 8px 30px rgba(0, 0, 0, 0.5)',
+                  boxShadow: '0 0.5rem 1.5rem rgba(0, 0, 0, 0.5)',
                   flexShrink: 0
                 }}
               />
@@ -374,7 +375,7 @@ export function QuizDisplay({
             backgroundColor: 'rgba(0, 0, 0, 0.3)',
             borderRadius: '1.5rem',
             padding: '2rem',
-            maxWidth: '1000px',
+            maxWidth: '56rem',
             margin: '0 auto'
           }}>
             <h2 style={{
@@ -405,7 +406,7 @@ export function QuizDisplay({
                       border: revealed && isCorrect ? '2px solid #10b981' : 'none'
                     }}
                   >
-                    <div style={{ fontSize: '1.5rem', marginRight: '1rem', minWidth: '40px' }}>
+                    <div style={{ fontSize: '1.5rem', marginRight: '1rem', minWidth: '2.5rem' }}>
                       {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`}
                     </div>
 
@@ -452,7 +453,7 @@ export function QuizDisplay({
                     opacity: 0.6
                   }}
                 >
-                  <div style={{ fontSize: '1.5rem', marginRight: '1rem', minWidth: '40px' }}>
+                  <div style={{ fontSize: '1.5rem', marginRight: '1rem', minWidth: '2.5rem' }}>
                     -
                   </div>
                   <div style={{ flex: 1, fontSize: '1.25rem' }}>
@@ -472,12 +473,13 @@ export function QuizDisplay({
 
       {/* Sidebar : Leaderboard général */}
       <div style={{
-        width: '350px',
+        width: '20rem',
         backgroundColor: 'rgba(0, 0, 0, 0.4)',
         borderRadius: '1.5rem',
         padding: '1.5rem',
-        maxHeight: '100vh',
-        overflow: 'auto'
+        maxHeight: '100%',
+        flexShrink: 0,
+        overflowY: 'auto'
       }}>
         <h2 style={{
           fontSize: '2rem',
