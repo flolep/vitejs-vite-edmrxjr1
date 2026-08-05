@@ -8,6 +8,7 @@ import { useBuzzerCamera } from './hooks/buzzer/useBuzzerCamera';
 import { useBuzzerSession } from './hooks/buzzer/useBuzzerSession';
 import { useLastResponderAlert, useAlertVibration } from './hooks/buzzer/useLastResponderAlert';
 import LastResponderAlert from './components/buzzer/LastResponderAlert';
+import { isGameEnded } from './utils/gamePhase';
 import { calculatePoints } from './hooks/useScoring';
 import { NameScreen } from './components/buzzer/screens/NameScreen';
 import { SelectScreen } from './components/buzzer/screens/SelectScreen';
@@ -146,7 +147,7 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
     const gameStatusRef = ref(database, `sessions/${sessionId}/game_status`);
     const unsubscribe = onValue(gameStatusRef, (snapshot) => {
       const status = snapshot.val();
-      if (status?.ended === true) {
+      if (isGameEnded(status)) {
         setGameEnded(true);
       }
     });
