@@ -115,6 +115,8 @@ export async function cleanupSessionData(sessionId) {
     'temp_data',
     // Données de quiz temporaires qui pourraient rester après un crash
     'quiz_next_song_request', // Nettoyer les requêtes en attente
+    'final_reveal_request', // Demande de classement final restée en attente
+    'final_reveal_deadline', // Échéance du timeout 45 s
   ];
 
   for (const path of obsoletePaths) {

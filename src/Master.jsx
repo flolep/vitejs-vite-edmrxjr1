@@ -8,6 +8,15 @@ import { QRCodeSVG } from 'qrcode.react';
 import { deactivatePreviousSession } from './utils/sessionCleanup';
 import { getSessionCode } from './utils/sessionUtils';
 import { GAME_PHASES, resolveGamePhase } from './utils/gamePhase';
+import { validateFinalRevealRequest } from './utils/finalRevealValidation';
+
+/**
+ * Delai avant bascule automatique en 'ended' si personne ne declenche le
+ * classement final. 45 s : a ce moment tout le monde regarde deja la TV, il
+ * n'y a pas de raison d'attendre plus. Valeur a reajuster apres une vraie
+ * partie — c'est une hypothese, pas une mesure.
+ */
+const FINAL_REVEAL_TIMEOUT_MS = 45000;
 
 // Import des hooks
 import { useGameSession } from './hooks/useGameSession';
@@ -29,6 +38,7 @@ import Login from './components/Login';
 import PlaylistSelector from './components/master/PlaylistSelector';
 import BuzzAlert from './components/master/BuzzAlert';
 import GameSettings from './components/master/GameSettings';
+import FinalRevealPanel from './components/master/FinalRevealPanel';
 import GameEndScreen from './components/master/GameEndScreen';
 import QuizControls from './components/master/QuizControls';
 import QuizLeaderboard from './components/master/QuizLeaderboard';
@@ -71,6 +81,8 @@ export default function Master({
   const [anonymousMode, setAnonymousMode] = useState(playMode === 'quiz');
   const [showDropdown, setShowDropdown] = useState(false);
   const [gameEnded, setGameEnded] = useState(false);
+  const [gamePhase, setGamePhase] = useState(null); // machine a etats game_status.phase
+  const [finalRevealDeadline, setFinalRevealDeadline] = useState(null);
   const [debugInfo, setDebugInfo] = useState('');
 
   // États de cooldown
@@ -1116,6 +1128,132 @@ export default function Master({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSong?.revealed, currentTrack, playlist.length, gameEnded, sessionId]);
 
+  // Suivre la phase depuis Firebase — le Master la pilote, mais il la relit
+  // pour ne pas dependre de son propre state (reprise de session, reload).
+  useEffect(() => {
+    if (!sessionId) return;
+    const gameStatusRef = ref(database, `sessions/${sessionId}/game_status`);
+    const unsubscribe = onValue(gameStatusRef, (snapshot) => {
+      setGamePhase(resolveGamePhase(snapshot.val()));
+    });
+    return () => unsubscribe();
+  }, [sessionId]);
+
+  // ===== CLASSEMENT FINAL DECLENCHE PAR LE VAINQUEUR =====
+  //
+  // Meme mecanique que quiz_next_song_request : le joueur ecrit une demande,
+  // le Master l'ecoute, la valide, l'execute et la supprime. La difference est
+  // la VALIDATION : la regle Firebase verifie seulement `auth != null`, elle ne
+  // sait pas qui est le vainqueur. Sans le controle ci-dessous, n'importe quel
+  // joueur authentifie pourrait terminer la partie.
+  const endGameRef = useRef(null);
+  useEffect(() => {
+    endGameRef.current = endGame;
+  });
+
+  useEffect(() => {
+    if (!sessionId) return;
+
+    const requestRef = ref(database, `sessions/${sessionId}/final_reveal_request`);
+    let isProcessing = false; // anti-double-traitement
+
+    const unsubscribe = onValue(requestRef, async (snapshot) => {
+      const requestData = snapshot.val();
+      if (!requestData || !requestData.timestamp || isProcessing) return;
+
+      isProcessing = true;
+      console.log(`🏆 Demande de classement final par ${requestData.playerName}`);
+
+      try {
+        // Supprimer la demande immediatement : elle ne doit pas etre rejouee,
+        // meme si la suite echoue.
+        await remove(requestRef);
+
+        // La partie est-elle bien en attente du classement final ?
+        const statusSnap = await get(ref(database, `sessions/${sessionId}/game_status`));
+        if (resolveGamePhase(statusSnap.val()) !== GAME_PHASES.LAST_REVEAL) {
+          console.warn('⚠️ Demande ignorée : la partie n\'est pas en last_reveal');
+          return;
+        }
+
+        const { valid, reason } = await validateFinalRevealRequest(
+          sessionId,
+          playMode,
+          requestData.playerId
+        );
+
+        if (!valid) {
+          console.warn(`🚫 Demande de classement final refusée — ${reason}`);
+          return;
+        }
+
+        console.log('✅ Demande validée — fin de partie');
+        await endGameRef.current();
+      } catch (error) {
+        console.error('❌ Erreur traitement demande de classement final:', error);
+      } finally {
+        setTimeout(() => {
+          isProcessing = false;
+        }, 500);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [sessionId, playMode]);
+
+  // ===== TIMEOUT 45 s =====
+  //
+  // Filet de securite, pas une fonctionnalite : donner le controle a un joueur
+  // cree un point de blocage. Le vainqueur peut reposer son telephone, sortir
+  // de la piece, ou ne pas comprendre que c'est a lui d'agir — sans animateur,
+  // la partie resterait figee.
+  //
+  // Le timer est porte par le MASTER uniquement (source de verite unique). Le
+  // faire porter par la TV ou un buzzer produirait des declenchements
+  // concurrents. La TV se contente de lire la date de fin pour afficher le
+  // compte a rebours.
+  const finalRevealTimerRef = useRef(null);
+  useEffect(() => {
+    const isWaitingFinalReveal = gamePhase === GAME_PHASES.LAST_REVEAL;
+
+    // Nettoyage systematique : pas de setTimeout orphelin si la phase change,
+    // si la session change, ou au demontage du composant.
+    const clearTimer = () => {
+      if (finalRevealTimerRef.current) {
+        clearTimeout(finalRevealTimerRef.current);
+        finalRevealTimerRef.current = null;
+      }
+    };
+
+    if (!sessionId || !isWaitingFinalReveal || gameEnded) {
+      clearTimer();
+      setFinalRevealDeadline(null);
+      // Effacer l'echeance affichee par la TV
+      if (sessionId && !isWaitingFinalReveal) {
+        remove(ref(database, `sessions/${sessionId}/final_reveal_deadline`)).catch(() => {});
+      }
+      return clearTimer;
+    }
+
+    // Publier l'echeance pour que la TV affiche le decompte des 10 dernieres
+    // secondes. La TV ne fait que lire : elle ne declenche rien.
+    const deadline = Date.now() + FINAL_REVEAL_TIMEOUT_MS;
+    setFinalRevealDeadline(deadline);
+    set(ref(database, `sessions/${sessionId}/final_reveal_deadline`), deadline).catch(() => {});
+
+    console.log(`⏱️ Classement final : bascule automatique dans ${FINAL_REVEAL_TIMEOUT_MS / 1000} s`);
+    finalRevealTimerRef.current = setTimeout(async () => {
+      console.log('⏱️ Personne n\'a déclenché — bascule automatique en ended');
+      try {
+        await endGameRef.current();
+      } catch (e) {
+        console.error('❌ Bascule automatique échouée:', e);
+      }
+    }, FINAL_REVEAL_TIMEOUT_MS);
+
+    return clearTimer;
+  }, [sessionId, gamePhase, gameEnded]);
+
   // === RENDU ===
 
   if (!user) {
@@ -1621,6 +1759,14 @@ export default function Master({
           playlists={spotifyAutoMode.spotifyPlaylists}
           onClose={() => spotifyAutoMode.setShowPlaylistSelector(false)}
           onSelect={(id) => spotifyAutoMode.handleSelectPlaylist(id, setPlaylist, () => updateScores({ team1: 0, team2: 0 }))}
+        />
+      )}
+
+      {/* Fallback animateur — actif des que la partie attend le classement final */}
+      {gamePhase === GAME_PHASES.LAST_REVEAL && !gameEnded && (
+        <FinalRevealPanel
+          deadline={finalRevealDeadline}
+          onRevealNow={endGame}
         />
       )}
 
