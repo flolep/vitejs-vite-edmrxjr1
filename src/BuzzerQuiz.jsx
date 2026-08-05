@@ -6,6 +6,8 @@ import { useBuzzerLocalStorage } from './hooks/buzzer/useBuzzerLocalStorage';
 import { prefsStorage } from './utils/storage';
 import { useBuzzerCamera } from './hooks/buzzer/useBuzzerCamera';
 import { useBuzzerSession } from './hooks/buzzer/useBuzzerSession';
+import { useLastResponderAlert, useAlertVibration } from './hooks/buzzer/useLastResponderAlert';
+import LastResponderAlert from './components/buzzer/LastResponderAlert';
 import { calculatePoints } from './hooks/useScoring';
 import { NameScreen } from './components/buzzer/screens/NameScreen';
 import { SelectScreen } from './components/buzzer/screens/SelectScreen';
@@ -122,6 +124,16 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
 
   // Mini-classement temps réel (toujours visible)
   const [liveRank, setLiveRank] = useState(null); // { rank, totalPlayers, totalPoints, correctAnswers }
+
+  // ⚡ Alerte « on t'attend » — calcul local, seul canal indiquant qu'on est
+  // le dernier (le beep du Master est uniforme par conception).
+  const alertLevel = useLastResponderAlert(
+    sessionId,
+    quizQuestion,
+    selectedPlayer?.id || `temp_${playerName}`,
+    isPlaying
+  );
+  useAlertVibration(alertLevel);
 
   // État Debug Panel (uniquement visible en mode Test)
   const [showDebug, setShowDebug] = useState(false);
@@ -905,6 +917,7 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
       <>
         {debugButton}
         {debugPanel}
+        <LastResponderAlert level={alertLevel} />
         <QuizInterface
           selectedPlayer={selectedPlayer}
           playerName={playerName}
