@@ -117,6 +117,8 @@ export async function cleanupSessionData(sessionId) {
     'quiz_next_song_request', // Nettoyer les requêtes en attente
     'final_reveal_request', // Demande de classement final restée en attente
     'final_reveal_deadline', // Échéance du timeout 45 s
+    'quiz_playback_request', // Demande play/pause restée en attente
+    'next_question_deadline', // Échéance du timeout 90 s
   ];
 
   for (const path of obsoletePaths) {

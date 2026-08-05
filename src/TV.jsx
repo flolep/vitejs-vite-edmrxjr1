@@ -165,6 +165,8 @@ export default function TV() {
   const [lastReveal, setLastReveal] = useState(false); // derniere question revelee
   const [finalRevealDeadline, setFinalRevealDeadline] = useState(null);
   const [finalRevealSecondsLeft, setFinalRevealSecondsLeft] = useState(null);
+  const [nextQuestionDeadline, setNextQuestionDeadline] = useState(null);
+  const [nextQuestionSecondsLeft, setNextQuestionSecondsLeft] = useState(null);
   const [winner, setWinner] = useState(null);
   const [fastestBuzz, setFastestBuzz] = useState(null);
 
@@ -417,6 +419,34 @@ export default function TV() {
     const interval = setInterval(tick, 500);
     return () => clearInterval(interval);
   }, [finalRevealDeadline, lastReveal]);
+
+  // ⏱️ Compte a rebours de la question suivante (90 s apres revelation).
+  // Comme pour le classement final : le Master porte le timer, la TV LIT.
+  useEffect(() => {
+    if (!sessionValid || !sessionId) return;
+    const deadlineRef = ref(database, `sessions/${sessionId}/next_question_deadline`);
+    const unsubscribe = onValue(deadlineRef, (snapshot) => {
+      setNextQuestionDeadline(snapshot.val() || null);
+    });
+    return () => unsubscribe();
+  }, [sessionValid, sessionId]);
+
+  useEffect(() => {
+    if (!nextQuestionDeadline || !quizRevealed) {
+      setNextQuestionSecondsLeft(null);
+      return;
+    }
+
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((nextQuestionDeadline - Date.now()) / 1000));
+      // 10 dernieres secondes seulement : avant, un decompte transformerait
+      // un moment d'ecoute en course contre la montre.
+      setNextQuestionSecondsLeft(remaining <= 10 ? remaining : null);
+    };
+    tick();
+    const interval = setInterval(tick, 500);
+    return () => clearInterval(interval);
+  }, [nextQuestionDeadline, quizRevealed]);
 
   // Le chrono est maintenant géré par Master, TV ne fait que lire
   // (Ce useEffect a été supprimé car il créait des conflits)
@@ -1356,6 +1386,59 @@ return (
             </div>
           );
         })()}
+
+        {/* ===== MOMENT D'ECOUTE =====
+            En phase 'revealed' la musique continue : la chanson est enfin
+            ecoutee. On soigne l'affichage — pochette en grand format,
+            titre et artiste — puisque c'est ce qu'on regarde pendant ce temps. */}
+        {quizRevealed && currentSong?.revealed && currentSong?.imageUrl && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '2rem',
+            backgroundColor: 'rgba(0, 0, 0, 0.35)',
+            borderRadius: '1.5rem',
+            padding: '1.5rem 2rem',
+            marginBottom: '1rem'
+          }}>
+            <img
+              src={currentSong.imageUrl}
+              alt={currentSong.title}
+              style={{
+                width: '12rem',
+                height: '12rem',
+                borderRadius: '1rem',
+                objectFit: 'cover',
+                boxShadow: '0 0.5rem 1.5rem rgba(0, 0, 0, 0.5)',
+                flexShrink: 0
+              }}
+            />
+            <div style={{ textAlign: 'left', minWidth: 0 }}>
+              <div style={{
+                fontSize: '2.6rem',
+                fontWeight: 'bold',
+                color: '#fbbf24',
+                marginBottom: '0.5rem',
+                lineHeight: 1.15
+              }}>
+                {currentSong.title}
+              </div>
+              <div style={{ fontSize: '1.8rem', opacity: 0.85 }}>
+                {currentSong.artist}
+              </div>
+              {nextQuestionSecondsLeft !== null && (
+                <div style={{
+                  marginTop: '1rem',
+                  fontSize: '1.1rem',
+                  color: '#fbbf24',
+                  fontWeight: '600'
+                }}>
+                  ⏱️ Question suivante dans {nextQuestionSecondsLeft} s
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Fallback for team mode - show current song info when no quiz question */}
         {!quizQuestion?.answers?.length && currentSong && (
