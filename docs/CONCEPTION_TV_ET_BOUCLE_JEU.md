@@ -1,6 +1,7 @@
 # CONCEPTION — Rendu TV & Boucle de jeu autonome
 
 **Date :** 5 août 2026
+**Révisé le :** 5 août 2026 — corrections suite à l'audit du code réel (cause du bug B1 établie, inventaire des lecteurs de `game_status.ended` complété, règles de sécurité corrigées, chemins de fichiers vérifiés)
 **Statut :** Conception — à valider avant génération des prompts Claude Code
 **Périmètre :** deux chantiers indépendants, à traiter sur deux branches distinctes
 
@@ -123,7 +124,7 @@ playing ──────► revealed ──────► last_reveal ──�
 | `last_reveal` | Dernière question révélée, en attente du déclenchement final | QuizDisplay + bandeau « classement final en attente » |
 | `ended` | Partie terminée | Écran de victoire |
 
-Le booléen `game_status.ended` existant est **conservé en écriture** (expand/contract) tant que tous ses lecteurs ne sont pas tracés — notamment le listener `TV.jsx` et `MasterFlowContainer.handleEndGame`.
+Le booléen `game_status.ended` existant est **conservé en écriture** (expand/contract) tant que tous ses lecteurs ne sont pas tracés. L'inventaire complet — 4 fichiers lecteurs, 3 écriveurs — est en **§B.9**.
 
 ## B.3 Nouveaux nœuds Firebase
 
@@ -143,25 +144,52 @@ sessions/{id}/
     └─ { playerId, playerName, timestamp }
 ```
 
-**Règles de sécurité** (`database.rules.json`) : les deux nouveaux nœuds sont en écriture pour tout utilisateur authentifié sur session active, sur le modèle exact de `quiz_next_song_request`. La **validation du demandeur se fait côté Master**, pas dans les règles.
+### Règles de sécurité — ne pas copier l'existant
+
+⚠️ La règle réelle de `quiz_next_song_request` (`database.rules.json:75-78`) est :
+
+```json
+"quiz_next_song_request": {
+  ".read": "root.child('sessions').child($sessionId).child('active').val() === true",
+  ".write": "root.child('sessions').child($sessionId).child('active').val() === true"
+}
+```
+
+**Aucun `auth != null`.** N'importe quel client non authentifié connaissant l'ID de session peut écrire dans ce nœud. Copier « le modèle exact » ouvrirait un nœud non authentifié capable de **terminer la partie**.
+
+**Décision :** les deux nouveaux nœuds `final_reveal_request` et `quiz_playback_request` exigent `auth != null && session active` — plus stricts que l'existant :
+
+```json
+".write": "auth != null && root.child('sessions').child($sessionId).child('active').val() === true"
+```
+
+La **validation du demandeur** (est-ce bien le vainqueur ?) reste **côté Master**, pas dans les règles.
+
+> **Note — hors périmètre :** le trou de sécurité sur les nœuds existants (`quiz_next_song_request`, `quiz_answers`) fera l'objet d'une **PR séparée**. Ce chantier ne le corrige pas, il évite seulement de le reproduire.
 
 ## B.4 Sujet B1 — Bug : points de la dernière question non comptés
 
 ### Symptôme
 À la dernière question, on passe directement à l'écran des résultats sans que les points de cette question soient ajoutés.
 
-### Causes identifiées
+### Cause — établie par audit du code
 
-**(a) `endGame()` lit le state React au lieu de Firebase.** Dans `Master.jsx` :
+Le déclencheur de la fin automatique est `src/Master.jsx:1008-1022` :
+
+```js
+if (currentSong?.revealed && playlist.length > 0 && currentTrack === playlist.length && !gameEnded) {
+  endGame();
+}
+```
+
+Il **exige `currentSong?.revealed`**. La révélation a donc bien lieu, et les points sont calculés normalement. Une hypothèse antérieure supposait que la séquence sautait la révélation à la dernière piste (`canNavigateNext()` à `false`) : le code la contredit, elle est abandonnée.
+
+**Seule cause en jeu — `endGame()` lit le state React au lieu de Firebase.** Dans `Master.jsx:971-972` :
 ```js
 winner: scores.team1 > scores.team2 ? 'team1' : ...
 final_scores: scores
 ```
-Si l'attribution des points n'est pas encore propagée dans le state au moment de l'appel, `final_scores` est figé sur l'avant-dernier score. Race condition de closure.
-
-**(b) La séquence saute la révélation.** À la dernière piste, `canNavigateNext()` retourne `false` et la bascule vers la fin se produit sans que `quiz.revealed` soit passé à `true` — les points ne sont donc jamais calculés.
-
-> **Incertitude :** le code exact qui déclenche la fin automatique à la dernière piste n'a pas été localisé dans le projet. Impossible de déterminer laquelle des deux causes domine. Le correctif ci-dessous neutralise les deux.
+`endGame()` part dans le **même cycle de rendu** que la révélation et lit `scores` avant que l'attribution des points ne soit propagée dans le state. `final_scores` est donc figé sur l'avant-dernier score. Race condition de closure.
 
 ### Correctif
 
@@ -174,6 +202,12 @@ const finalScores = snap.val() || { team1: 0, team2: 0 };
 // idem pour quiz_leaderboard
 ```
 C'est le correctif de fond. **Jamais le state React pour les données de fin de partie.**
+
+4. **Passer tous les écrits de `game_status` en `update()`.** `endGame()` utilise aujourd'hui `set()` sur le nœud `game_status` (`Master.jsx:968-974`), ce qui **écrase l'intégralité du nœud**. Un `phase: 'last_reveal'` écrit juste avant serait effacé au moment du passage en `ended`. La machine à états B.2 ne peut pas fonctionner tant que cet écrit reste un `set()`.
+
+5. **Brancher le calcul du vainqueur sur `playMode`.** `endGame()` calcule aujourd'hui `winner` sur `team1`/`team2` uniquement (`Master.jsx:971`), ce qui est sans objet en mode quiz où les scores sont individuels dans `quiz_leaderboard`.
+   - mode `quiz` → tête de `quiz_leaderboard`
+   - mode `team` → comparaison des scores d'équipe (comportement actuel)
 
 ## B.5 Sujet B2 — Déclenchement de l'écran final par le vainqueur
 
@@ -237,7 +271,9 @@ Quand on écoute, on ne regarde pas la TV : on ignore si l'on est le dernier à 
 
 **Conséquence à assumer :** l'audio ne signale plus « il en manque un ». Le flash sur le buzzer (§B.7.2) devient **le seul canal** pour savoir qu'on est le dernier. L'escalade à deux niveaux doit donc être soignée, elle n'a pas de filet.
 
-**Mixage :** le beep passe par Web Audio, la musique par le SDK Spotify — deux chaînes indépendantes. Baisser le volume Spotify à ~40 % pendant 150 ms via `spotifyService.setVolume()`, sinon le beep est noyé.
+**Mixage :** le beep passe par Web Audio, la musique par le SDK Spotify — deux chaînes indépendantes. Baisser le volume Spotify à ~40 % pendant 150 ms puis restaurer, sinon le beep est noyé.
+
+⚠️ **`spotifyService.setVolume()` n'existe pas.** Le seul réglage de volume dans `src/spotifyService.js` est `volume: 0.8` passé à la construction du player (l.150). Le SDK expose `player.setVolume()` et `player.getVolume()` sur l'instance : il faut d'abord **exposer ces méthodes dans le service** avant de pouvoir faire le ducking. Étape préalable à ne pas oublier dans le chiffrage de B4.
 
 ### B.7.2 — Flash sur le buzzer
 
@@ -282,10 +318,32 @@ Le timeout est un filet de sécurité, pas une fonctionnalité visible.
 
 `phase` et `ended` expriment la même information, mais `phase` est plus riche. Supprimer `ended` immédiatement casserait tous les lecteurs non identifiés.
 
-**Pattern expand/contract** (identique à `famille_genre` dans Trésor) :
+### Inventaire complet — établi par grep sur le code réel
 
-1. **Expand** *(ce chantier)* — écriture des deux champs en parallèle : `ended: true` **et** `phase: 'ended'`. Rien ne casse, les lecteurs existants continuent de fonctionner.
-2. **Migration** *(ce chantier)* — bascule des lecteurs connus vers `phase`, un par un, avec vérification : listener `TV.jsx`, `MasterFlowContainer.handleEndGame`.
+**Lecteurs (4) — tous à migrer vers `phase` :**
+
+| Emplacement | Usage |
+|---|---|
+| `src/TV.jsx:354` | `if (status && status.ended)` → bascule sur l'écran de victoire |
+| `src/TV.jsx:379` | `else if (status && !status.ended && gameEnded)` → **détection du reset** de partie |
+| `src/BuzzerQuiz.jsx:137` | `if (status?.ended === true)` → écran de fin côté joueur quiz |
+| `src/BuzzerTeam.jsx:57` | `if (status?.ended === true)` → écran de fin côté joueur équipe |
+| `src/pages/MasterFlow/MasterFlowContainer.jsx:165` | `game_status?.ended !== true` → **garde de reprise de session** |
+
+⚠️ `TV.jsx:379` lit `ended === false` pour détecter un **reset**, pas une fin. Une migration naïve vers `phase === 'ended'` casserait la reprise d'une nouvelle partie sur la TV.
+
+**Écriveurs (3)** — le document classait à tort `handleEndGame` parmi les lecteurs :
+
+| Emplacement | Écrit | À faire |
+|---|---|---|
+| `src/Master.jsx:966-974` `endGame()` | `set()` sur `game_status` | **passer en `update()`** (cf. B.4), puis écrire `ended: true` **et** `phase: 'ended'` |
+| `src/pages/MasterFlow/MasterFlowContainer.jsx:440` `handleEndGame` | `'game_status/ended': true` | ajouter `'game_status/phase': 'ended'` |
+| `src/pages/MasterFlow/MasterFlowContainer.jsx:402` reset | `game_status = { ended: false }` | doit **aussi écrire `phase: 'playing'`**, sinon la TV reste sur l'écran de victoire après un reset |
+
+### Pattern expand/contract (identique à `famille_genre` dans Trésor)
+
+1. **Expand** *(ce chantier)* — écriture des deux champs en parallèle : `ended: true` **et** `phase: 'ended'`, sur les 3 écriveurs ci-dessus. Rien ne casse, les lecteurs existants continuent de fonctionner.
+2. **Migration** *(ce chantier)* — bascule des 5 points de lecture ci-dessus vers `phase`, un par un, avec vérification.
 3. **Contract** *(hors périmètre)* — quand un tracer confirme qu'aucun lecteur ne subsiste, arrêt de l'écriture puis suppression du champ.
 
 **L'étape 3 n'est pas dans ce chantier.** Elle attend la confirmation du tracer.
@@ -314,11 +372,25 @@ Les phases B1 → B3 sont **séquentielles** : elles modifient les mêmes fichie
 | 2 | Timeouts | 90 s (question suivante) / 45 s (écran final), reset sur action, compte à rebours TV sur les 10 dernières secondes ✅ |
 | 3 | Beep progressif | **Abandonné.** Beep uniforme + beep spécial dernier buzz ✅ |
 | 4 | Suppression de `game_status.ended` | Expand/contract — étapes 1 et 2 dans ce chantier, contract reporté ✅ |
+| 5 | Règles de sécurité des nouveaux nœuds | `auth != null && session active` — **plus strictes** que `quiz_next_song_request`, qui n'exige aucune authentification. Correction de l'existant en PR séparée ✅ |
 
 ---
 
 # Fichiers impactés
 
-**Chantier A :** `index.css`, `TV.jsx`, `components/tv/QuizDisplay.jsx`
+Chemins vérifiés sur le code réel.
 
-**Chantier B :** `Master.jsx`, `TV.jsx`, `components/master/QuizControls.jsx`, `components/buzzer/QuizInterface.jsx`, `hooks/useBuzzer.js`, `hooks/useScoring.js`, `services/spotifyService.js`, `database.rules.json`, `utils/sessionCleanup.js` (documentation des nouveaux nœuds)
+**Chantier A :** `src/index.css`, `src/TV.jsx`, `src/components/tv/QuizDisplay.jsx`
+
+**Chantier B :** `src/Master.jsx`, `src/TV.jsx`, `src/BuzzerQuiz.jsx`, `src/BuzzerTeam.jsx`, `src/pages/MasterFlow/MasterFlowContainer.jsx`, `src/components/master/QuizControls.jsx`, `src/components/buzzer/QuizInterface.jsx`, `src/hooks/useBuzzer.js`, `src/hooks/useScoring.js`, `src/spotifyService.js`, `database.rules.json`, `src/utils/firebaseCleanup.js` (liste des nœuds à purger)
+
+**Corrections de chemins par rapport à la version initiale :**
+
+| Cité initialement | Chemin réel |
+|---|---|
+| `services/spotifyService.js` | `src/spotifyService.js` (racine de `src/`) |
+| `utils/sessionCleanup.js` | `src/utils/firebaseCleanup.js` — c'est là qu'est la liste des nœuds à purger (l.117, contient déjà `quiz_next_song_request`). `sessionCleanup.js` existe mais ne fait que désactiver la session. |
+| `canNavigateNext()` rattaché au scoring | `src/hooks/usePlaylist.js:28` |
+| `spotifyService.setVolume()` | **N'existe pas.** Le seul réglage de volume est `volume: 0.8` à l'init du player (`src/spotifyService.js:150`). Le SDK Spotify expose bien `player.setVolume()`, mais il faut d'abord l'exposer dans le service — cf. B.7.1. |
+
+`BuzzerQuiz.jsx` et `BuzzerTeam.jsx` s'ajoutent à la liste : ce sont des lecteurs de `game_status.ended` (cf. B.9), initialement non identifiés.

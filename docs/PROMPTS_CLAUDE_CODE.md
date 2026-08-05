@@ -1,6 +1,8 @@
 # Prompts Claude Code — Rendu TV & Boucle de jeu autonome
 
-**Document de référence :** `CONCEPTION_TV_ET_BOUCLE_JEU.md` (à committer dans le repo avant de lancer les agents)
+**Document de référence :** `docs/CONCEPTION_TV_ET_BOUCLE_JEU.md` (committé dans le repo)
+
+**Révisé le 5 août 2026** — les prompts intègrent les corrections issues de l'audit du code réel : cause du bug B1 établie (ne plus la chercher), inventaire complet des lecteurs de `game_status.ended`, règles de sécurité durcies, `spotifyService.setVolume()` inexistant, chemins et numéros de ligne vérifiés.
 
 ## Ordre d'exécution
 
@@ -33,7 +35,8 @@ vu à 50 cm, alors qu'il est regardé à 3 mètres. Problème de design 10-foot.
 
 ## Tâches
 
-1. Dans `index.css`, ajouter :
+1. Dans `src/index.css` (importé globalement par `src/main.jsx:4` — d'où
+   l'importance du scope `.tv-mode`, cf. contraintes), ajouter :
    - `html.tv-mode { font-size: 26px; }` en fallback
    - un bloc `@supports (font-size: clamp(1px, 1vw, 2px))` qui surcharge avec
      `clamp(24px, 1.35vw, 42px)`
@@ -43,19 +46,23 @@ vu à 50 cm, alors qu'il est regardé à 3 mètres. Problème de design 10-foot.
 2. Dans `TV.jsx`, ajouter un useEffect qui pose la classe `tv-mode` sur
    `document.documentElement` au montage et la retire au démontage.
 
-3. Convertir tous les px fixes en rem dans `TV.jsx` et `components/tv/QuizDisplay.jsx` :
-   - grille principale `'1fr 380px'` -> `'1fr 22rem'`
-   - nom joueur `maxWidth: '90px'` -> `5rem`
-   - leaderboard `maxHeight: '180px'` -> `10rem`
-   - écran de fin : `1200px` -> `70rem`, `800px` -> `46rem`
-   - QuizDisplay réponses : `1000px` -> `56rem`
+3. Convertir tous les px fixes en rem dans `src/TV.jsx` et
+   `src/components/tv/QuizDisplay.jsx`. Emplacements repérés par audit — attention,
+   PLUSIEURS occurrences pour certaines valeurs :
+   - `TV.jsx:1025` grille principale `'1fr 380px'` -> `'1fr 22rem'`
+   - `TV.jsx:127` nom joueur `maxWidth: '90px'` -> `5rem`
+   - `TV.jsx:1593` leaderboard `maxHeight: '180px'` -> `10rem`
+   - `TV.jsx:704` écran de fin `1200px` -> `70rem`
+   - `TV.jsx:749` ET `TV.jsx:781` — DEUX occurrences de `800px` -> `46rem`
+   - `QuizDisplay.jsx:189`, `:290` ET `:377` — TROIS occurrences de `1000px` -> `56rem`
    - pastilles/barres : `8px` -> `0.5rem`, `16px` -> `1rem`, `4px` -> `0.25rem`
-   - QRCodeSVG `size={300}` -> `size={420}`
-   Fais un grep exhaustif : toute valeur en px restante qui participe à la mise en
-   page doit être convertie. Les bordures de 1-2px peuvent rester.
+   - `TV.jsx:1732` QRCodeSVG `size={300}` -> `size={420}`
+   Fais quand même un grep exhaustif : toute valeur en px restante qui participe à
+   la mise en page doit être convertie. Les bordures de 1-2px peuvent rester.
 
 4. Hauteur : le navigateur Samsung garde sa barre d'URL, hauteur utile ~980px.
-   - wrapper principal : `minHeight: 100vh` -> `height: 100vh` + `overflow: hidden`
+   - wrappers `minHeight: '100vh'` -> `height: 100vh` + `overflow: hidden`.
+     QUATRE emplacements : `TV.jsx:634`, `:690`, `:871` et `QuizDisplay.jsx:64`.
    - panneaux listes : `overflow-y: auto`
    - leaderboard : réduire de 5 à 4 entrées affichées
    - N'UTILISE PAS `dvh`, non supporté par ce moteur.
@@ -95,16 +102,24 @@ Lis d'abord `CONCEPTION_TV_ET_BOUCLE_JEU.md`, sections B.2, B.4 et B.9. Il fait 
 À la dernière question du quiz, on bascule directement sur l'écran des résultats
 sans que les points de cette dernière question soient comptés.
 
-Deux causes possibles, non départagées :
-(a) `endGame()` dans `Master.jsx` lit le state React `scores` au lieu de Firebase.
-    Si l'attribution des points n'est pas encore propagée, `final_scores` est figé
-    sur l'avant-dernier score. Race condition de closure.
-(b) La séquence saute la révélation : à la dernière piste `canNavigateNext()`
-    retourne false et la bascule vers la fin se produit sans que `quiz.revealed`
-    passe à true, donc les points ne sont jamais calculés.
+CAUSE ÉTABLIE PAR AUDIT — ne la recherche pas, elle est tranchée.
 
-Commence par LOCALISER le code qui déclenche la fin automatique à la dernière
-piste. Je ne l'ai pas trouvé. Documente ce que tu trouves dans la PR.
+Le déclencheur de la fin automatique est `src/Master.jsx:1008-1022` :
+
+```js
+if (currentSong?.revealed && playlist.length > 0 && currentTrack === playlist.length && !gameEnded) {
+  endGame();
+}
+```
+
+Il EXIGE `currentSong?.revealed`. La révélation a donc bien lieu et les points
+sont calculés. Le problème est ailleurs : `endGame()` part dans le MÊME cycle de
+rendu que la révélation et lit le state React `scores` (`Master.jsx:971-972`)
+avant que l'attribution des points n'y soit propagée. `final_scores` est figé sur
+l'avant-dernier score. Race condition de closure.
+
+(Une hypothèse antérieure supposait que la séquence sautait la révélation via
+`canNavigateNext()` — le code la contredit, elle est abandonnée.)
 
 ## Tâches
 
@@ -113,20 +128,46 @@ piste. Je ne l'ai pas trouvé. Documente ce que tu trouves dans la PR.
    Transitions : playing -> revealed -> (question suivante -> playing)
                  dernière question : playing -> revealed -> last_reveal -> ended
 
-2. EXPAND/CONTRACT sur `game_status.ended` :
-   - continue d'écrire `ended: true` EN PARALLÈLE de `phase: 'ended'`
-   - migre les lecteurs connus vers `phase` : listener de `TV.jsx`,
-     `MasterFlowContainer.handleEndGame`
-   - fais un grep exhaustif des lecteurs de `ended` et liste-les dans la PR
-   - NE SUPPRIME PAS le champ `ended`. Le contract est hors périmètre.
+2. EXPAND/CONTRACT sur `game_status.ended`. L'inventaire a DÉJÀ été fait par grep,
+   il est exhaustif — vérifie-le mais ne pars pas de zéro.
 
-3. Corriger `endGame()` dans `Master.jsx` : relire systématiquement les scores
-   depuis Firebase avec `get()`, jamais depuis le state React.
+   LECTEURS (5 points de lecture dans 4 fichiers), tous à migrer vers `phase` :
+   - `src/TV.jsx:354`  — `if (status && status.ended)` -> écran de victoire
+   - `src/TV.jsx:379`  — `else if (status && !status.ended && gameEnded)`
+     ⚠️ celui-ci détecte le RESET de partie, pas la fin. Une migration naïve vers
+     `phase === 'ended'` casserait la reprise d'une nouvelle partie sur la TV.
+   - `src/BuzzerQuiz.jsx:137` — `if (status?.ended === true)`
+   - `src/BuzzerTeam.jsx:57`  — `if (status?.ended === true)`
+   - `src/pages/MasterFlow/MasterFlowContainer.jsx:165` — garde de reprise de session
+
+   ÉCRIVEURS (3) :
+   - `src/Master.jsx:966-974` `endGame()` — cf. tâche 3
+   - `src/pages/MasterFlow/MasterFlowContainer.jsx:440` `handleEndGame`
+     -> ajouter `'game_status/phase': 'ended'`
+   - `src/pages/MasterFlow/MasterFlowContainer.jsx:402` reset `{ ended: false }`
+     -> doit AUSSI écrire `phase: 'playing'`, sinon la TV reste bloquée sur
+        l'écran de victoire après un reset
+
+   NE SUPPRIME PAS le champ `ended`. Le contract est hors périmètre.
+
+3. Corriger `endGame()` dans `Master.jsx`, trois points :
+
+   a) Relire systématiquement les scores depuis Firebase avec `get()`, jamais
+      depuis le state React :
    ```js
    const snap = await get(ref(database, `sessions/${sessionId}/scores`));
    const finalScores = snap.val() || { team1: 0, team2: 0 };
    ```
    Idem pour `quiz_leaderboard`. C'est le correctif de fond.
+
+   b) ⚠️ `endGame()` utilise `set()` sur `game_status` (`Master.jsx:968-974`), ce
+      qui ÉCRASE tout le nœud. Bascule tous les écrits de `game_status` en
+      `update()` — sinon le `phase: 'last_reveal'` écrit à la tâche 4 serait effacé
+      et la machine à états ne peut pas fonctionner.
+
+   c) `winner` est calculé sur `team1`/`team2` (`Master.jsx:971`), ce qui est sans
+      objet en mode quiz où les scores sont individuels. Branche sur `playMode` :
+      quiz -> tête de `quiz_leaderboard`, équipe -> comparaison des scores.
 
 4. Dernière question : le Master écrit `phase: 'last_reveal'` après révélation
    et attribution des points, PAS `ended: true`.
@@ -142,11 +183,12 @@ piste. Je ne l'ai pas trouvé. Documente ce que tu trouves dans la PR.
 - Aucune modification de `database.rules.json` dans cette PR (B2 s'en charge).
 
 ## Livrable
-PR vers `develop`. Dans le résumé : où était le déclencheur de fin automatique,
-quelle cause (a) ou (b) était réellement en jeu, et la liste complète des lecteurs
-de `game_status.ended` trouvés par grep.
+PR vers `develop`. Dans le résumé : confirme que l'inventaire des lecteurs/écriveurs
+ci-dessus est complet (ou complète-le), et décris comment tu as traité le cas
+particulier de `TV.jsx:379` (détection du reset).
 Test manuel à décrire : lancer une partie quiz de 2 pistes, vérifier que les points
-de la piste 2 sont bien dans `final_scores`.
+de la piste 2 sont bien dans `final_scores`, puis relancer une partie et vérifier
+que la TV sort bien de l'écran de victoire.
 ````
 
 ---
@@ -169,7 +211,10 @@ un serveur headless piloté par les buzzers.
 
 ## Pattern à réutiliser
 `sessions/{id}/quiz_next_song_request` existe déjà : le joueur écrit une requête,
-le Master l'écoute, la valide, l'exécute et la supprime. Calque-toi dessus.
+le Master l'écoute, la valide, l'exécute et la supprime. Calque-toi dessus pour la
+MÉCANIQUE (écriture / listener / remove / flag anti-double-traitement).
+
+⚠️ Mais PAS pour les règles de sécurité — voir tâche 6.
 
 ## Tâches
 
@@ -194,9 +239,22 @@ le Master l'écoute, la valide, l'exécute et la supprime. Calque-toi dessus.
    en `phase: 'ended'`. Le timer se reset sur toute action du vainqueur.
    Compte à rebours visible sur la TV les 10 dernières secondes.
 
-6. `database.rules.json` : autoriser l'écriture de `final_reveal_request` pour
-   tout utilisateur authentifié sur session active, sur le modèle EXACT de
-   `quiz_next_song_request`. La validation du demandeur reste côté Master.
+6. `database.rules.json` : autoriser l'écriture de `final_reveal_request` avec
+   ```json
+   ".write": "auth != null && root.child('sessions').child($sessionId).child('active').val() === true"
+   ```
+
+   ⚠️ NE COPIE PAS la règle de `quiz_next_song_request` (`database.rules.json:75-78`).
+   Elle ne contient AUCUN `auth != null`, seulement la vérification de session
+   active : n'importe quel client non authentifié connaissant l'ID de session peut
+   y écrire. La reproduire ici ouvrirait un nœud non authentifié capable de
+   TERMINER LA PARTIE.
+
+   Les nouveaux nœuds sont volontairement PLUS STRICTS que l'existant. Le trou de
+   sécurité sur les nœuds existants fera l'objet d'une PR séparée : ne le corrige
+   pas ici, c'est hors périmètre.
+
+   La validation du demandeur (est-ce bien le vainqueur ?) reste côté Master.
 
 ## Contraintes
 - Le timer est porté par le Master uniquement. Jamais par le buzzer ou la TV :
@@ -259,11 +317,15 @@ chanson autant qu'il veut avant de passer à la suite.
    Timer porté par le Master, reset sur toute action du vainqueur (play, pause,
    continuer). Compte à rebours visible sur la TV les 10 dernières secondes.
 
-7. `database.rules.json` : ajouter `quiz_playback_request` sur le même modèle.
+7. `database.rules.json` : ajouter `quiz_playback_request` avec la MÊME règle que
+   `final_reveal_request` posée par la PR précédente, c'est-à-dire
+   `auth != null && session active`. Ne copie pas `quiz_next_song_request`, dont
+   la règle n'exige aucune authentification.
 
 ## Contraintes
-- Le `SpotifyPlayerAdapter` sauvegarde déjà `currentPosition` au pause : la reprise
-  doit repartir au bon endroit, ne réimplémente pas cette logique.
+- Le `SpotifyPlayerAdapter` (`src/services/playerAdapter.js:42`) sauvegarde déjà
+  `currentPosition` au pause (l.88, restitué l.62 et l.108) : la reprise repart au
+  bon endroit, ne réimplémente pas cette logique.
 - RÉGRESSION À SURVEILLER : le scoring. Après cette PR, vérifie qu'une partie
   complète attribue les mêmes points qu'avant sur les questions non-dernières.
 - Ne casse pas le mode équipe.
@@ -300,9 +362,15 @@ silencieux. Point d'entrée : le son de buzzer existant dans `useBuzzer.js`.
 - Le beep spécial du dernier buzz est CONSERVÉ tel quel — le contraste entre les
   deux sons porte l'information « c'est bouclé »
 - PAS de progression tonale. Décision explicite, ne l'implémente pas.
-- Mixage : baisser le volume Spotify à ~40% pendant 150 ms via
-  `spotifyService.setVolume()` puis restaurer, sinon le beep est noyé sous la
-  musique (deux chaînes audio indépendantes : Web Audio vs SDK Spotify)
+- Mixage : baisser le volume Spotify à ~40% pendant 150 ms puis restaurer, sinon
+  le beep est noyé sous la musique (deux chaînes audio indépendantes : Web Audio
+  vs SDK Spotify)
+
+  ⚠️ ÉTAPE PRÉALABLE : `spotifyService.setVolume()` N'EXISTE PAS. Le seul réglage
+  de volume dans `src/spotifyService.js` est `volume: 0.8` passé à la construction
+  du player (l.150). Le SDK expose `player.setVolume()` / `player.getVolume()` sur
+  l'instance : commence par exposer ces méthodes dans le service, puis fais le
+  ducking. Ne suppose pas que l'API existe déjà.
 
 ## Tâche 2 — Flash sur le buzzer (sur le MOBILE)
 
