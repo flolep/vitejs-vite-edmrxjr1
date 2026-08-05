@@ -5,6 +5,7 @@ import { airtableService } from './airtableService';
 import { useBuzzerLocalStorage } from './hooks/buzzer/useBuzzerLocalStorage';
 import { useBuzzerCamera } from './hooks/buzzer/useBuzzerCamera';
 import { useBuzzerSession } from './hooks/buzzer/useBuzzerSession';
+import { isGameEnded } from './utils/gamePhase';
 import { NameScreen } from './components/buzzer/screens/NameScreen';
 import { SelectScreen } from './components/buzzer/screens/SelectScreen';
 import { PhotoScreen } from './components/buzzer/screens/PhotoScreen';
@@ -54,7 +55,7 @@ export default function BuzzerTeam({ sessionIdFromRouter = null }) {
     const gameStatusRef = ref(database, `sessions/${sessionId}/game_status`);
     const unsubscribe = onValue(gameStatusRef, (snapshot) => {
       const status = snapshot.val();
-      if (status?.ended === true) {
+      if (isGameEnded(status)) {
         setGameEnded(true);
         setFinalScores(status.final_scores || {});
       }

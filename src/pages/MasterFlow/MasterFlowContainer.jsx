@@ -6,6 +6,7 @@ import Login from '../../components/Login';
 import { hasRefreshToken } from '../../utils/spotifyUtils';
 import { useSpotifyToken } from '../../contexts/SpotifyTokenContext';
 import { sessionStorage_ } from '../../utils/storage';
+import { GAME_PHASES, isGameEnded } from '../../utils/gamePhase';
 
 // Import des étapes
 import StepModeSelection from './steps/StepModeSelection';
@@ -162,7 +163,7 @@ export default function MasterFlowContainer() {
         (existingSession.gameMode?.split('-')[0]);
 
       const isResumable = existingSession.active === true
-        && existingSession.game_status?.ended !== true
+        && !isGameEnded(existingSession.game_status)
         && existingSession.startedAt != null
         && (
           existingSession.playlistId != null
@@ -174,6 +175,7 @@ export default function MasterFlowContainer() {
         console.log('[Resume] Session trouvée mais non reprendable:', {
           active: existingSession.active,
           ended: existingSession.game_status?.ended,
+          phase: existingSession.game_status?.phase,
           startedAt: existingSession.startedAt,
           playlistId: existingSession.playlistId
         });
@@ -399,7 +401,12 @@ export default function MasterFlowContainer() {
       updates[`sessions/${sid}/isPlaying`] = false;
       updates[`sessions/${sid}/currentTrackNumber`] = 1;
       updates[`sessions/${sid}/currentSong`] = null;
-      updates[`sessions/${sid}/game_status`] = { ended: false };
+      // phase ET ended (expand) : sans `phase: 'playing'`, la TV qui affiche
+      // l'ecran de victoire ne detecte pas le reset et y reste bloquee.
+      updates[`sessions/${sid}/game_status`] = {
+        ended: false,
+        phase: GAME_PHASES.PLAYING
+      };
       updates[`sessions/${sid}/showQRCode`] = false;
       updates[`sessions/${sid}/startedAt`] = Date.now();
 
@@ -438,6 +445,7 @@ export default function MasterFlowContainer() {
         await update(sessionRef, {
           active: false,
           'game_status/ended': true,
+          'game_status/phase': GAME_PHASES.ENDED,
           endedAt: Date.now()
         });
 

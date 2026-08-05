@@ -7,6 +7,7 @@ import GameEndDashboard from './components/tv/GameEndDashboard';
 import tresorService from './tresorService';
 import { calculatePoints } from './hooks/useScoring';
 import SessionCodeInput from './components/SessionCodeInput';
+import { GAME_PHASES, resolveGamePhase } from './utils/gamePhase';
 
 // Constantes de design
 const COLORS = {
@@ -161,6 +162,7 @@ export default function TV() {
 
   // NOUVEAU : État de fin de partie
   const [gameEnded, setGameEnded] = useState(false);
+  const [lastReveal, setLastReveal] = useState(false); // derniere question revelee
   const [winner, setWinner] = useState(null);
   const [fastestBuzz, setFastestBuzz] = useState(null);
 
@@ -333,9 +335,14 @@ export default function TV() {
     const gameStatusRef = ref(database, `sessions/${sessionId}/game_status`);
     const unsubscribe = onValue(gameStatusRef, (snapshot) => {
       const status = snapshot.val();
+      const phase = resolveGamePhase(status);
+
+      // La derniere question est revelee mais le classement final n'est pas
+      // encore declenche : on reste sur le resultat de la question.
+      setLastReveal(phase === GAME_PHASES.LAST_REVEAL);
 
       // Si la partie est terminée
-      if (status && status.ended) {
+      if (phase === GAME_PHASES.ENDED) {
         setGameEnded(true);
         setWinner(status.winner);
 
@@ -359,8 +366,19 @@ export default function TV() {
           }
         }, { onlyOnce: true });
       }
-      // Si reset complet (ended = false)
-      else if (status && !status.ended && gameEnded) {
+      // Si reset complet — nouvelle partie lancee alors que la TV affiche
+      // encore l'ecran de victoire.
+      //
+      // ⚠️ Ce test detecte un RESET, pas une fin. Il ne peut donc pas devenir
+      // `phase === 'ended'` : c'est la condition inverse qu'il faut, « la
+      // partie n'est plus terminee alors que la TV croit qu'elle l'est ».
+      //
+      // Le passage par resolveGamePhase est ce qui rend la migration sure :
+      // sur une session creee avant `phase`, `status.phase` est undefined et
+      // un test naif `status.phase !== 'ended'` serait vrai en permanence —
+      // la TV rechargerait en boucle sur l'ecran de victoire. resolveGamePhase
+      // retombe sur le booleen `ended` et renvoie bien 'ended'.
+      else if (phase !== null && phase !== GAME_PHASES.ENDED && gameEnded) {
         // Recharger la page pour revenir à l'état initial
         window.location.reload();
       }
@@ -850,12 +868,33 @@ return (
     flexDirection: 'column'
   }}>
 
+    {/* ===== BANDEAU DERNIERE QUESTION =====
+        En phase 'last_reveal' la TV NE bascule PAS sur l'ecran de victoire :
+        elle reste sur le resultat de la question et annonce l'attente. */}
+    {lastReveal && (
+      <div style={{
+        backgroundColor: 'rgba(251, 191, 36, 0.15)',
+        border: '0.1rem solid #fbbf24',
+        borderRadius: '1rem',
+        padding: '0.75rem 1.25rem',
+        marginBottom: '1rem',
+        textAlign: 'center',
+        fontSize: '1.1rem',
+        fontWeight: '600',
+        color: '#fbbf24',
+        flexShrink: 0
+      }}>
+        🏁 Dernière question — classement final en attente
+      </div>
+    )}
+
     {/* ===== HEADER ===== */}
     <div style={{
       display: 'flex',
       alignItems: 'flex-start',
       gap: '1.5rem',
-      marginBottom: '1.5rem'
+      marginBottom: '1.5rem',
+      flexShrink: 0
     }}>
       {/* Badge Question */}
       <div style={{

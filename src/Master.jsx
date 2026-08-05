@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { database, auth } from './firebase';
-import { ref, onValue, set, remove } from 'firebase/database';
+import { ref, onValue, set, get, update, remove } from 'firebase/database';
 import { spotifyService } from './spotifyService';
 import { n8nService } from './n8nService';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { QRCodeSVG } from 'qrcode.react';
 import { deactivatePreviousSession } from './utils/sessionCleanup';
 import { getSessionCode } from './utils/sessionUtils';
+import { GAME_PHASES, resolveGamePhase } from './utils/gamePhase';
 
 // Import des hooks
 import { useGameSession } from './hooks/useGameSession';
@@ -976,13 +977,53 @@ export default function Master({
     }, { onlyOnce: true });
   };
 
+  /**
+   * Termine la partie : phase 'ended' + scores finaux.
+   *
+   * ⚠️ REGLE ABSOLUE — aucune donnee de fin de partie ne vient du state React.
+   * endGame() est appele dans le meme cycle de rendu que la revelation de la
+   * derniere question : le state `scores` n'a pas encore recu les points de
+   * cette question, et `final_scores` restait fige sur l'avant-dernier score.
+   * C'etait la cause du bug « les points de la derniere question ne comptent
+   * pas ». Tout est donc relu depuis Firebase.
+   */
   const endGame = async () => {
-    // Marquer la partie comme terminée
+    // 1. Relire les scores d'equipe depuis Firebase, jamais depuis le state
+    const scoresSnap = await get(ref(database, `sessions/${sessionId}/scores`));
+    const finalScores = scoresSnap.val() || { team1: 0, team2: 0 };
+
+    // 2. Relire le classement quiz depuis Firebase
+    const leaderboardSnap = await get(ref(database, `sessions/${sessionId}/quiz_leaderboard`));
+    const finalLeaderboard = leaderboardSnap.val() || {};
+
+    // 3. Le vainqueur depend du mode : en quiz les scores sont individuels
+    //    dans quiz_leaderboard, la comparaison team1/team2 y est sans objet.
+    let winner;
+    if (playMode === 'quiz') {
+      const ranked = Object.values(finalLeaderboard)
+        .sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0));
+      winner = ranked[0]?.playerId || null;
+    } else {
+      winner = finalScores.team1 > finalScores.team2
+        ? 'team1'
+        : finalScores.team2 > finalScores.team1
+          ? 'team2'
+          : 'draw';
+    }
+
+    // 4. update() et non set() : set() ecrase tout le noeud game_status, ce
+    //    qui effacerait la phase ecrite juste avant (last_reveal) et empecherait
+    //    la machine a etats de fonctionner.
     const gameStatusRef = ref(database, `sessions/${sessionId}/game_status`);
-    await set(gameStatusRef, {
-      ended: true,
-      winner: scores.team1 > scores.team2 ? 'team1' : scores.team2 > scores.team1 ? 'team2' : 'draw',
-      final_scores: scores,
+    await update(gameStatusRef, {
+      ended: true, // conserve en ecriture (expand/contract)
+      phase: GAME_PHASES.ENDED,
+      winner,
+      winner_name: playMode === 'quiz'
+        ? (Object.values(finalLeaderboard)
+            .sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0))[0]?.playerName || null)
+        : null,
+      final_scores: finalScores,
       timestamp: Date.now()
     });
 
@@ -991,6 +1032,26 @@ export default function Master({
 
     setShowEndGameConfirm(false);
     setGameEnded(true);
+  };
+
+  /**
+   * Ecrit la phase courante. update() et non set() : le noeud game_status
+   * porte aussi winner, final_scores et ended.
+   *
+   * 'ended' est un etat terminal : on ne le quitte que par un reset explicite
+   * (MasterFlowContainer). Sans cette garde, un Master remonte sur une partie
+   * deja terminee — dont la derniere piste est revelee — reecrirait
+   * 'last_reveal' par-dessus 'ended', et la TV interpreterait ce retour en
+   * arriere comme un reset et se rechargerait en boucle.
+   */
+  const writePhase = async (phase) => {
+    if (!sessionId) return;
+    const gameStatusRef = ref(database, `sessions/${sessionId}/game_status`);
+
+    const snap = await get(gameStatusRef);
+    if (resolveGamePhase(snap.val()) === GAME_PHASES.ENDED) return;
+
+    await update(gameStatusRef, { phase, timestamp: Date.now() });
   };
 
   const handleLogout = async () => {
@@ -1018,21 +1079,42 @@ export default function Master({
     }, { onlyOnce: true });
   };
 
-  // Fin automatique quand la dernière chanson est révélée
-  // IMPORTANT: Ce useEffect doit être AVANT les early returns pour respecter les Rules of Hooks
+  // Machine a etats de la partie — pilote unique de `game_status.phase`.
+  //
+  // La revelation passe par plusieurs chemins (revealAnswer, addPoint,
+  // auto-reveal quand tous ont repondu). Plutot que d'ecrire la phase dans
+  // chacun — et d'en oublier un — on la derive de l'etat observable
+  // `currentSong.revealed`, ce qui donne un seul point de verite.
+  //
+  // ⚠️ La derniere question ne termine PLUS la partie automatiquement : elle
+  // s'arrete en 'last_reveal'. Terminer dans le meme cycle de rendu que la
+  // revelation figeait final_scores sur l'avant-dernier score — c'est la cause
+  // du bug des points manquants. Le passage a 'ended' est declenche ensuite,
+  // une fois les points ecrits : bouton « Terminer la partie » de l'animateur
+  // aujourd'hui, bouton du vainqueur + timeout 45 s avec B2.
+  //
+  // IMPORTANT: ce useEffect doit être AVANT les early returns (Rules of Hooks)
   const currentSong = playlist[currentTrack - 1];
+  const lastWrittenPhaseRef = useRef(null);
   useEffect(() => {
-    if (
-      currentSong?.revealed &&
-      playlist.length > 0 &&
-      currentTrack === playlist.length &&
-      !gameEnded
-    ) {
-      console.log('🏁 Dernière chanson révélée — fin de partie automatique');
-      endGame();
-    }
+    if (!sessionId || gameEnded) return;
+    if (!playlist.length) return;
+
+    const isLastTrack = currentTrack === playlist.length;
+    const revealed = !!currentSong?.revealed;
+
+    const targetPhase = revealed
+      ? (isLastTrack ? GAME_PHASES.LAST_REVEAL : GAME_PHASES.REVEALED)
+      : GAME_PHASES.PLAYING;
+
+    // Eviter de reecrire la meme phase a chaque rendu
+    if (lastWrittenPhaseRef.current === targetPhase) return;
+    lastWrittenPhaseRef.current = targetPhase;
+
+    console.log(`🎬 Phase de partie → ${targetPhase}`);
+    writePhase(targetPhase);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSong?.revealed, currentTrack, playlist.length, gameEnded]);
+  }, [currentSong?.revealed, currentTrack, playlist.length, gameEnded, sessionId]);
 
   // === RENDU ===
 
