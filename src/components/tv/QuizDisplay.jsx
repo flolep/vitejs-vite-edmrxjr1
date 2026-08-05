@@ -27,7 +27,6 @@ export function QuizDisplay({
   // Détection des paliers
   const isAt5s = chrono >= 4.5 && chrono <= 5.5;
   const isAt15s = chrono >= 14.5 && chrono <= 15.5;
-  const isNearCritical = availablePoints < 250;
 
   // 🎲 Mélanger les positions visuelles des réponses (stable par chanson)
   // Utilise le trackNumber comme seed pour avoir toujours le même ordre pendant la question
@@ -148,8 +147,7 @@ export function QuizDisplay({
                       fontWeight: 'bold',
                       color: pointsColor,
                       lineHeight: 1,
-                      textShadow: `0 0 1.5rem ${pointsColor}`,
-                      animation: isNearCritical ? 'pulse 0.5s infinite' : 'none'
+                      textShadow: `0 0 1.5rem ${pointsColor}`
                     }}>
                       {availablePoints}
                     </div>
@@ -162,8 +160,7 @@ export function QuizDisplay({
                     marginTop: '0.5rem',
                     fontSize: '1.2rem',
                     color: '#fbbf24',
-                    fontWeight: 'bold',
-                    animation: 'pulse 0.5s infinite'
+                    fontWeight: 'bold'
                   }}>
                     ⚠️ Palier à 5s !
                   </div>
@@ -174,8 +171,7 @@ export function QuizDisplay({
                     marginTop: '0.5rem',
                     fontSize: '1.2rem',
                     color: '#ef4444',
-                    fontWeight: 'bold',
-                    animation: 'pulse 0.5s infinite'
+                    fontWeight: 'bold'
                   }}>
                     ⚠️ Palier à 15s !
                   </div>
@@ -224,7 +220,10 @@ export function QuizDisplay({
                   borderRadius: '1.5rem',
                   padding: '2rem',
                   textAlign: 'center',
-                  transition: 'all 0.3s',
+                  // Pas de `transition: all` : elle animait le box-shadow et la
+                  // couleur de fond a chaque revelation. La revelation est un
+                  // evenement discret, un basculement net suffit.
+                  transition: 'transform 0.3s ease',
                   boxShadow: showCorrect ? '0 0 1.5rem rgba(16, 185, 129, 0.6)' : 'none',
                   position: 'relative',
                   minHeight: '9rem',
@@ -271,8 +270,7 @@ export function QuizDisplay({
                             borderRadius: '50%',
                             objectFit: 'cover',
                             border: '0.15rem solid white',
-                            boxShadow: '0 0.125rem 0.5rem rgba(0, 0, 0, 0.3)',
-                            animation: 'fadeIn 0.3s ease-in'
+                            boxShadow: '0 0.125rem 0.5rem rgba(0, 0, 0, 0.3)'
                           }}
                         />
                       )

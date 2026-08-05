@@ -79,7 +79,11 @@ const PlayerAvatar = ({ player, buzzedPlayerKey, buzzedPlayerName }) => {
           borderRadius: '50%',
           objectFit: 'cover',
           ...getBorderStyle(),
-          transition: 'all 0.3s ease',
+          // `transition: all` animait aussi box-shadow, border et filter :
+          // trois proprietes qui repeignent a chaque frame, hors compositing.
+          // Le glow du buzz apparait desormais d'un coup — plus net comme
+          // retour immediat, et sans cout GPU sur The Frame.
+          transition: 'transform 0.3s ease, opacity 0.3s ease',
           filter: isInCooldown ? 'grayscale(50%)' : 'none'
         }}
       />
@@ -724,8 +728,7 @@ return (
         <h1 style={{
           fontSize: '5rem',
           marginBottom: '2rem',
-          color: '#fbbf24',
-          animation: 'pulse 2s infinite'
+          color: '#fbbf24'
         }}>
           🎉 PARTIE TERMINÉE ! 🎉
         </h1>
@@ -740,8 +743,7 @@ return (
               fontSize: '6rem',
               marginBottom: '2rem',
               color: winnerColor,
-              textShadow: `0 0 2rem ${winnerColor}`,
-              animation: 'bounce 1s infinite'
+              textShadow: `0 0 2rem ${winnerColor}`
             }}>
               {winner === 'team1' ? '🔴' : '🔵'} ÉQUIPE {winnerTeam} A GAGNÉ !
             </h2>
@@ -749,8 +751,7 @@ return (
             <div style={{
               fontSize: '4rem',
               fontWeight: 'bold',
-              marginBottom: '3rem',
-              animation: 'pulse 1.5s infinite'
+              marginBottom: '3rem'
             }}>
               {winner === 'team1' ? scores.team1 : scores.team2} points
             </div>
@@ -842,7 +843,9 @@ return (
         )}
       </div>
       
-      {/* Styles d'animation */}
+      {/* Styles d'animation — uniquement des entrees one-shot en
+          opacity/transform. Les `infinite` (bounce, pulse) ont ete retirees :
+          sur The Frame elles tournent en continu pour rien et saccadent. */}
       <style>{`
         @keyframes fadeInScale {
           from { opacity: 0; transform: scale(0.8); }
@@ -851,14 +854,6 @@ return (
         @keyframes fadeInUp {
           from { opacity: 0; transform: translateY(1.5rem); }
           to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes bounce {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-20px); }
-        }
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.7; }
         }
       `}</style>
     </div>
@@ -1024,7 +1019,10 @@ return (
             borderRadius: '50%',
             border: '0.15rem solid #22c55e',
             transform: 'translateX(-50%)',
-            transition: 'left 0.1s linear'
+            // Pas de transition sur `left` : le chrono repositionne deja le
+            // curseur ~10 fois par seconde, interpoler en plus declenchait un
+            // relayout a chaque frame pour un gain visuel nul a 3 metres.
+            transition: 'none'
           }} />
         </div>
         <div style={{
