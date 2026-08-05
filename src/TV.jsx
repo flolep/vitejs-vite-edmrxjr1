@@ -183,6 +183,13 @@ export default function TV() {
   const buzzerSoundRef = useRef(null);
   const previousAnswersCountRef = useRef(0);
 
+  // 📺 Mode TV : bascule la base rem en 10-foot (cf. `html.tv-mode` dans index.css).
+  // Scope strict a la route TV — Master et Buzzer ne doivent jamais porter la classe.
+  useEffect(() => {
+    document.documentElement.classList.add('tv-mode');
+    return () => document.documentElement.classList.remove('tv-mode');
+  }, []);
+
   // 🔊 Créer le son de buzzer (même son qu'en mode Équipe)
   useEffect(() => {
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
