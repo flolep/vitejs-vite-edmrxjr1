@@ -9,6 +9,8 @@ import { useBuzzerSession } from './hooks/buzzer/useBuzzerSession';
 import { useLastResponderAlert, useAlertVibration } from './hooks/buzzer/useLastResponderAlert';
 import LastResponderAlert from './components/buzzer/LastResponderAlert';
 import { isGameEnded } from './utils/gamePhase';
+import { useFinalReveal } from './hooks/buzzer/useFinalReveal';
+import FinalRevealButton from './components/buzzer/FinalRevealButton';
 import { calculatePoints } from './hooks/useScoring';
 import { NameScreen } from './components/buzzer/screens/NameScreen';
 import { SelectScreen } from './components/buzzer/screens/SelectScreen';
@@ -135,6 +137,16 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
     isPlaying
   );
   useAlertVibration(alertLevel);
+
+  // 🏆 Declenchement du classement final par le vainqueur.
+  // En mode quiz le vainqueur est la tete de quiz_leaderboard, soit rank 1 du
+  // mini-classement deja calcule ici. Le Master revalide de son cote.
+  const finalReveal = useFinalReveal(
+    sessionId,
+    selectedPlayer?.id || `temp_${playerName}`,
+    selectedPlayer?.name || playerName,
+    liveRank?.rank === 1
+  );
 
   // État Debug Panel (uniquement visible en mode Test)
   const [showDebug, setShowDebug] = useState(false);
@@ -919,6 +931,13 @@ export default function BuzzerQuiz({ sessionIdFromRouter = null }) {
         {debugButton}
         {debugPanel}
         <LastResponderAlert level={alertLevel} />
+        <FinalRevealButton
+          canTrigger={finalReveal.canTrigger}
+          requestSent={finalReveal.requestSent}
+          isRequesting={finalReveal.isRequesting}
+          error={finalReveal.error}
+          onTrigger={finalReveal.requestFinalReveal}
+        />
         <QuizInterface
           selectedPlayer={selectedPlayer}
           playerName={playerName}

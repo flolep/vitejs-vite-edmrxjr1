@@ -75,6 +75,10 @@
         "quiz_next_song_request": {
           ".read": "root.child('sessions').child($sessionId).child('active').val() === true",
           ".write": "root.child('sessions').child($sessionId).child('active').val() === true"
+        },
+        "final_reveal_request": {
+          ".read": "root.child('sessions').child($sessionId).child('active').val() === true",
+          ".write": "auth != null && root.child('sessions').child($sessionId).child('active').val() === true"
         }
       }
     }

@@ -6,6 +6,8 @@ import { useBuzzerLocalStorage } from './hooks/buzzer/useBuzzerLocalStorage';
 import { useBuzzerCamera } from './hooks/buzzer/useBuzzerCamera';
 import { useBuzzerSession } from './hooks/buzzer/useBuzzerSession';
 import { isGameEnded } from './utils/gamePhase';
+import { useFinalReveal } from './hooks/buzzer/useFinalReveal';
+import FinalRevealButton from './components/buzzer/FinalRevealButton';
 import { NameScreen } from './components/buzzer/screens/NameScreen';
 import { SelectScreen } from './components/buzzer/screens/SelectScreen';
 import { PhotoScreen } from './components/buzzer/screens/PhotoScreen';
@@ -37,6 +39,7 @@ export default function BuzzerTeam({ sessionIdFromRouter = null }) {
   // États équipe
   const [team, setTeam] = useState(null);
   const [playerFirebaseKey, setPlayerFirebaseKey] = useState(null);
+  const [liveScores, setLiveScores] = useState({ team1: 0, team2: 0 });
 
   // États préférences
   const [playerAge, setPlayerAge] = useState('');
@@ -48,6 +51,33 @@ export default function BuzzerTeam({ sessionIdFromRouter = null }) {
   const [someoneBuzzed, setSomeoneBuzzed] = useState(false);
   const [buzzerEnabled, setBuzzerEnabled] = useState(true);
   const [cooldownEnd, setCooldownEnd] = useState(null);
+
+  // Scores en direct — sert a savoir si mon equipe est en tete pour le
+  // declenchement du classement final.
+  useEffect(() => {
+    if (!sessionValid || !sessionId) return;
+    const scoresRef = ref(database, `sessions/${sessionId}/scores`);
+    const unsubscribe = onValue(scoresRef, (snapshot) => {
+      setLiveScores(snapshot.val() || { team1: 0, team2: 0 });
+    });
+    return () => unsubscribe();
+  }, [sessionValid, sessionId]);
+
+  // 🏆 En mode equipe le bouton apparait chez TOUS les joueurs de l'equipe en
+  // tete, premier clic gagnant. En cas d'egalite, personne n'est « en tete » :
+  // on l'affiche alors des deux cotes plutot que de bloquer la partie, le
+  // resultat etant de toute facon un match nul.
+  const isLeadingTeam = team !== null && (
+    liveScores.team1 === liveScores.team2 ||
+    (team === 1 ? liveScores.team1 > liveScores.team2 : liveScores.team2 > liveScores.team1)
+  );
+
+  const finalReveal = useFinalReveal(
+    sessionId,
+    selectedPlayer?.id || `temp_${playerName}`,
+    selectedPlayer?.name || playerName,
+    isLeadingTeam
+  );
 
   // ========== GAME END DETECTION ==========
   useEffect(() => {
@@ -603,6 +633,13 @@ export default function BuzzerTeam({ sessionIdFromRouter = null }) {
 
     return (
       <div className={`${bgClass} flex-center`} style={{ minHeight: '100vh' }}>
+        <FinalRevealButton
+          canTrigger={finalReveal.canTrigger}
+          requestSent={finalReveal.requestSent}
+          isRequesting={finalReveal.isRequesting}
+          error={finalReveal.error}
+          onTrigger={finalReveal.requestFinalReveal}
+        />
         <div className="text-center" style={{ padding: '2rem', maxWidth: '600px', width: '100%' }}>
 
           {/* Bouton Quitter */}

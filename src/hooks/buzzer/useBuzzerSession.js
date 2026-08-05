@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { database } from '../../firebase';
 import { ref, onValue } from 'firebase/database';
+import { ensureAnonymousAuth } from '../../utils/buzzerAuth';
 
 /**
  * Hook pour gérer la validation et l'écoute de la session Firebase
@@ -14,6 +15,13 @@ export function useBuzzerSession(sessionIdFromProps = null) {
   const [playMode, setPlayMode] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
+
+  // Authentification anonyme au plus tot : `final_reveal_request` exige
+  // `auth != null`. Sans elle, le bouton du vainqueur echoue en
+  // PERMISSION_DENIED. Le reste du buzzer fonctionne sans.
+  useEffect(() => {
+    ensureAnonymousAuth();
+  }, []);
 
   // Récupérer le sessionId depuis l'URL au chargement (sauf si fourni en props)
   useEffect(() => {

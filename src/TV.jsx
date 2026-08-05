@@ -163,6 +163,8 @@ export default function TV() {
   // NOUVEAU : État de fin de partie
   const [gameEnded, setGameEnded] = useState(false);
   const [lastReveal, setLastReveal] = useState(false); // derniere question revelee
+  const [finalRevealDeadline, setFinalRevealDeadline] = useState(null);
+  const [finalRevealSecondsLeft, setFinalRevealSecondsLeft] = useState(null);
   const [winner, setWinner] = useState(null);
   const [fastestBuzz, setFastestBuzz] = useState(null);
 
@@ -385,6 +387,36 @@ export default function TV() {
     });
     return () => unsubscribe();
   }, [gameEnded, sessionValid, sessionId]);
+
+  // ⏱️ Compte a rebours du classement final.
+  // La TV LIT l'echeance publiee par le Master, elle ne declenche rien : le
+  // timer qui fait foi est celui du Master (source de verite unique). Si la TV
+  // portait son propre timer, on aurait deux declencheurs concurrents.
+  useEffect(() => {
+    if (!sessionValid || !sessionId) return;
+    const deadlineRef = ref(database, `sessions/${sessionId}/final_reveal_deadline`);
+    const unsubscribe = onValue(deadlineRef, (snapshot) => {
+      setFinalRevealDeadline(snapshot.val() || null);
+    });
+    return () => unsubscribe();
+  }, [sessionValid, sessionId]);
+
+  useEffect(() => {
+    if (!finalRevealDeadline || !lastReveal) {
+      setFinalRevealSecondsLeft(null);
+      return;
+    }
+
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((finalRevealDeadline - Date.now()) / 1000));
+      // Visible uniquement sur les 10 dernieres secondes : avant, le decompte
+      // ferait passer une attente normale pour un compte a rebours anxiogene.
+      setFinalRevealSecondsLeft(remaining <= 10 ? remaining : null);
+    };
+    tick();
+    const interval = setInterval(tick, 500);
+    return () => clearInterval(interval);
+  }, [finalRevealDeadline, lastReveal]);
 
   // Le chrono est maintenant géré par Master, TV ne fait que lire
   // (Ce useEffect a été supprimé car il créait des conflits)
@@ -885,6 +917,11 @@ return (
         flexShrink: 0
       }}>
         🏁 Dernière question — classement final en attente
+        {finalRevealSecondsLeft !== null && (
+          <span style={{ marginLeft: '1rem', color: '#fff' }}>
+            · affichage automatique dans {finalRevealSecondsLeft} s
+          </span>
+        )}
       </div>
     )}
 
