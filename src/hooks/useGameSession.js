@@ -6,7 +6,23 @@ import { ref, set, onValue } from 'firebase/database';
  * Hook pour gérer la session de jeu (scores, chrono, état de lecture)
  * Logique commune à tous les modes
  */
-export function useGameSession(sessionId) {
+/**
+ * @param {string} sessionId
+ * @param {boolean} chronoFrozen
+ *   Fige le chrono meme si la musique tourne.
+ *
+ *   ⚠️ POINT CRITIQUE — « lecture audio » et « chrono de scoring » sont deux
+ *   choses distinctes. Depuis que la musique continue apres la revelation
+ *   (pour qu'on puisse enfin ecouter la chanson), le chrono ne doit PLUS
+ *   suivre `isPlaying` aveuglement : il continuerait de monter et les points
+ *   disponibles affiches s'effondreraient apres la revelation. Pire, un
+ *   chrono gonfle serait relu comme temps de reponse a la question suivante
+ *   si la remise a zero tardait.
+ *
+ *   Le chrono mesure le temps de reponse a la question. Il s'arrete donc a la
+ *   revelation, quoi que fasse la lecture audio.
+ */
+export function useGameSession(sessionId, chronoFrozen = false) {
   const [scores, setScores] = useState({ team1: 0, team2: 0 });
   const [currentChrono, setCurrentChrono] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -105,11 +121,13 @@ export function useGameSession(sessionId) {
     }
   }, [sessionId]);
 
-  // Mettre à jour le chrono toutes les 100ms quand la musique joue
+  // Mettre à jour le chrono toutes les 100ms quand la musique joue ET que la
+  // question est encore en cours. `chronoFrozen` decouple le chrono de la
+  // lecture audio : apres revelation la musique peut continuer, le chrono non.
   useEffect(() => {
     if (!sessionId) return;
     let interval;
-    if (isPlaying) {
+    if (isPlaying && !chronoFrozen) {
       interval = setInterval(() => {
         setCurrentChrono(prev => {
           const newChrono = parseFloat((prev + 0.1).toFixed(1));
@@ -122,7 +140,7 @@ export function useGameSession(sessionId) {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isPlaying, sessionId]);
+  }, [isPlaying, sessionId, chronoFrozen]);
 
   // Fonctions de mise à jour
   const updateScores = (newScores) => {
