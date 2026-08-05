@@ -7,7 +7,7 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { QRCodeSVG } from 'qrcode.react';
 import { deactivatePreviousSession } from './utils/sessionCleanup';
 import { getSessionCode } from './utils/sessionUtils';
-import { GAME_PHASES } from './utils/gamePhase';
+import { GAME_PHASES, resolveGamePhase } from './utils/gamePhase';
 
 // Import des hooks
 import { useGameSession } from './hooks/useGameSession';
@@ -1037,10 +1037,20 @@ export default function Master({
   /**
    * Ecrit la phase courante. update() et non set() : le noeud game_status
    * porte aussi winner, final_scores et ended.
+   *
+   * 'ended' est un etat terminal : on ne le quitte que par un reset explicite
+   * (MasterFlowContainer). Sans cette garde, un Master remonte sur une partie
+   * deja terminee — dont la derniere piste est revelee — reecrirait
+   * 'last_reveal' par-dessus 'ended', et la TV interpreterait ce retour en
+   * arriere comme un reset et se rechargerait en boucle.
    */
   const writePhase = async (phase) => {
     if (!sessionId) return;
     const gameStatusRef = ref(database, `sessions/${sessionId}/game_status`);
+
+    const snap = await get(gameStatusRef);
+    if (resolveGamePhase(snap.val()) === GAME_PHASES.ENDED) return;
+
     await update(gameStatusRef, { phase, timestamp: Date.now() });
   };
 
