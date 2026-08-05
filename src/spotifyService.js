@@ -14,6 +14,11 @@ const SCOPES = [
   'user-modify-playback-state'
 ].join(' ');
 
+// Instance du Web Playback SDK, renseignee par initPlayer().
+// Le SDK expose setVolume/getVolume sur l'instance et non sur l'API REST :
+// sans cette reference, le service ne peut pas regler le volume.
+let playerInstance = null;
+
 export const spotifyService = {
   // Générer l'URL de connexion
   getAuthUrl() {
@@ -150,6 +155,9 @@ export const spotifyService = {
           volume: 0.8
         });
 
+        // Conserver l'instance pour setVolume/getVolume (cf. plus bas)
+        playerInstance = player;
+
         player.addListener('ready', ({ device_id }) => {
           console.log('✅ Player ready with device ID:', device_id);
           onReady(device_id);
@@ -285,5 +293,83 @@ export const spotifyService = {
     }
 
     return;
+  },
+
+  // ===== Volume =====
+  // Le volume passe par l'instance du Web Playback SDK, pas par l'API REST.
+  // Avant ce commit le seul reglage etait `volume: 0.8` a la construction du
+  // player : il n'y avait aucun moyen de le modifier ensuite.
+
+  isPlayerReady() {
+    return playerInstance !== null;
+  },
+
+  // Retourne le volume courant (0..1), ou null si le player n'est pas pret.
+  async getVolume() {
+    if (!playerInstance) return null;
+    try {
+      return await playerInstance.getVolume();
+    } catch (e) {
+      console.warn('⚠️ getVolume indisponible:', e.message);
+      return null;
+    }
+  },
+
+  // Regle le volume (0..1). Retourne true si applique.
+  async setVolume(volume) {
+    if (!playerInstance) return false;
+    const clamped = Math.min(1, Math.max(0, volume));
+    try {
+      await playerInstance.setVolume(clamped);
+      return true;
+    } catch (e) {
+      console.warn('⚠️ setVolume indisponible:', e.message);
+      return false;
+    }
+  },
+
+  // Baisse temporairement le volume puis le restaure — utilise pour que le
+  // beep de buzz ne soit pas noye sous la musique (deux chaines audio
+  // independantes : Web Audio pour le beep, SDK Spotify pour la musique).
+  //
+  // Reentrant : deux buzz rapproches ne doivent pas restaurer le volume a la
+  // valeur deja baissee. On memorise le volume d'origine une seule fois et on
+  // repousse la restauration.
+  async duckVolume(level = 0.4, durationMs = 150) {
+    if (!playerInstance) return;
+
+    if (duckState.timer) {
+      clearTimeout(duckState.timer);
+      duckState.timer = null;
+    }
+
+    if (duckState.originalVolume === null) {
+      const current = await this.getVolume();
+      // Si la lecture du volume echoue, on n'ose pas ducker : mieux vaut un
+      // beep noye qu'une musique bloquee a 40%.
+      if (current === null) return;
+      duckState.originalVolume = current;
+    }
+
+    const applied = await this.setVolume(level);
+    if (!applied) {
+      duckState.originalVolume = null;
+      return;
+    }
+
+    duckState.timer = setTimeout(async () => {
+      const toRestore = duckState.originalVolume;
+      duckState.timer = null;
+      duckState.originalVolume = null;
+      if (toRestore !== null) {
+        await spotifyService.setVolume(toRestore);
+      }
+    }, durationMs);
   }
+};
+
+// Etat du ducking, hors de l'objet pour rester prive
+const duckState = {
+  originalVolume: null,
+  timer: null
 };
