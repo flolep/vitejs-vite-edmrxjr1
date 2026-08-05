@@ -638,7 +638,10 @@ export default function TV() {
     return (
       <div style={{
         background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
-        minHeight: '100vh',
+        // 100% et non 100vh : le body porte deja le padding safe-area 2.5vh/2.5vw
+        // (cf. `html.tv-mode body` dans index.css). 100vh deborderait de 5vh.
+        height: '100%',
+        overflow: 'hidden',
         color: 'white',
         display: 'flex',
         alignItems: 'center',
@@ -694,7 +697,14 @@ export default function TV() {
 return (
     <div style={{
       background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
-      minHeight: '100vh',
+      // 100% et non 100vh : cf. padding safe-area du body (index.css).
+      // overflowY auto et non hidden ici : cet ecran empile des titres tres
+      // hauts (5-6rem) et le prix de la rapidite. En 26px de base il peut
+      // depasser les ~980px utiles — mieux vaut du contenu atteignable que
+      // du contenu rogne. Densite a revoir apres validation sur la TV.
+      height: '100%',
+      overflowY: 'auto',
+      overflowX: 'hidden',
       color: 'white',
       padding: '3rem',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -875,7 +885,10 @@ return (
   return (
   <div style={{
     background: `linear-gradient(135deg, ${COLORS.gradientStart} 0%, ${COLORS.gradientEnd} 50%, ${COLORS.gradientEnd} 100%)`,
-    minHeight: '100vh',
+    // 100% et non 100vh : le body porte le padding safe-area 2.5vh/2.5vw
+    // (index.css). Le navigateur Tizen garde sa barre d'URL : ~980px utiles.
+    height: '100%',
+    overflow: 'hidden',
     color: 'white',
     padding: '1.5rem 2rem',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -1031,10 +1044,13 @@ return (
       display: 'grid',
       gridTemplateColumns: '1fr 22rem',
       gap: '1.5rem',
-      flex: 1
+      flex: 1,
+      // minHeight 0 : sans ca la grille refuse de se compresser sous la taille
+      // de son contenu et fait deborder le wrapper en height 100%.
+      minHeight: 0
     }}>
       {/* ===== LEFT COLUMN: Instructions + Answer Cards ===== */}
-      <div>
+      <div style={{ minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
         {/* Instructions */}
         <div style={{ marginBottom: '1.5rem' }}>
           <h2 style={{
@@ -1350,13 +1366,16 @@ return (
       </div>
 
       {/* ===== RIGHT COLUMN: Buzzer Order + Leaderboard ===== */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minHeight: 0 }}>
         {/* Buzzer Order Panel */}
         <div style={{
           backgroundColor: COLORS.cardBg,
           borderRadius: '1rem',
           padding: '1.25rem',
-          flex: 1
+          flex: 1,
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column'
         }}>
           <div style={{
             display: 'flex',
@@ -1427,7 +1446,11 @@ return (
             display: 'flex',
             flexDirection: 'column',
             gap: '0.5rem',
-            maxHeight: '200px',
+            // Le panneau est desormais une colonne flex : la liste occupe la
+            // hauteur restante au lieu d'un maxHeight fixe (ex-200px) qui
+            // laissait du vide ou debordait selon la base rem.
+            flex: 1,
+            minHeight: 0,
             overflowY: 'auto'
           }}>
             {buzzOrder.map((player, index) => {
@@ -1597,10 +1620,12 @@ return (
             display: 'flex',
             flexDirection: 'column',
             gap: '0.5rem',
-            maxHeight: '180px',
+            maxHeight: '10rem',
             overflowY: 'auto'
           }}>
-            {quizLeaderboard.slice(0, 5).map((player, index) => {
+            {/* 4 entrees et non 5 : la hauteur utile tombe a ~980px sur le
+                navigateur Tizen une fois la base rem 10-foot appliquee. */}
+            {quizLeaderboard.slice(0, 4).map((player, index) => {
               const playerAnswer = playerAnswers.find(p => p.playerId === player.playerId);
               const currentSongPoints = playerAnswer?.isCorrect ? `+${playerAnswer?.points || 0} pts` : '+0 pt';
 

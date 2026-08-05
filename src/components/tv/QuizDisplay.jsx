@@ -61,14 +61,17 @@ export function QuizDisplay({
   return (
     <div style={{
       background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
-      minHeight: '100vh',
+      // 100% et non 100vh : le body porte le padding safe-area 2.5vh/2.5vw
+      // (cf. `html.tv-mode body` dans index.css).
+      height: '100%',
+      overflow: 'hidden',
       color: 'white',
       padding: '2rem',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
       display: 'flex'
     }}>
       {/* Zone principale */}
-      <div style={{ flex: 1, marginRight: '2rem' }}>
+      <div style={{ flex: 1, marginRight: '2rem', minWidth: 0, overflowY: 'auto' }}>
         {/* Titre */}
         <h1 style={{
           fontSize: '3rem',
@@ -476,8 +479,9 @@ export function QuizDisplay({
         backgroundColor: 'rgba(0, 0, 0, 0.4)',
         borderRadius: '1.5rem',
         padding: '1.5rem',
-        maxHeight: '100vh',
-        overflow: 'auto'
+        maxHeight: '100%',
+        flexShrink: 0,
+        overflowY: 'auto'
       }}>
         <h2 style={{
           fontSize: '2rem',
