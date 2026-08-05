@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { database } from './firebase';
 import { ref, onValue, set } from 'firebase/database';
 import { QRCodeSVG } from 'qrcode.react';
@@ -183,42 +183,15 @@ export default function TV() {
   const [songAnecdote, setSongAnecdote] = useState(null); // Anecdote de la chanson (source Trésor)
   const [tvPlaylist, setTvPlaylist] = useState([]); // Playlist complète pour accès aux IDs Trésor
 
-  // 🔊 Ref pour le son de buzzer en mode Quiz
-  const buzzerSoundRef = useRef(null);
-  const previousAnswersCountRef = useRef(0);
+  // 🔊 Le son de buzz est joue par le MASTER (device audio), plus par la TV :
+  // les deux sont dans la meme piece sur des sorties differentes, ce qui
+  // produisait deux beeps decales. Cf. services/buzzSounds.js.
 
   // 📺 Mode TV : bascule la base rem en 10-foot (cf. `html.tv-mode` dans index.css).
   // Scope strict a la route TV — Master et Buzzer ne doivent jamais porter la classe.
   useEffect(() => {
     document.documentElement.classList.add('tv-mode');
     return () => document.documentElement.classList.remove('tv-mode');
-  }, []);
-
-  // 🔊 Créer le son de buzzer (même son qu'en mode Équipe)
-  useEffect(() => {
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-
-    const playBuzzerSound = () => {
-      const now = audioContext.currentTime;
-      const osc1 = audioContext.createOscillator();
-      const gain1 = audioContext.createGain();
-
-      osc1.connect(gain1);
-      gain1.connect(audioContext.destination);
-
-      osc1.frequency.setValueAtTime(800, now);
-      osc1.frequency.exponentialRampToValueAtTime(400, now + 0.1);
-      osc1.type = 'sawtooth';
-
-      gain1.gain.setValueAtTime(0, now);
-      gain1.gain.linearRampToValueAtTime(0.5, now + 0.01);
-      gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
-
-      osc1.start(now);
-      osc1.stop(now + 0.3);
-    };
-
-    buzzerSoundRef.current = { play: playBuzzerSound };
   }, []);
 
   // Vérifier le code de session depuis l'URL
@@ -483,9 +456,6 @@ export default function TV() {
   useEffect(() => {
     if (!sessionValid || !sessionId || playMode !== 'quiz' || playingTrackNumber === null) return;
 
-    // Réinitialiser le compteur de réponses quand on change de chanson
-    previousAnswersCountRef.current = 0;
-
     const answersRef = ref(database, `sessions/${sessionId}/quiz_answers/${playingTrackNumber}`);
     const unsubscribe = onValue(answersRef, (snapshot) => {
       const answersData = snapshot.val();
@@ -503,16 +473,6 @@ export default function TV() {
         // Trier par temps de réponse
         answersList.sort((a, b) => a.time - b.time);
 
-        // 🔊 Jouer le son de buzzer si une nouvelle réponse est arrivée
-        const newAnswersCount = answersList.length;
-        if (newAnswersCount > previousAnswersCountRef.current && previousAnswersCountRef.current > 0) {
-          if (buzzerSoundRef.current) {
-            buzzerSoundRef.current.play();
-            console.log('🔊 [QUIZ] Buzzer joué pour nouvelle réponse');
-          }
-        }
-        previousAnswersCountRef.current = newAnswersCount;
-
         setQuizAnswers(answersList);
         setPlayerAnswers(answersList);
         setBuzzOrder(answersList);
@@ -520,7 +480,6 @@ export default function TV() {
         setQuizAnswers([]);
         setPlayerAnswers([]);
         setBuzzOrder([]);
-        previousAnswersCountRef.current = 0;
       }
     });
     return () => unsubscribe();

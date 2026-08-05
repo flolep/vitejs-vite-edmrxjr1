@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { database } from '../firebase';
 import { ref, set, remove, onValue, serverTimestamp } from 'firebase/database';
+import { playFinalBuzzSound, unlockBuzzSounds } from '../services/buzzSounds';
 
 /**
  * Hook pour gérer le système de buzzer
@@ -11,61 +12,17 @@ export function useBuzzer(sessionId, isPlaying, currentTrack, playlist, currentC
   const [buzzedPlayerKey, setBuzzedPlayerKey] = useState(null);
   const [buzzedPlayerName, setBuzzedPlayerName] = useState(null);
   const [buzzedPlayerPhoto, setBuzzedPlayerPhoto] = useState(null);
-  const audioContextRef = useRef(null);
   const buzzerSoundRef = useRef(null);
 
-  // Créer le son de buzzer
+  // Le son du buzz vit desormais dans services/buzzSounds.js : il est partage
+  // avec le beep du dernier buzz en mode quiz, pour qu'il n'existe qu'une
+  // seule definition de ce son.
   useEffect(() => {
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    audioContextRef.current = audioContext;
-
-    const playBuzzerSound = async () => {
-      // S'assurer que le contexte est actif (contournement autoplay policy)
-      if (audioContext.state === 'suspended') {
-        try {
-          await audioContext.resume();
-        } catch (e) {
-          console.error('Erreur reprise AudioContext:', e);
-        }
-      }
-
-      const now = audioContext.currentTime;
-      const osc1 = audioContext.createOscillator();
-      const gain1 = audioContext.createGain();
-
-      osc1.connect(gain1);
-      gain1.connect(audioContext.destination);
-
-      osc1.frequency.setValueAtTime(800, now);
-      osc1.frequency.exponentialRampToValueAtTime(400, now + 0.1);
-      osc1.type = 'sawtooth';
-
-      gain1.gain.setValueAtTime(0, now);
-      gain1.gain.linearRampToValueAtTime(0.5, now + 0.01);
-      gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
-
-      osc1.start(now);
-      osc1.stop(now + 0.3);
-    };
-
-    buzzerSoundRef.current = { play: playBuzzerSound };
-
-    return () => {
-      if (audioContext.state !== 'closed') {
-        audioContext.close();
-      }
-    };
+    buzzerSoundRef.current = { play: playFinalBuzzSound };
   }, []);
 
   const unlockAudioContext = async () => {
-    if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
-      try {
-        await audioContextRef.current.resume();
-        console.log('🔊 AudioContext Buzzer activé via interaction utilisateur');
-      } catch (e) {
-        console.error('❌ Echec activation AudioContext Buzzer:', e);
-      }
-    }
+    await unlockBuzzSounds();
   };
 
   // Écouter les buzz

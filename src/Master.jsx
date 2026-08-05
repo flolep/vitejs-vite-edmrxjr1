@@ -17,6 +17,8 @@ import { useMP3Mode } from './modes/useMP3Mode';
 import { useSpotifyAutoMode } from './modes/useSpotifyAutoMode';
 import { useSpotifyAIMode } from './modes/useSpotifyAIMode';
 import { useQuizMode } from './modes/useQuizMode';
+import { useBuzzBeep } from './hooks/useBuzzBeep';
+import { unlockBuzzSounds } from './services/buzzSounds';
 import { useSpotifyToken } from './contexts/SpotifyTokenContext';
 import { spotifyStorage, prefsStorage, sessionStorage_ } from './utils/storage';
 import { createPlayerAdapter } from './services/playerAdapter';
@@ -127,6 +129,15 @@ export default function Master({
   const spotifyAIMode = useSpotifyAIMode(spotifyToken, sessionId, musicSource, musicSource === 'spotify-ai');
 
   const quizMode = useQuizMode(sessionId, currentTrack, playlist);
+
+  // 🔊 Retour sonore des buzz — sur le Master, qui est le device audio.
+  // Beep uniforme a chaque reponse, son special sur la derniere.
+  useBuzzBeep(
+    quizMode.playerAnswers,
+    allQuizPlayers.length,
+    currentTrack,
+    playMode === 'quiz'
+  );
 
   // Créer le player adapter avec useMemo pour garantir la synchronisation
   // IMPORTANT: Doit être défini AVANT useBuzzer qui l'utilise comme dépendance
@@ -667,6 +678,8 @@ export default function Master({
       if (!isPlaying) {
         // Débloquer l'audio du buzzer sur interaction utilisateur
         unlockAudioContext();
+        // Idem pour les beeps de buzz (contexte distinct de celui de useBuzzer)
+        unlockBuzzSounds();
 
         // Activer les cooldowns en attente
         await activatePendingCooldowns();
