@@ -9,6 +9,7 @@ import { deactivatePreviousSession } from './utils/sessionCleanup';
 import { getSessionCode } from './utils/sessionUtils';
 import { GAME_PHASES, resolveGamePhase } from './utils/gamePhase';
 import { validateFinalRevealRequest } from './utils/finalRevealValidation';
+import { isChronoFrozen } from './utils/chronoGate';
 
 /**
  * Delai avant bascule automatique en 'ended' si personne ne declenche le
@@ -17,6 +18,13 @@ import { validateFinalRevealRequest } from './utils/finalRevealValidation';
  * partie — c'est une hypothese, pas une mesure.
  */
 const FINAL_REVEAL_TIMEOUT_MS = 45000;
+
+/**
+ * Delai avant passage automatique a la question suivante apres revelation.
+ * 90 s correspond au temps d'ecouter un refrain et de commenter. Remis a zero
+ * a chaque action du vainqueur. Valeur a reajuster apres une vraie partie.
+ */
+const NEXT_QUESTION_TIMEOUT_MS = 90000;
 
 // Import des hooks
 import { useGameSession } from './hooks/useGameSession';
@@ -82,6 +90,9 @@ export default function Master({
   const [showDropdown, setShowDropdown] = useState(false);
   const [gameEnded, setGameEnded] = useState(false);
   const [gamePhase, setGamePhase] = useState(null); // machine a etats game_status.phase
+  // Revelation de la question en cours (mode quiz). Sert a figer le chrono :
+  // la musique continue apres la revelation, le chrono de scoring non.
+  const [quizRevealed, setQuizRevealed] = useState(false);
   const [finalRevealDeadline, setFinalRevealDeadline] = useState(null);
   const [debugInfo, setDebugInfo] = useState('');
 
@@ -122,7 +133,7 @@ export default function Master({
     updateCurrentTrack,
     resetChrono,
     updateCurrentSong
-  } = useGameSession(sessionId);
+  } = useGameSession(sessionId, isChronoFrozen({ playMode, quizRevealed }));
 
   const {
     playlist,
@@ -392,6 +403,12 @@ export default function Master({
     const quizRef = ref(database, `sessions/${sessionId}/quiz`);
     const unsubscribe = onValue(quizRef, (snapshot) => {
       const quizData = snapshot.val();
+
+      // Source de verite du gel du chrono. Mise a jour inconditionnelle :
+      // quand resetQuiz() supprime le noeud a la question suivante, le chrono
+      // doit repartir.
+      setQuizRevealed(!!quizData?.revealed);
+
       // ✅ currentTrack commence à 1, donc accès tableau avec currentTrack - 1
       if (quizData && quizData.revealed && currentTrack !== null && playlist[currentTrack - 1]) {
         const track = playlist[currentTrack - 1];
@@ -881,20 +898,20 @@ export default function Master({
   };
 
   const revealAnswer = async () => {
-    // Arrêter la lecture (commun aux deux modes)
-    updateIsPlaying(false);
-    if (playerAdapter) {
-      await playerAdapter.pause();
-    }
-
-    // Mode Quiz : utiliser la logique spécifique
+    // Mode Quiz : la musique CONTINUE apres la revelation, c'est le moment
+    // d'ecoute. Le chrono, lui, est fige (cf. `chronoFrozen`).
     if (playMode === 'quiz') {
       quizMode.revealQuizAnswer();
       setDebugInfo('✅ Réponse révélée (Quiz)');
       return;
     }
 
-    // Mode Team (Logique existante)
+    // Mode Team (Logique existante) — comportement inchange : on coupe.
+    updateIsPlaying(false);
+    if (playerAdapter) {
+      await playerAdapter.pause();
+    }
+
     // Marquer le buzz comme incorrect
     await markBuzzAsWrong();
 
@@ -1200,6 +1217,120 @@ export default function Master({
 
     return () => unsubscribe();
   }, [sessionId, playMode]);
+
+  // ===== LECTURE PILOTEE PAR LE VAINQUEUR DE LA QUESTION =====
+  //
+  // Le vainqueur de la question (celui qui a deja le bouton « Continuer »)
+  // peut mettre la chanson en pause et la relancer depuis son buzzer. Le son
+  // sort du Master : le buzzer ne fait que demander.
+  //
+  // Compteur d'actions : sert a remettre a zero le timeout de 90 s. Toute
+  // action du vainqueur repousse la bascule automatique.
+  const [winnerActionCount, setWinnerActionCount] = useState(0);
+
+  useEffect(() => {
+    if (!sessionId || playMode !== 'quiz') return;
+
+    const requestRef = ref(database, `sessions/${sessionId}/quiz_playback_request`);
+    let isProcessing = false; // anti-double-traitement
+
+    const unsubscribe = onValue(requestRef, async (snapshot) => {
+      const requestData = snapshot.val();
+      if (!requestData || !requestData.timestamp || isProcessing) return;
+
+      isProcessing = true;
+
+      try {
+        await remove(requestRef);
+
+        // Valider que le demandeur est bien le vainqueur de la question.
+        // Sans ce controle, n'importe quel joueur pourrait couper la musique.
+        const quizSnap = await get(ref(database, `sessions/${sessionId}/quiz`));
+        const quizData = quizSnap.val();
+
+        if (!quizData?.revealed) {
+          console.warn('⚠️ Demande de lecture ignorée : question non révélée');
+          return;
+        }
+        if (quizData.nextSongTriggerPlayerId !== requestData.playerId) {
+          console.warn(
+            `🚫 Demande de lecture refusée — ${requestData.playerId} n'est pas le vainqueur de la question`
+          );
+          return;
+        }
+
+        // togglePlay() bascule play/pause. On ne l'appelle que si l'etat
+        // demande differe de l'etat courant, sinon un « play » alors que ca
+        // joue deja mettrait en pause.
+        const playingSnap = await get(ref(database, `sessions/${sessionId}/isPlaying`));
+        const currentlyPlaying = playingSnap.val() === true;
+        const wantPlaying = requestData.action === 'play';
+
+        if (currentlyPlaying !== wantPlaying && togglePlayRef.current) {
+          await togglePlayRef.current();
+        }
+
+        // Action du vainqueur : le timeout de 90 s repart de zero.
+        setWinnerActionCount(c => c + 1);
+        console.log(`▶️ Lecture ${requestData.action} demandée par le vainqueur`);
+      } catch (error) {
+        console.error('❌ Erreur traitement demande de lecture:', error);
+      } finally {
+        setTimeout(() => {
+          isProcessing = false;
+        }, 300);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [sessionId, playMode]);
+
+  // ===== TIMEOUT 90 s APRES REVELATION =====
+  //
+  // Filet de securite : si le vainqueur repose son telephone, la partie ne
+  // doit pas rester figee sur une question revelee. Timer porte par le MASTER
+  // uniquement (source de verite unique). Toute action du vainqueur —  play,
+  // pause — le remet a zero via winnerActionCount.
+  const nextQuestionTimerRef = useRef(null);
+  useEffect(() => {
+    const clearTimer = () => {
+      if (nextQuestionTimerRef.current) {
+        clearTimeout(nextQuestionTimerRef.current);
+        nextQuestionTimerRef.current = null;
+      }
+    };
+
+    const isLastTrack = playlist.length > 0 && currentTrack === playlist.length;
+    // Sur la derniere question c'est le timeout de 45 s (classement final) qui
+    // prend le relais : pas de « question suivante » a enchainer.
+    const shouldRun =
+      sessionId && playMode === 'quiz' && quizRevealed && !isLastTrack && !gameEnded;
+
+    if (!shouldRun) {
+      clearTimer();
+      if (sessionId && !quizRevealed) {
+        remove(ref(database, `sessions/${sessionId}/next_question_deadline`)).catch(() => {});
+      }
+      return clearTimer;
+    }
+
+    const deadline = Date.now() + NEXT_QUESTION_TIMEOUT_MS;
+    set(ref(database, `sessions/${sessionId}/next_question_deadline`), deadline).catch(() => {});
+
+    console.log(`⏱️ Question suivante automatique dans ${NEXT_QUESTION_TIMEOUT_MS / 1000} s`);
+    nextQuestionTimerRef.current = setTimeout(async () => {
+      console.log('⏱️ Personne n\'a continué — passage automatique à la question suivante');
+      try {
+        if (nextTrackRef.current) nextTrackRef.current();
+        await new Promise(resolve => setTimeout(resolve, 600));
+        if (togglePlayRef.current) await togglePlayRef.current();
+      } catch (e) {
+        console.error('❌ Passage automatique échoué:', e);
+      }
+    }, NEXT_QUESTION_TIMEOUT_MS);
+
+    return clearTimer;
+  }, [sessionId, playMode, quizRevealed, currentTrack, playlist.length, gameEnded, winnerActionCount]);
 
   // ===== TIMEOUT 45 s =====
   //
@@ -1671,23 +1802,14 @@ export default function Master({
                   correctAnswerIndex={quizMode.correctAnswerIndex}
                   playerAnswers={quizMode.playerAnswers}
                   allPlayers={allQuizPlayers}
-                  isPlaying={isPlaying}
                   currentTrack={currentTrack}
                   anonymousMode={anonymousMode}
                   onReveal={async () => {
-                    if (playerAdapter) {
-                      await playerAdapter.pause();
-                      updateIsPlaying(false);
-                    }
+                    // La musique n'est PLUS coupee a la revelation : c'est le
+                    // moment ou on veut ecouter la chanson. Le vainqueur de la
+                    // question la met en pause s'il le souhaite.
                     quizMode.revealQuizAnswer();
                     setDebugInfo('✅ Réponse révélée (Quiz)');
-                  }}
-                  onPause={async () => {
-                    if (playerAdapter) {
-                      await playerAdapter.pause();
-                      updateIsPlaying(false);
-                      setDebugInfo('⏸️ Pause automatique (tous ont répondu)');
-                    }
                   }}
                   isRevealed={currentSong?.revealed}
                 />
